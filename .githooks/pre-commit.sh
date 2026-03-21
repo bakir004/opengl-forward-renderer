@@ -1,17 +1,28 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-current_branch=$(git rev-parse --abbrev-ref HEAD)
+readonly HOOK_NAME="pre-commit"
+readonly RED='\033[31m'
+readonly YELLOW='\033[33m'
+readonly RESET='\033[0m'
 
-protected_pattern="^(main|develop)$"
+error() {
+    printf "\n${RED}[%s] ERROR:${RESET} %s\n" "${HOOK_NAME}" "$1"
+}
 
-if [[ $current_branch =~ $protected_pattern ]]; then
-    echo -e "\n\e[31m[ERROR] Direct commits to '$current_branch' are forbidden!\e[0m"
-    echo -e "This branch is protected. You must use a Feature Branch and a Pull Request."
-    echo -e "-------------------------------------------------------"
-    echo -e "\e[1mQuick Fix:\e[0m"
-    echo -e "  1. \e[33mgit stash\e[0m"
-    echo -e "  2. \e[33mgit checkout -b feature/your-task-name\e[0m"
-    echo -e "  3. \e[33mgit stash pop\e[0m"
-    echo -e "-------------------------------------------------------"
+info() {
+    printf "[%s] %s\n" "${HOOK_NAME}" "$1"
+}
+
+# Works in Linux/macOS and Windows Git Bash.
+current_branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || git rev-parse --abbrev-ref HEAD)"
+protected_pattern='^(main|develop)$'
+
+if [[ "${current_branch}" =~ ${protected_pattern} ]]; then
+    error "Direct commits to '${current_branch}' are forbidden."
+    info "This branch is protected. Use a feature branch and open a pull request."
+    info "Quick fix:"
+    info "  1. ${YELLOW}git stash push -u${RESET}"
+    info "  2. ${YELLOW}git switch -c feature/your-task-name${RESET} (or: git checkout -b feature/your-task-name)"
+    info "  3. ${YELLOW}git stash pop${RESET}"
     exit 1
 fi
