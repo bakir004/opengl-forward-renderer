@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-readonly HOOK_NAME="pre-commit"
+readonly HOOK_NAME="pre-rebase"
 
 if [[ -t 1 ]]; then
     readonly RED=$'\033[31m'
@@ -29,11 +29,8 @@ current_branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || git rev-p
 protected_pattern='^(main|develop)$'
 
 if [[ "${current_branch}" =~ ${protected_pattern} ]]; then
-    error "Direct commits to '${current_branch}' are forbidden."
-    info "This branch is protected. Use a feature branch and open a pull request."
-    info "Quick fix:"
-    info "  1. ${YELLOW}git stash push -u${RESET}"
-    info "  2. ${YELLOW}git switch -c feature/your-task-name${RESET} (or: git checkout -b feature/your-task-name)"
-    info "  3. ${YELLOW}git stash pop${RESET}"
+    error "Rebasing '${current_branch}' is forbidden."
+    info "Do rebase only on feature branches."
+    info "Create one with ${YELLOW}git switch -c feature/your-task-name${RESET}"
     exit 1
 fi

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 # --- Git Hooks Setup ---
@@ -8,17 +8,18 @@ HOOK_DEST_DIR=".git/hooks"
 if [ -d ".git" ]; then
     if [ -d "$HOOK_SRC_DIR" ]; then
         echo "Installing Git hooks from $HOOK_SRC_DIR..."
-        
-        # Loop through every file in your local hooks folder
-        for hook_path in "$HOOK_SRC_DIR"/*; do
+
+        # Install all bash hooks from .githooks
+        for hook_path in "$HOOK_SRC_DIR"/*.sh; do
+            [ -e "$hook_path" ] || break
             # Get just the filename (e.g., commit-msg-hook.sh -> commit-msg)
             # We strip the directory and the .sh extension for Git to recognize it
             hook_file=$(basename "$hook_path" .sh)
-            
+
             # Copy to .git/hooks and make executable
             cp "$hook_path" "$HOOK_DEST_DIR/$hook_file"
             chmod +x "$HOOK_DEST_DIR/$hook_file"
-            
+
             echo " -> Installed $hook_file"
         done
         echo "All hooks installed successfully."
