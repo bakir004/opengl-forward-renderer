@@ -1,0 +1,16 @@
+{
+  "window": {
+    "width": 1280,
+    "height": 720,
+    "vsync": true
+  },
+  "logging": {
+    "level": "debug"
+  },
+  "paths": {
+    "asset_root": "assets/"
+  },
+  "debug": {
+    "gl_errors": true
+  }
+}
