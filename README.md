@@ -4,6 +4,7 @@
 
 > For contributors, see [Git Workflow Guide](./GITFLOW.md)
 
+
 ## Quick start
 
 Pull the repo locally and run the executable `build.sh` on Linux or `build.bat` on Windows.
