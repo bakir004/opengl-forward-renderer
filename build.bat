@@ -1,6 +1,20 @@
 @echo off
 setlocal
 
+@echo off
+SET HOOK_DEST=.git\hooks\commit-msg
+SET HOOK_SRC=.githooks\commit-msg-hook.ps1
+
+IF EXIST .git (
+    echo Installing Git hooks for Windows...
+    :: Create a wrapper that calls PowerShell
+    echo @echo off > %HOOK_DEST%
+    echo powershell -ExecutionPolicy Bypass -File "%CD%\%HOOK_SRC%" "%%1" >> %HOOK_DEST%
+    echo Hooks installed successfully.
+) ELSE (
+    echo Warning: .git directory not found. Skipping hook installation.
+)
+
 set BUILD_DIR=build
 set CONFIG=%1
 if "%CONFIG%"=="" set CONFIG=Debug
