@@ -1,11 +1,6 @@
 #!/bin/bash
 
-# 1. BRANCH NAME CHECK
-# Get the current branch name
 current_branch=$(git rev-parse --abbrev-ref HEAD)
-
-# Allowed branch prefixes
-# main and develop are exempt from the prefix rule
 branch_pattern="^(main|develop|((feature|bugfix|hotfix|docs|refactor|test)\/[a-z0-9-]+))$"
 
 if [[ ! $current_branch =~ $branch_pattern ]]; then
@@ -17,7 +12,6 @@ if [[ ! $current_branch =~ $branch_pattern ]]; then
     exit 1
 fi
 
-# 2. COMMIT MESSAGE CHECK
 commit_msg=$(cat "$1")
 types="feat|fix|docs|style|refactor|perf|test|build|ci|chore|hotfix"
 msg_pattern="^($types)(\([a-z0-9-]+\))?: .+"
