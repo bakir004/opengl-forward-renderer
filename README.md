@@ -1,8 +1,13 @@
 # Modern OpenGL Forward Renderer
 
+### GitFlow
+
+> For contributors, see [Git Workflow Guide](./GITFLOW.md)
+
+
 ## Quick start
 
-Pull the repo locally and run the executable `build.sh` on Linux or `build.bat` on Windows. 
+Pull the repo locally and run the executable `build.sh` on Linux or `build.bat` on Windows.
 This will let CMake download the necessary dependencies and build the project.
 
 If you do not have CMake installed, please visit the [CMake website](https://cmake.org/download/) to download and install it.
