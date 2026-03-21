@@ -14,6 +14,10 @@ info() {
     printf "[%s] %s\n" "${HOOK_NAME}" "$1"
 }
 
+if [[ "${BYPASS_GITFLOW_HOOKS:-0}" == "1" ]] || [[ "$(git config --bool --get hooks.gitflow.enabled 2>/dev/null)" == "false" ]]; then
+    exit 0
+fi
+
 # Works in Linux/macOS and Windows Git Bash.
 current_branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || git rev-parse --abbrev-ref HEAD)"
 branch_pattern='^(main|develop|((feature|bugfix|hotfix|docs|refactor|test)/[a-z0-9-]+))$'
@@ -30,6 +34,12 @@ fi
 # Read first line only, strip possible CR from CRLF files (common on Windows).
 IFS= read -r commit_msg < "$1"
 commit_msg="${commit_msg%$'\r'}"
+
+if [[ "${commit_msg}" =~ ^Merge[[:space:]] ]]; then
+    error "Merge commits are forbidden in this repository workflow."
+    info "Use feature branches and pull requests instead of local ${YELLOW}git merge${RESET}."
+    exit 1
+fi
 
 types='feat|fix|docs|style|refactor|perf|test|build|ci|chore|hotfix'
 msg_pattern="^(${types})(\\([a-z0-9-]+\\))?: .+"
