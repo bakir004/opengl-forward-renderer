@@ -14,7 +14,6 @@ if [[ ! $current_branch =~ $branch_pattern ]]; then
 fi
 # wtf
 
-
 commit_msg=$(cat "$1")
 types="feat|fix|docs|style|refactor|perf|test|build|ci|chore|hotfix"
 msg_pattern="^($types)(\([a-z0-9-]+\))?: .+"
