@@ -50,8 +50,22 @@ jobs:
       run: ctest --build-config ${{ matrix.build_type }} --output-on-failure
       continue-on-error: true
 
-    - name: Upload Build Artifacts
-      uses: actions/checkout@v4
+    - name: Upload Build Artifacts (Linux)
+      if: runner.os == 'Linux'
+      uses: actions/upload-artifact@v4
       with:
-        name: ForwardRenderer-${{ matrix.os }}
-        path: ${{ steps.strings.outputs.build-output-dir }}/ForwardRenderer*
+        name: ForwardRenderer-${{ matrix.os }}-${{ matrix.build_type }}
+        path: |
+          build/ForwardRenderer
+          build/compile_commands.json
+        if-no-files-found: error
+
+    - name: Upload Build Artifacts (Windows)
+      if: runner.os == 'Windows'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ForwardRenderer-${{ matrix.os }}-${{ matrix.build_type }}
+        path: |
+          build/${{ matrix.build_type }}/ForwardRenderer.exe
+          build/compile_commands.json
+        if-no-files-found: error
