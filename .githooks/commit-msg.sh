@@ -12,6 +12,7 @@ if [[ ! $current_branch =~ $branch_pattern ]]; then
     echo -e "  \e[33mgit branch -m <category>/<description>\e[0m"
     exit 1
 fi
+# wtf
 
 commit_msg=$(cat "$1")
 types="feat|fix|docs|style|refactor|perf|test|build|ci|chore|hotfix"
