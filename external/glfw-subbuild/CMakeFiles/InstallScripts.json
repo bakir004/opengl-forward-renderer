@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/bax/Desktop/opengl/external/glfw-subbuild/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
