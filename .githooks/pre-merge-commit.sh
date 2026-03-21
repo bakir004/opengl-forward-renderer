@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 
 readonly HOOK_NAME="pre-merge-commit"
-readonly RED='\033[31m'
-readonly YELLOW='\033[33m'
-readonly RESET='\033[0m'
+
+if [[ -t 1 ]]; then
+    readonly RED=$'\033[31m'
+    readonly YELLOW=$'\033[33m'
+    readonly RESET=$'\033[0m'
+else
+    readonly RED=""
+    readonly YELLOW=""
+    readonly RESET=""
+fi
 
 error() {
     printf "\n${RED}[%s] ERROR:${RESET} %s\n" "${HOOK_NAME}" "$1"
