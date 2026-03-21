@@ -7,15 +7,11 @@ if [[ ! $current_branch =~ $branch_pattern ]]; then
     echo -e "\n\e[31m[ERROR] Invalid branch name: '$current_branch'\e[0m"
     echo -e "Branches must start with a category prefix."
     echo -e "Allowed prefixes: \e[32mfeature/, bugfix/, hotfix/, docs/, refactor/, test/\e[0m"
-    echo -e "Example: \e[32mfeature/frustum-culling\e[0m"
-    echo -e "-------------------------------------------------------"
-    echo -e "\e[1mHow to fix this:\e[0m"
+    echo -e "Example: \e[32mfeature/frustum-culling\e[0m\n"
     echo -e "Run the following command to rename your current branch:"
     echo -e "  \e[33mgit branch -m <category>/<description>\e[0m"
-    echo -e "-------------------------------------------------------"
     exit 1
 fi
-
 
 commit_msg=$(cat "$1")
 types="feat|fix|docs|style|refactor|perf|test|build|ci|chore|hotfix"
