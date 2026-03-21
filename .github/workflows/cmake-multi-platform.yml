@@ -9,16 +9,16 @@ on:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
-    
+
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
         build_type: [Debug, Release]
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install Linux dependencies
       if: runner.os == 'Linux'
       run: |
@@ -36,16 +36,22 @@ jobs:
           libxinerama-dev \
           libxcursor-dev \
           libxi-dev
-    
+
     - name: Configure CMake
       run: |
         cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-    
+
     - name: Build
       run: |
         cmake --build build --config ${{ matrix.build_type }} --parallel
-    
+
     - name: Test (if CTest is configured)
       working-directory: build
       run: ctest --build-config ${{ matrix.build_type }} --output-on-failure
       continue-on-error: true
+
+    - name: Upload Build Artifacts
+      uses: actions/checkout@v4
+      with:
+        name: ForwardRenderer-${{ matrix.os }}
+        path: ${{ steps.strings.outputs.build-output-dir }}/ForwardRenderer*
