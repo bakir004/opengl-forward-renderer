@@ -1,7 +1,6 @@
 #!/bin/bash
 
 current_branch=$(git rev-parse --abbrev-ref HEAD)
-
 branch_pattern="^(main|develop|((feature|bugfix|hotfix|docs|refactor|test)\/[a-z0-9-]+))$"
 
 if [[ ! $current_branch =~ $branch_pattern ]]; then
@@ -10,8 +9,13 @@ if [[ ! $current_branch =~ $branch_pattern ]]; then
     echo -e "Allowed prefixes: \e[32mfeature/, bugfix/, hotfix/, docs/, refactor/, test/\e[0m"
     echo -e "Example: \e[32mfeature/frustum-culling\e[0m"
     echo -e "-------------------------------------------------------"
+    echo -e "\e[1mHow to fix this:\e[0m"
+    echo -e "Run the following command to rename your current branch:"
+    echo -e "  \e[33mgit branch -m <category>/<description>\e[0m"
+    echo -e "-------------------------------------------------------"
     exit 1
 fi
+
 
 commit_msg=$(cat "$1")
 types="feat|fix|docs|style|refactor|perf|test|build|ci|chore|hotfix"
