@@ -1,0 +1,11 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/bax/Desktop/opengl/build/cmake_install.cmake",
+		"/home/bax/Desktop/opengl/external/glfw-build/cmake_install.cmake",
+		"/home/bax/Desktop/opengl/external/glfw-build/src/cmake_install.cmake",
+		"/home/bax/Desktop/opengl/external/spdlog-build/cmake_install.cmake",
+		"/home/bax/Desktop/opengl/external/json-build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

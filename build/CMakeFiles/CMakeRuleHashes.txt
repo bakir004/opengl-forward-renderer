@@ -1,0 +1,21 @@
+# Hashes of file build rules.
+cb4e8ef431bde7478afd0aedaad1a074 /home/bax/Desktop/opengl/external/glfw-build/CMakeFiles/uninstall
+4f5dc7f3d57dea98165b3e2cc6b4886f /home/bax/Desktop/opengl/external/glfw-build/src/CMakeFiles/update_mappings
+b861b6bbb9ce0433316279d0ec1b1875 /home/bax/Desktop/opengl/external/glfw-build/src/fractional-scale-v1-client-protocol-code.h
+68f1612802a94cce52d17a2eb25969a1 /home/bax/Desktop/opengl/external/glfw-build/src/fractional-scale-v1-client-protocol.h
+2fc9e45074235f548decd040af8d8439 /home/bax/Desktop/opengl/external/glfw-build/src/idle-inhibit-unstable-v1-client-protocol-code.h
+93656dc9c55c42f69989254c68785d60 /home/bax/Desktop/opengl/external/glfw-build/src/idle-inhibit-unstable-v1-client-protocol.h
+9eab5bc3c4395506bfe4ed55b373b3fb /home/bax/Desktop/opengl/external/glfw-build/src/pointer-constraints-unstable-v1-client-protocol-code.h
+5944930c49bf68e4dafccf301ecd48c4 /home/bax/Desktop/opengl/external/glfw-build/src/pointer-constraints-unstable-v1-client-protocol.h
+7ace1a3c616d0ec3e8be387265c039ec /home/bax/Desktop/opengl/external/glfw-build/src/relative-pointer-unstable-v1-client-protocol-code.h
+0bf59678a907c25de892c74ffcc87c22 /home/bax/Desktop/opengl/external/glfw-build/src/relative-pointer-unstable-v1-client-protocol.h
+b5c617a58f8f46d1d1d73d743d15b8d2 /home/bax/Desktop/opengl/external/glfw-build/src/viewporter-client-protocol-code.h
+845ff9613f6cb42d9e090f5c22879076 /home/bax/Desktop/opengl/external/glfw-build/src/viewporter-client-protocol.h
+c8eac2a83bbc19420b4a7050f999f83c /home/bax/Desktop/opengl/external/glfw-build/src/wayland-client-protocol-code.h
+94695f49270db44b1129b895921f6bc8 /home/bax/Desktop/opengl/external/glfw-build/src/wayland-client-protocol.h
+753f7ed69f1f7a6c27d6a8b85d4c1b19 /home/bax/Desktop/opengl/external/glfw-build/src/xdg-activation-v1-client-protocol-code.h
+a83d411448ddd06f4d8a85db43509ab3 /home/bax/Desktop/opengl/external/glfw-build/src/xdg-activation-v1-client-protocol.h
+55019ab78b9a8436e1babdf08bdc773a /home/bax/Desktop/opengl/external/glfw-build/src/xdg-decoration-unstable-v1-client-protocol-code.h
+7e5655422599968622984e964a0249a0 /home/bax/Desktop/opengl/external/glfw-build/src/xdg-decoration-unstable-v1-client-protocol.h
+e742328e015edd017c02d575b6041a4b /home/bax/Desktop/opengl/external/glfw-build/src/xdg-shell-client-protocol-code.h
+a0e1d3f88c2cc48dfc5cdfa4d1dea1d3 /home/bax/Desktop/opengl/external/glfw-build/src/xdg-shell-client-protocol.h
