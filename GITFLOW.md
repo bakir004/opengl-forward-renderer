@@ -4,9 +4,9 @@ This repository uses enforced Git hooks to keep history clean and consistent.
 
 ## Branch Strategy
 
-- Protected branches: `main`, `develop`
+- Protected branches: `main`, `dev`
 - Do not commit directly to protected branches.
-- Create topic branches from `develop` using:
+- Create topic branches from `dev` using:
   - `feature/<name>`
   - `bugfix/<name>`
   - `hotfix/<name>`
@@ -46,30 +46,30 @@ Examples:
 
 ## Forbidden Operations (Enforced)
 
-- Direct commits on `main` or `develop`
+- Direct commits on `main` or `dev`
 - Merge commits (`git merge`) in local workflow
-- Rebasing while on `main` or `develop`
+- Rebasing while on `main` or `dev`
 - Non-compliant branch names
 - Non-compliant commit messages
 
 ## Daily Flow
 
-1. Update local `develop`
-   - `git switch develop`
+1. Update local `dev`
+   - `git switch dev`
    - `git pull`
 2. Create a working branch
    - `git switch -c feature/your-task-name`
 3. Work and commit
    - `git add .`
    - `git commit -m "feat(scope): description"`
-4. Push and open PR to `develop`
+4. Push and open PR to `dev`
    - `git push -u origin HEAD`
 5. Merge through PR (no local merge commits)
 6. Delete branch locally and remotely
    - `git branch -d feature/your-task-name`
    - `git push origin --delete feature/your-task-name`
 
-## If You Accidentally Committed on `develop` or `main`
+## If You Accidentally Committed on `dev` or `main`
 
 - `git stash push -u`
 - `git switch -c feature/your-task-name`

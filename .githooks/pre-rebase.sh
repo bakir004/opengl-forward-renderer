@@ -26,7 +26,7 @@ fi
 
 # Works in Linux/macOS and Windows Git Bash.
 current_branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || git rev-parse --abbrev-ref HEAD)"
-protected_pattern='^(main|develop)$'
+protected_pattern='^(main|dev)$'
 
 if [[ "${current_branch}" =~ ${protected_pattern} ]]; then
     error "Rebasing '${current_branch}' is forbidden."
