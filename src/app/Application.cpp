@@ -1,9 +1,9 @@
 #include "Application.h"
+#include "../utils/Options.h"
 #include "../core/Renderer.h"
 #include <GLFW/glfw3.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
-#include <fstream>
 
 static void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     auto app = static_cast<Application*>(glfwGetWindowUserPointer(window));
@@ -14,30 +14,27 @@ Application::Application() : m_renderer(std::make_unique<Renderer>()) {}
 Application::~Application() = default;
 
 bool Application::Initialize() {
-    std::ifstream f("config/settings.json");
-    if (!f.is_open()) { spdlog::error("Failed to open config/settings.json"); return false; }
-    const auto cfg = nlohmann::json::parse(f);
-
     if (!glfwInit()) { spdlog::error("glfwInit failed"); return false; }
 
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    Options options("config/settings.json");
+
 #ifndef NDEBUG
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 #endif
 
-    const int w = cfg["window"]["width"];
-    const int h = cfg["window"]["height"];
-    m_window = glfwCreateWindow(w, h, "Forward Renderer", nullptr, nullptr);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    m_window = glfwCreateWindow(options.window.width, options.window.height, options.window.title.c_str(), nullptr, nullptr);
     if (!m_window) { spdlog::error("glfwCreateWindow failed"); glfwTerminate(); return false; }
 
     glfwMakeContextCurrent(m_window);
     glfwSetWindowUserPointer(m_window, this);
     glfwSetFramebufferSizeCallback(m_window, framebuffer_size_callback);
-    glfwSwapInterval(cfg["window"]["vsync"] ? 1 : 0);
+    glfwSwapInterval(options.window.vsync ? 1 : 0);
 
-    return m_renderer->Initialize(cfg);
+    return m_renderer->Initialize();
 }
 
 void Application::Run() {

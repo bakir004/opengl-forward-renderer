@@ -36,6 +36,7 @@ add_executable(${PROJECT_NAME}
     src/app/main.cpp
     src/app/Application.cpp
     src/core/Renderer.cpp
+    src/utils/Options.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE src)

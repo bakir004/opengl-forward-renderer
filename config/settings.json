@@ -2,7 +2,8 @@
   "window": {
     "width": 1280,
     "height": 720,
-    "vsync": true
+    "vsync": true,
+    "title": "Forward Renderer"
   },
   "logging": {
     "level": "debug"
