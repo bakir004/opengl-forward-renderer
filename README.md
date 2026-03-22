@@ -31,6 +31,21 @@ To build this project, you need **CMake (3.26+)** and a **C++ compiler**. On Lin
 
 > **Note for Linux Users:** Even though the build script fetches C++ libraries (GLFW, spdlog, JSON) automatically, the system-level development headers listed above must be installed via your package manager first.
 
+> **Note for Windows Users:** Verify that your C++ toolchain is correctly detected by your IDE or terminal.
+>
+> Ensure that your install's `bin/` directory is on your system PATH and that the following are recognized in `cmd.exe`:
+> - `g++ --version`
+> - `mingw32-make --version`
+> - `cmake --version`
+>
+> If these commands are not recognized, the build script will fail with:
+> `Error: No supported C/C++ toolchain detected.`
+>
+> Also ensure that your CMake generator is consistent. If you encounter an error like:
+> `Does not match the generator used previously: Ninja`
+>
+> Delete the `build/` or `cmake-build-*` directory and rebuild.
+
 ### IDE / LSP Support
 For the best experience in **Neovim (clangd)** or **VS Code**, the build script generates a `compile_commands.json` in the `build/` directory.
 You should symlink this to the project root so your LSP can find the headers:
