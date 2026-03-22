@@ -13,6 +13,10 @@ This will let CMake download the necessary dependencies and build the project.
 If you do not have CMake installed, please visit the [CMake website](https://cmake.org/download/) to download and install it.
 Alternatively, install it via the package manager of your choice.
 
+### Caution
+- When opening the project in Visual Studio Code, the local terminal may open in the /build folder, instead of the root folder. From here, the actual build of the project will not succeed. To fix this, make sure to return to the root folder with `cd ..`.
+
+
 ### Prerequisites
 
 To build this project, you need **CMake (3.26+)** and a **C++ compiler**. On Linux, you also need the development headers for X11/Wayland and OpenGL that GLFW requires to compile from source.
