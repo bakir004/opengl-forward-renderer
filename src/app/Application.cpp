@@ -11,7 +11,11 @@ static void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 }
 
 Application::Application() : m_renderer(std::make_unique<Renderer>()) {}
-Application::~Application() = default;
+Application::~Application() {
+    m_renderer->Shutdown();
+    if (m_window) { glfwDestroyWindow(m_window); m_window = nullptr; }
+    glfwTerminate();
+}
 
 bool Application::Initialize() {
     if (!glfwInit()) { spdlog::error("glfwInit failed"); return false; }
@@ -43,10 +47,4 @@ void Application::Run() {
         m_renderer->RenderFrame();
         glfwSwapBuffers(m_window);
     }
-}
-
-void Application::Shutdown() {
-    m_renderer->Shutdown();
-    if (m_window) { glfwDestroyWindow(m_window); m_window = nullptr; }
-    glfwTerminate();
 }
