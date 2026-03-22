@@ -12,6 +12,6 @@ Options::Options(const std::string& config_path) {
         if (cfg.contains("window"))
             window = cfg.at("window").get<WindowOpts>();
     } catch (const std::exception& e) {
-        spdlog::error("JSON Error: {}. You are probably missing a required property in the settings.json or the JSON shape is invalid", e.what());
+        spdlog::error("JSON Error: {}. Check that required properties are present in the settings.json and that the JSON shape is valid", e.what());
     }
 }
