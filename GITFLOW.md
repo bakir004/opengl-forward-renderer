@@ -65,6 +65,9 @@ Examples:
 4. Push and open PR to `develop`
    - `git push -u origin HEAD`
 5. Merge through PR (no local merge commits)
+6. Delete branch locally and remotely
+   - `git branch -d feature/your-task-name`
+   - `git push origin --delete feature/your-task-name`
 
 ## If You Accidentally Committed on `develop` or `main`
 
