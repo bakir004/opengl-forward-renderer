@@ -38,3 +38,5 @@ You should symlink this to the project root so your LSP can find the headers:
 ```bash
 ln -s build/compile_commands.json .
 ```
+
+gas
