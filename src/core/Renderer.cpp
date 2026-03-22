@@ -10,7 +10,7 @@ static void APIENTRY gl_debug_callback(GLenum, GLenum, GLuint, GLenum severity, 
 }
 #endif
 
-bool Renderer::Initialize(const nlohmann::json&) {
+bool Renderer::Initialize() {
     if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress))) {
         spdlog::error("GLAD initialization failed");
         return false;

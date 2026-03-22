@@ -3,7 +3,7 @@
 
 class Renderer {
     public:
-        bool Initialize(const nlohmann::json& config);
+        bool Initialize();
         void RenderFrame();
         void Resize(int width, int height);
         void Shutdown();
