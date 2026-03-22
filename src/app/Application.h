@@ -10,7 +10,6 @@ class Application {
         ~Application();
         bool Initialize();
         void Run();
-        void Shutdown();
         Renderer* GetRenderer() const { return m_renderer.get(); }
 
     private:
