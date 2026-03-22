@@ -13,6 +13,7 @@ This will let CMake download the necessary dependencies and build the project.
 If you do not have CMake installed, please visit the [CMake website](https://cmake.org/download/) to download and install it.
 Alternatively, install it via the package manager of your choice.
 
+Spaces in Path Ensure the project is placed in a directory whose full path contains no spaces. Paths with spaces (e.g. C:\Users\John\Radna povrsina\renderer) will cause linker failures and prevent the application window from opening. Move the project to a location such as C:\dev\renderer or ~/projects/renderer before building.
 ### Prerequisites
 
 To build this project, you need **CMake (3.26+)** and a **C++ compiler**. On Linux, you also need the development headers for X11/Wayland and OpenGL that GLFW requires to compile from source.
