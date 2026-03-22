@@ -28,11 +28,11 @@ fi
 
 # Works in Linux/macOS and Windows Git Bash.
 current_branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || git rev-parse --abbrev-ref HEAD)"
-branch_pattern='^(main|develop|((feature|bugfix|hotfix|docs|refactor|test)/[a-z0-9-]+))$'
+branch_pattern='^(main|dev|((feature|bugfix|hotfix|docs|refactor|test)/[a-z0-9-]+))$'
 
 if [[ ! "${current_branch}" =~ ${branch_pattern} ]]; then
     error "Invalid branch name: '${current_branch}'"
-    info "Use one of: ${GREEN}main, develop, feature/, bugfix/, hotfix/, docs/, refactor/, test/${RESET}"
+    info "Use one of: ${GREEN}main, dev, feature/, bugfix/, hotfix/, docs/, refactor/, test/${RESET}"
     info "Example: ${GREEN}feature/frustum-culling${RESET}"
     info "Rename command:"
     info "  ${YELLOW}git branch -m <category>/<description>${RESET}"
