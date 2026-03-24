@@ -5,6 +5,8 @@
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
+/// GLFW callback fired when the framebuffer is resized (e.g. window resize or DPI change).
+/// Forwards the new dimensions to the Renderer so the GL viewport stays in sync.
 static void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     auto app = static_cast<Application*>(glfwGetWindowUserPointer(window));
     if (app) app->GetRenderer()->Resize(width, height);
