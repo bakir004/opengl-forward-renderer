@@ -4,6 +4,8 @@
 #include <spdlog/spdlog.h>
 
 #ifndef NDEBUG
+/// GL debug message callback registered via glDebugMessageCallback (debug builds only).
+/// Forwards high-severity messages as errors and medium-severity as warnings via spdlog.
 static void APIENTRY gl_debug_callback(GLenum, GLenum, GLuint, GLenum severity, GLsizei, const char* message, const void*) {
     if (severity == GL_DEBUG_SEVERITY_HIGH)   spdlog::error("[GL] {}", message);
     else if (severity == GL_DEBUG_SEVERITY_MEDIUM) spdlog::warn("[GL] {}", message);
