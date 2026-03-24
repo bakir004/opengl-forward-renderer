@@ -2,7 +2,7 @@
 #include <glad/glad.h>
 #include <spdlog/spdlog.h>
 
-Buffer::Buffer(Type type, const void* data, GLuint size, GLenum usage) : m_type(type) {
+Buffer::Buffer(Type type, const void* data, GLsizeiptr size, GLenum usage) : m_type(type) {
     glGenBuffers(1, &m_id);
     if (m_id == 0) {
         spdlog::error("Failed to generate OpenGL buffer");
@@ -12,7 +12,9 @@ Buffer::Buffer(Type type, const void* data, GLuint size, GLenum usage) : m_type(
     Bind();
     GLenum target = (m_type == VERTEX) ? GL_ARRAY_BUFFER : GL_ELEMENT_ARRAY_BUFFER;
     glBufferData(target, size, data, usage);
-    Unbind();
+    // Do not unbind EBOs: glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0) modifies the currently
+    // bound VAO's state, which would silently detach this buffer from the VAO.
+    if (m_type == VERTEX) Unbind();
 }
 
 Buffer::~Buffer() {
@@ -46,9 +48,10 @@ void Buffer::Unbind() const {
     glBindBuffer(target, 0);
 }
 
-void Buffer::UpdateData(const void* data, GLuint size, GLintptr offset) {
+void Buffer::UpdateData(const void* data, GLsizeiptr size, GLintptr offset) {
     Bind();
     GLenum target = (m_type == VERTEX) ? GL_ARRAY_BUFFER : GL_ELEMENT_ARRAY_BUFFER;
     glBufferSubData(target, offset, size, data);
-    Unbind();
+    // Same reason as constructor: unbinding an EBO while a VAO is bound detaches it from that VAO.
+    if (m_type == VERTEX) Unbind();
 }
