@@ -34,7 +34,7 @@ bool Renderer::Initialize() {
     }
 #endif
 
-    // Set default pipeline state
+    // Set the default pipeline state
     SetDepthTest(true, DepthFunc::Less);
     SetBlendMode(BlendMode::Disabled);
     SetCullMode(CullMode::Back);
@@ -47,92 +47,105 @@ void Renderer::Resize(int w, int h){ glViewport(0, 0, w, h); }
 void Renderer::RenderFrame(){ glClearColor(0.1f, 0.1f, 0.1f, 1.0f); glClear(GL_COLOR_BUFFER_BIT); }
 void Renderer::Shutdown(){ spdlog::info("Renderer shutdown"); }
 
-void Renderer::SetDepthTest(bool enable, DepthFunc func) {
-
+void Renderer::SetDepthTest(const bool enable, const DepthFunc func) {
+    // Only update if the state actually changed
     if (m_depthTestEnabled != enable) {
         if (enable) {
             glEnable(GL_DEPTH_TEST);
+            spdlog::debug("Depth test enabled");
         } else {
             glDisable(GL_DEPTH_TEST);
+            spdlog::debug("Depth test disabled");
         }
         m_depthTestEnabled = enable;
     }
 
-    // Only update if state actually changed
     if (enable && m_depthFunc != func) {
-        GLenum glFunc;
+        GLenum glFunc = 0;
+        const char* funcName;
         switch (func) {
-            case DepthFunc::Less:           glFunc = GL_LESS; break;
-            case DepthFunc::LessEqual:      glFunc = GL_LEQUAL; break;
-            case DepthFunc::Greater:        glFunc = GL_GREATER; break;
-            case DepthFunc::GreaterEqual:   glFunc = GL_GEQUAL; break;
-            case DepthFunc::Always:         glFunc = GL_ALWAYS; break;
-            case DepthFunc::Never:          glFunc = GL_NEVER; break;
-            case DepthFunc::Equal:          glFunc = GL_EQUAL; break;
-            case DepthFunc::NotEqual:       glFunc = GL_NOTEQUAL; break;
+            case DepthFunc::Less:           glFunc = GL_LESS;       funcName = "Less"; break;
+            case DepthFunc::LessEqual:      glFunc = GL_LEQUAL;     funcName = "LessEqual"; break;
+            case DepthFunc::Greater:        glFunc = GL_GREATER;    funcName = "Greater"; break;
+            case DepthFunc::GreaterEqual:   glFunc = GL_GEQUAL;     funcName = "GreaterEqual"; break;
+            case DepthFunc::Always:         glFunc = GL_ALWAYS;     funcName = "Always"; break;
+            case DepthFunc::Never:          glFunc = GL_NEVER;      funcName = "Never"; break;
+            case DepthFunc::Equal:          glFunc = GL_EQUAL;      funcName = "Equal"; break;
+            case DepthFunc::NotEqual:       glFunc = GL_NOTEQUAL;   funcName = "NotEqual"; break;
         }
         glDepthFunc(glFunc);
         m_depthFunc = func;
+        spdlog::debug("Depth func: {}", funcName);
     }
 }
 
-void Renderer::SetBlendMode(BlendMode mode) {
-
-    // Only update if state actually changed
+void Renderer::SetBlendMode(const BlendMode mode) {
+    // Only update if the state actually changed
     if (m_blendMode == mode) return;
 
+    const char* modeName;
     switch (mode) {
         case BlendMode::Disabled:
             glDisable(GL_BLEND);
+            modeName = "Disabled";
             break;
 
         case BlendMode::Alpha:
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             glBlendEquation(GL_FUNC_ADD);
+            modeName = "Alpha";
             break;
 
         case BlendMode::Additive:
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE);
             glBlendEquation(GL_FUNC_ADD);
+            modeName = "Additive";
             break;
 
         case BlendMode::Multiply:
             glEnable(GL_BLEND);
             glBlendFunc(GL_DST_COLOR, GL_ZERO);
             glBlendEquation(GL_FUNC_ADD);
+            modeName = "Multiply";
             break;
     }
 
     m_blendMode = mode;
+    spdlog::debug("Blend mode: {}", modeName);
 }
 
-void Renderer::SetCullMode(CullMode mode) {
-
-    // Only update if state actually changed
+void Renderer::SetCullMode(const CullMode mode) {
+    // Only update if the state actually changed
     if (m_cullMode == mode) return;
 
+    const char* modeName;
     switch (mode) {
         case CullMode::Disabled:
             glDisable(GL_CULL_FACE);
+            modeName = "Disabled";
             break;
 
         case CullMode::Back:
             glEnable(GL_CULL_FACE);
             glCullFace(GL_BACK);
+            modeName = "Back";
             break;
 
         case CullMode::Front:
             glEnable(GL_CULL_FACE);
             glCullFace(GL_FRONT);
+            modeName = "Front";
             break;
 
         case CullMode::FrontAndBack:
             glEnable(GL_CULL_FACE);
             glCullFace(GL_FRONT_AND_BACK);
+            modeName = "FrontAndBack";
             break;
     }
 
     m_cullMode = mode;
+    spdlog::debug("Cull mode: {}", modeName);
 }

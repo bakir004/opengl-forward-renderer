@@ -21,6 +21,7 @@
 | `CMakeLists.txt` | Added `Buffer.cpp`, `VertexArray.cpp`, `VertexLayout.cpp`, `MeshBuffer.cpp` to the build |
 | `src/core/Renderer.h/.cpp` | Added doc comments; `RenderFrame` still only clears (not yet wired to geometry) |
 | `src/utils/Options.h/.cpp` | Added doc comments; error message improved |
+| `src/core/Renderer.h/.cpp` | Added pipeline state management: `SetDepthTest`, `SetBlendMode`, `SetCullMode` with enum-based API and state caching |
 
 ---
 
@@ -183,6 +184,121 @@ void Renderer::RenderFrame() {
 ```
 
 This only clears the screen to a dark gray. **`MeshBuffer` is not yet used here.** The buffer infrastructure exists but is not yet wired into actual draw calls. There is also no shader system yet, so nothing can actually be drawn even if a `MeshBuffer` were created.
+
+---
+
+## Pipeline State Management — State API for `Renderer`
+
+Sprint 2 added an abstraction layer for OpenGL pipeline state. Instead of scattering raw `glEnable()` and `glBlendFunc()` calls throughout the codebase, the `Renderer` exposes type-safe methods.
+
+### Why This Matters
+
+**Bad — raw GL calls in application code:**
+```cpp
+glEnable(GL_DEPTH_TEST);
+glDepthFunc(GL_LESS);
+glEnable(GL_BLEND);
+glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+```
+
+**Good — clean renderer API:**
+```cpp
+renderer->SetDepthTest(true, DepthFunc::Less);
+renderer->SetBlendMode(BlendMode::Alpha);
+```
+
+Benefits:
+- **Type safety** — no raw `GLenum` values, IDE autocomplete works
+- **State caching** — redundant GL calls are skipped automatically
+- **Centralized control** — all pipeline state changes go through one place
+- **Easier debugging** — breakpoint `SetBlendMode` to see who's changing blend state
+
+### Depth Test — `SetDepthTest(bool enable, DepthFunc func)`
+
+Controls whether fragments are discarded based on depth buffer comparison.
+
+Supported depth functions:
+- `DepthFunc::Less` — standard 3D rendering (closer objects win)
+- `DepthFunc::LessEqual` — allows equal-depth fragments
+- `DepthFunc::Greater` / `GreaterEqual` — reverse-Z depth (advanced optimization)
+- `DepthFunc::Always` / `Never` / `Equal` / `NotEqual` — special cases
+
+Usage example:
+```cpp
+renderer->SetDepthTest(true, DepthFunc::Less);  // Enable depth testing
+// ... draw opaque geometry ...
+```
+
+Default: Enabled with `DepthFunc::Less` (set in `Renderer::Initialize()`)
+ 
+---
+
+### Blend Mode — `SetBlendMode(BlendMode mode)`
+
+Controls how fragment colors are combined with the framebuffer.
+
+Supported modes:
+- `BlendMode::Disabled` — no blending, fragment overwrites framebuffer
+- `BlendMode::Alpha` — standard transparency: `src.rgb * src.a + dst.rgb * (1 - src.a)`
+- `BlendMode::Additive` — light/particle effects: `src + dst` (accumulates brightness)
+- `BlendMode::Multiply` — darken: `src * dst` (used for shadows, decals)
+
+Usage example:
+```cpp
+renderer->SetBlendMode(BlendMode::Disabled);
+// ... draw opaque geometry ...
+renderer->SetBlendMode(BlendMode::Alpha);
+// ... draw transparent geometry (sorted back-to-front) ...
+```
+
+Default: `Disabled`
+ 
+---
+
+### Cull Mode — `SetCullMode(CullMode mode)`
+
+Controls which triangle faces are culled (not rendered) based on winding order.
+
+Supported modes:
+- `CullMode::Back` — cull back-facing triangles (default for solid objects)
+- `CullMode::Front` — cull front-facing triangles (useful for inside-out geometry)
+- `CullMode::Disabled` — render both sides (double-sided geometry, grass, cloth)
+- `CullMode::FrontAndBack` — cull everything (rarely used; depth-only passes)
+
+Front face winding: Currently hardcoded to counter-clockwise (`GL_CCW`). This matches the standard OpenGL convention and most model exporters.
+
+Usage example:
+```cpp
+renderer->SetCullMode(CullMode::Back);    // Normal 3D objects
+// ... draw scene ...
+renderer->SetCullMode(CullMode::Disabled); // Double-sided foliage
+// ... draw grass/leaves ...
+```
+
+Default: `CullMode::Back`
+ 
+---
+
+### Implementation Details
+
+**State caching:** Each `Set*` function checks if the requested state matches the cached state before calling OpenGL. This avoids redundant driver calls.
+```cpp
+if (m_blendMode == mode) return;  // Skip if already set
+```
+
+**Initialization:** Defaults are set in `Renderer::Initialize()` immediately after GLAD loads:
+```cpp
+SetDepthTest(true, DepthFunc::Less);
+SetBlendMode(BlendMode::Disabled);
+SetCullMode(CullMode::Back);
+```
+This ensures the renderer starts in a known, predictable state.
+
+**Future extensions:**
+- Depth write masking (`glDepthMask`)
+- Polygon mode (`glPolygonMode` for wireframe debug)
+- Scissor test (UI clipping)
+- Stencil test (advanced masking)
 
 ---
 
