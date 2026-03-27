@@ -34,9 +34,105 @@ bool Renderer::Initialize() {
     }
 #endif
 
+    // Set default pipeline state
+    SetDepthTest(true, DepthFunc::Less);
+    SetBlendMode(BlendMode::Disabled);
+    SetCullMode(CullMode::Back);
+    spdlog::info("Pipeline state initialized");
+
     return true;
 }
 
 void Renderer::Resize(int w, int h){ glViewport(0, 0, w, h); }
 void Renderer::RenderFrame(){ glClearColor(0.1f, 0.1f, 0.1f, 1.0f); glClear(GL_COLOR_BUFFER_BIT); }
 void Renderer::Shutdown(){ spdlog::info("Renderer shutdown"); }
+
+void Renderer::SetDepthTest(bool enable, DepthFunc func) {
+
+    if (m_depthTestEnabled != enable) {
+        if (enable) {
+            glEnable(GL_DEPTH_TEST);
+        } else {
+            glDisable(GL_DEPTH_TEST);
+        }
+        m_depthTestEnabled = enable;
+    }
+
+    // Only update if state actually changed
+    if (enable && m_depthFunc != func) {
+        GLenum glFunc;
+        switch (func) {
+            case DepthFunc::Less:           glFunc = GL_LESS; break;
+            case DepthFunc::LessEqual:      glFunc = GL_LEQUAL; break;
+            case DepthFunc::Greater:        glFunc = GL_GREATER; break;
+            case DepthFunc::GreaterEqual:   glFunc = GL_GEQUAL; break;
+            case DepthFunc::Always:         glFunc = GL_ALWAYS; break;
+            case DepthFunc::Never:          glFunc = GL_NEVER; break;
+            case DepthFunc::Equal:          glFunc = GL_EQUAL; break;
+            case DepthFunc::NotEqual:       glFunc = GL_NOTEQUAL; break;
+        }
+        glDepthFunc(glFunc);
+        m_depthFunc = func;
+    }
+}
+
+void Renderer::SetBlendMode(BlendMode mode) {
+
+    // Only update if state actually changed
+    if (m_blendMode == mode) return;
+
+    switch (mode) {
+        case BlendMode::Disabled:
+            glDisable(GL_BLEND);
+            break;
+
+        case BlendMode::Alpha:
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            glBlendEquation(GL_FUNC_ADD);
+            break;
+
+        case BlendMode::Additive:
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+            glBlendEquation(GL_FUNC_ADD);
+            break;
+
+        case BlendMode::Multiply:
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_DST_COLOR, GL_ZERO);
+            glBlendEquation(GL_FUNC_ADD);
+            break;
+    }
+
+    m_blendMode = mode;
+}
+
+void Renderer::SetCullMode(CullMode mode) {
+
+    // Only update if state actually changed
+    if (m_cullMode == mode) return;
+
+    switch (mode) {
+        case CullMode::Disabled:
+            glDisable(GL_CULL_FACE);
+            break;
+
+        case CullMode::Back:
+            glEnable(GL_CULL_FACE);
+            glCullFace(GL_BACK);
+            break;
+
+        case CullMode::Front:
+            glEnable(GL_CULL_FACE);
+            glCullFace(GL_FRONT);
+            break;
+
+        case CullMode::FrontAndBack:
+            glEnable(GL_CULL_FACE);
+            glCullFace(GL_FRONT_AND_BACK);
+            break;
+    }
+
+    m_cullMode = mode;
+}
