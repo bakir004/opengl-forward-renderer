@@ -21,17 +21,12 @@ FetchContent_Declare(json
     GIT_TAG        v3.11.3
     GIT_SHALLOW    TRUE
 )
-FetchContent_Declare(glm
-    GIT_REPOSITORY https://github.com/g-truc/glm.git
-    GIT_TAG        1.0.1
-    GIT_SHALLOW    TRUE
-)
 
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_DOCS     OFF CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(glfw spdlog json glm)
+FetchContent_MakeAvailable(glfw spdlog json)
 
 add_library(glad STATIC ${CMAKE_CURRENT_SOURCE_DIR}/external/glad/src/glad.c)
 target_include_directories(glad PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/external/glad/include)
@@ -41,11 +36,6 @@ add_executable(${PROJECT_NAME}
     src/app/main.cpp
     src/app/Application.cpp
     src/core/Renderer.cpp
-    src/core/Buffer.cpp
-    src/core/VertexArray.cpp
-    src/core/VertexLayout.cpp
-    src/core/MeshBuffer.cpp
-    src/core/ShaderProgram.cpp
     src/utils/Options.cpp
 )
 
@@ -59,12 +49,4 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     OpenGL::GL
     spdlog::spdlog
     nlohmann_json::nlohmann_json
-    glm::glm
-)
-
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_SOURCE_DIR}/shaders"
-        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders"
-    COMMENT "Copying shaders to output directory"
 )
