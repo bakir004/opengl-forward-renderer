@@ -3,42 +3,61 @@
 #include <cassert>
 #include <spdlog/spdlog.h>
 
-MeshBuffer::MeshBuffer(const void *vertexData,
+MeshBuffer::MeshBuffer(const void* vertexData,
                        GLsizeiptr vertexBufferSize,
-                       const uint32_t *indexData,
+                       GLsizei vertexCount,
+                       const uint32_t* indexData,
                        GLsizei indexCount,
-                       const VertexLayout &layout,
+                       const VertexLayout& layout,
                        GLenum usage)
     : m_vbo(Buffer::VERTEX, vertexData, vertexBufferSize, usage),
-      m_ebo(Buffer::ELEMENT,
-            indexData,
-            static_cast<GLsizeiptr>(indexCount * sizeof(uint32_t)),
-            usage),
-      m_indexCount(indexCount)
+      m_vertexCount(vertexCount),
+      m_indexCount(indexCount),
+      m_isIndexed(indexData != nullptr && indexCount > 0)
 {
     assert(vertexData != nullptr && "MeshBuffer: vertexData must not be null");
-    assert(indexData != nullptr && "MeshBuffer: indexData must not be null");
     assert(vertexBufferSize > 0 && "MeshBuffer: vertexBufferSize must be greater than 0");
-    assert(indexCount > 0 && "MeshBuffer: indexCount must be greater than 0");
+    assert(vertexCount > 0 && "MeshBuffer: vertexCount must be greater than 0");
 
-    // Bind VAO first so that:
-    // - the EBO binding becomes part of VAO state
-    // - vertex attribute setup is recorded into this VAO
+    // Either both indexData + indexCount are valid, or neither is used.
+    assert(((indexData != nullptr) && (indexCount > 0)) ||
+           ((indexData == nullptr) && (indexCount == 0)));
+
+    if (m_isIndexed)
+    {
+        m_ebo.emplace(
+            Buffer::ELEMENT,
+            indexData,
+            static_cast<GLsizeiptr>(indexCount * sizeof(uint32_t)),
+            usage);
+    }
+
+    // Bind VAO first so vertex attrib state and optional EBO binding get recorded into it.
     m_vao.Bind();
 
-    // Bind uploaded buffers to the currently active VAO/context.
     m_vbo.Bind();
-    m_ebo.Bind();
 
-    // Configure glVertexAttribPointer / glEnableVertexAttribArray according to layout.
-    // This assumes VertexLayout::Apply() expects the correct VAO + VBO to already be bound.
+    if (m_isIndexed)
+    {
+        m_ebo->Bind();
+    }
+
+    // Assumes VertexLayout::Apply() expects the correct VAO + VBO to already be bound.
     layout.Apply();
 
-    // Unbind only the VAO. We deliberately do not unbind the EBO here,
-    // because GL_ELEMENT_ARRAY_BUFFER binding belongs to the VAO state.
+    // Only unbind the VAO. EBO binding is VAO state.
     m_vao.Unbind();
 
-    spdlog::info("MeshBuffer created successfully ({} indices)", m_indexCount);
+    if (m_isIndexed)
+    {
+        spdlog::info("MeshBuffer created successfully (indexed, {} vertices, {} indices)",
+                     m_vertexCount, m_indexCount);
+    }
+    else
+    {
+        spdlog::info("MeshBuffer created successfully (non-indexed, {} vertices)",
+                     m_vertexCount);
+    }
 }
 
 void MeshBuffer::Bind() const
@@ -53,12 +72,26 @@ void MeshBuffer::Unbind() const
 
 void MeshBuffer::Draw() const
 {
-    if (m_indexCount <= 0)
+    if (m_vertexCount <= 0)
     {
-        spdlog::warn("MeshBuffer::Draw() called with no indices");
+        spdlog::warn("MeshBuffer::Draw() called with no vertices");
         return;
     }
 
     m_vao.Bind();
-    glDrawElements(GL_TRIANGLES, m_indexCount, GL_UNSIGNED_INT, nullptr);
+
+    if (m_isIndexed)
+    {
+        if (m_indexCount <= 0)
+        {
+            spdlog::warn("MeshBuffer::Draw() called with indexed mode but no indices");
+            return;
+        }
+
+        glDrawElements(GL_TRIANGLES, m_indexCount, GL_UNSIGNED_INT, nullptr);
+    }
+    else
+    {
+        glDrawArrays(GL_TRIANGLES, 0, m_vertexCount);
+    }
 }

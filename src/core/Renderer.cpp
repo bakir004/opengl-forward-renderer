@@ -1,4 +1,6 @@
 #include "Renderer.h"
+#include "MeshBuffer.h"
+#include "ShaderProgram.h"
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
@@ -226,4 +228,14 @@ void Renderer::SetCullMode(const CullMode mode) {
 
     m_cullMode = mode;
     spdlog::debug("Cull mode: {}", modeName);
+}
+
+void Renderer::SubmitDraw(const ShaderProgram& shader, const MeshBuffer& mesh) {
+    assert(m_inFrame && "SubmitDraw() must be called between BeginFrame() and EndFrame()");
+    shader.Bind();
+    mesh.Draw();
+}
+
+void Renderer::UnbindShader() {
+    ShaderProgram::Unbind();
 }
