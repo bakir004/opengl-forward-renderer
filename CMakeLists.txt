@@ -45,6 +45,7 @@ add_executable(${PROJECT_NAME}
     src/core/VertexArray.cpp
     src/core/VertexLayout.cpp
     src/core/MeshBuffer.cpp
+    src/core/Primitives.cpp
     src/core/ShaderProgram.cpp
     src/utils/Options.cpp
 )
