@@ -7,29 +7,52 @@
 
 using std::string;
 
+// === Hardcoded Fallback Strings ===
+static const char* FALLBACK_VERT = R"(
+    #version 460 core
+    layout (location = 0) in vec3 aPos;
+    void main() {
+        gl_Position = vec4(aPos, 1.0);
+    }
+)";
+
+// Bright Magenta color
+static const char* FALLBACK_FRAG = R"(
+    #version 460 core
+    out vec4 FragColor;
+    void main() {
+        FragColor = vec4(1.0, 0.0, 1.0, 1.0);
+    }
+)";
+
 ShaderProgram::ShaderProgram(const string& vertexPath, const string& fragmentPath)
 {
     auto vertSource = ReadFile(vertexPath);
     auto fragSource = ReadFile(fragmentPath);
 
-    if (!vertSource || !fragSource){
+    GLuint vertShader = 0, fragShader = 0;
+    
+    if (vertSource && fragSource) {
+        vertShader = CompileStage(*vertSource, GL_VERTEX_SHADER, vertexPath);
+        if (vertShader != 0) {
+            fragShader = CompileStage(*fragSource, GL_FRAGMENT_SHADER, fragmentPath);
+            if (fragShader != 0) {
+                m_id = LinkProgram(vertShader, fragShader, vertexPath, fragmentPath);
+            }
+        }
+    } else {
         spdlog::error("[Shader] Missing source files for {} or {}", vertexPath, fragmentPath);
-        return;
     }
 
-    GLuint vertShader = CompileStage(*vertSource, GL_VERTEX_SHADER, vertexPath);
-    if (vertShader == 0) return;
-
-    GLuint fragShader = CompileStage(*fragSource, GL_FRAGMENT_SHADER, fragmentPath);
-    if (fragShader == 0){
-        glDeleteShader(vertShader);
-        return;
-    }
-
-    m_id = LinkProgram(vertShader, fragShader, vertexPath, fragmentPath);
-
-    if (m_id != 0)
+    if (m_id == 0) {
+        spdlog::warn("[Shader] '{}' failed. Loading hardcoded Magenta fallback.", vertexPath);
+        
+        GLuint fbVert = CompileStage(FALLBACK_VERT, GL_VERTEX_SHADER, "FALLBACK_VERT");
+        GLuint fbFrag = CompileStage(FALLBACK_FRAG, GL_FRAGMENT_SHADER, "FALLBACK_FRAG");
+        m_id = LinkProgram(fbVert, fbFrag, "FALLBACK_VERT", "FALLBACK_FRAG");
+    } else {
         spdlog::info("[Shader] Program linked: '{}' + '{}'", vertexPath, fragmentPath);
+    }
 }
 
 ShaderProgram::~ShaderProgram(){
