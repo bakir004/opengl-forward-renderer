@@ -1,4 +1,5 @@
 #include "Application.h"
+#include "SampleScene.h"
 #include "../utils/Options.h"
 #include "../core/Renderer.h"
 #include <GLFW/glfw3.h>
@@ -14,6 +15,7 @@ static void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 
 Application::Application() : m_renderer(std::make_unique<Renderer>()) {}
 Application::~Application() {
+    m_sampleScene.reset();
     m_renderer->Shutdown();
     if (m_window) { glfwDestroyWindow(m_window); m_window = nullptr; }
     glfwTerminate();
@@ -40,7 +42,15 @@ bool Application::Initialize() {
     glfwSetFramebufferSizeCallback(m_window, framebuffer_size_callback);
     glfwSwapInterval(options.window.vsync ? 1 : 0);
 
-    return m_renderer->Initialize();
+    if (!m_renderer->Initialize())
+        return false;
+
+    m_sampleScene = std::make_unique<SampleScene>();
+    if (!m_sampleScene->Setup("shaders/basic.vert", "shaders/basic.frag")) {
+        spdlog::warn("SampleScene setup failed; scene will not draw");
+        m_sampleScene.reset();
+    }
+    return true;
 }
 
 void Application::Run() {
@@ -49,9 +59,13 @@ void Application::Run() {
 
         // Sprint 3 will build a FrameParams from the active camera and
         // scene settings before passing it here.
-        m_renderer->BeginFrame();
+        FrameParams frame{};
+        frame.clearColor = { 0.08f, 0.09f, 0.12f, 1.0f };
+        m_renderer->BeginFrame(frame);
 
         // Draw calls go here once ShaderProgram + MeshBuffer are wired up.
+        if (m_sampleScene)
+            m_sampleScene->Render(*m_renderer, static_cast<float>(glfwGetTime()));
 
         m_renderer->EndFrame();
         glfwSwapBuffers(m_window);

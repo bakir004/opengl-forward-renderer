@@ -40,6 +40,7 @@ target_link_libraries(glad PUBLIC ${CMAKE_DL_LIBS})
 add_executable(${PROJECT_NAME}
     src/app/main.cpp
     src/app/Application.cpp
+    src/app/SampleScene.cpp
     src/core/Renderer.cpp
     src/core/Buffer.cpp
     src/core/VertexArray.cpp

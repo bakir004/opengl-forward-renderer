@@ -1,5 +1,8 @@
-﻿#pragma once
+#pragma once
 #include <glm/glm.hpp>
+
+class ShaderProgram;
+class MeshBuffer;
 
 /// Depth test comparison functions
 enum class DepthFunc {
@@ -138,4 +141,7 @@ class Renderer {
 		//jyst for compatibility with old code, will be removed eventually
         [[deprecated("Use BeginFrame() / EndFrame() directly")]]
         void RenderFrame();
+
+        void SubmitDraw(const ShaderProgram& shader, const MeshBuffer& mesh);
+        void UnbindShader();
 };

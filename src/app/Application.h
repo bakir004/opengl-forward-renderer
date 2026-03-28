@@ -3,6 +3,7 @@
 
 struct GLFWwindow;
 class Renderer;
+class SampleScene;
 
 /// Top-level application class. Owns the GLFW window and the Renderer.
 /// Manages the full lifetime of the window, GL context, and main loop.
@@ -29,4 +30,5 @@ class Application {
     private:
         GLFWwindow* m_window = nullptr;
         std::unique_ptr<Renderer> m_renderer;
+        std::unique_ptr<SampleScene> m_sampleScene;
 };
