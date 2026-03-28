@@ -16,11 +16,12 @@ static const char* FALLBACK_VERT = R"(
     }
 )";
 
+// Bright Magenta color
 static const char* FALLBACK_FRAG = R"(
     #version 460 core
     out vec4 FragColor;
     void main() {
-        FragColor = vec4(1.0, 0.0, 1.0, 1.0); // Bright Magenta!
+        FragColor = vec4(1.0, 0.0, 1.0, 1.0);
     }
 )";
 
