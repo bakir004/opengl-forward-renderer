@@ -1,6 +1,6 @@
 # Sprint 2 — Minimal Renderer Core, Shaders, and First Geometry
 
-**Status:** Partially complete — GPU buffer layer done, shader system and primitive geometry not yet implemented
+**Status:** Partially complete — GPU buffer layer and shader system done, primitive geometry and wired draw calls not yet implemented
 **Objective:** Replace the bootstrap-only renderer with a reusable minimal renderer capable of drawing indexed geometry through managed shader, buffer, vertex layout, and primitive abstractions.
 
 ---
@@ -15,13 +15,19 @@
 | `src/core/VertexLayout.h/.cpp` | Describes vertex memory layout; automates `glVertexAttribPointer` setup |
 | `src/core/MeshBuffer.h/.cpp` | GPU mesh abstraction: owns VAO + VBO + EBO, exposes `Bind/Draw` |
 
+### Files Added (later in sprint)
+| File | Purpose |
+|---|---|
+| `src/core/ShaderProgram.h/.cpp` | Loads `.vert`/`.frag` from disk, compiles, links, caches uniforms, magenta fallback on failure |
+| `shaders/basic.vert` | Pass-through vertex shader: position + color → clip space (no MVP yet) |
+| `shaders/basic.frag` | Outputs interpolated vertex color as fragment color |
+
 ### Files Modified
 | File | Change |
 |---|---|
-| `CMakeLists.txt` | Added `Buffer.cpp`, `VertexArray.cpp`, `VertexLayout.cpp`, `MeshBuffer.cpp` to the build |
-| `src/core/Renderer.h/.cpp` | Added doc comments; `RenderFrame` still only clears (not yet wired to geometry) |
+| `CMakeLists.txt` | Added `Buffer.cpp`, `VertexArray.cpp`, `VertexLayout.cpp`, `MeshBuffer.cpp`, `ShaderProgram.cpp` to the build; added GLM via FetchContent |
+| `src/core/Renderer.h/.cpp` | Replaced `RenderFrame()` with `BeginFrame(FrameParams)`/`EndFrame()`; added `SetViewport`, `SetClearColor`, `Clear`; added pipeline state: `SetDepthTest`, `SetBlendMode`, `SetCullMode` with caching; now uses `glm::vec4` for clear color |
 | `src/utils/Options.h/.cpp` | Added doc comments; error message improved |
-| `src/core/Renderer.h/.cpp` | Added pipeline state management: `SetDepthTest`, `SetBlendMode`, `SetCullMode` with enum-based API and state caching |
 
 ---
 
@@ -174,16 +180,18 @@ This separation of concerns means you can reuse the same `MeshBuffer` with diffe
 
 ---
 
-### Current State of `Renderer::RenderFrame()`
+### Current State of the Render Loop
+
+`RenderFrame()` is deprecated. The renderer now uses `BeginFrame(FrameParams)` / `EndFrame()`:
 
 ```cpp
-void Renderer::RenderFrame() {
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-}
+// In Application::Run():
+m_renderer->BeginFrame();
+// ← draw calls go here — not yet wired up
+m_renderer->EndFrame();
 ```
 
-This only clears the screen to a dark gray. **`MeshBuffer` is not yet used here.** The buffer infrastructure exists but is not yet wired into actual draw calls. There is also no shader system yet, so nothing can actually be drawn even if a `MeshBuffer` were created.
+`BeginFrame` applies `FrameParams` (clear color, which buffers to clear) and calls `Clear()`. `EndFrame` currently does nothing but exists as the hook for future flush/present logic. **`MeshBuffer` is still not instantiated or called here.** All the infrastructure to draw geometry exists; it just hasn't been wired together yet.
 
 ---
 
@@ -309,42 +317,27 @@ This ensures the renderer starts in a known, predictable state.
 - [x] `VertexLayout` system implemented with automatic stride/offset calculation
 - [x] `MeshBuffer` abstraction implemented with correct VAO setup order
 - [x] All classes have doc comments on public methods
-- [ ] `ShaderProgram` abstraction with source loading, compilation, and link error reporting
-- [ ] Fallback/error shader strategy for development visibility
+- [x] `ShaderProgram` abstraction with source loading, compilation, and link error reporting
+- [x] Fallback/error shader strategy — magenta hardcoded fallback on compile/link failure
+- [x] `BeginFrame`/`EndFrame` API replacing `RenderFrame`; `SetViewport`, `SetClearColor`, `Clear` added
+- [x] GLM integrated (FetchContent); used for `vec4` clear color, uniform setters
+- [x] `basic.vert` / `basic.frag` shader files created
 - [ ] Built-in primitive generation (triangle, quad, cube) using `MeshBuffer`
-- [ ] `Renderer::RenderFrame()` actually draws geometry (not just clears)
+- [ ] `ShaderProgram` + `MeshBuffer` wired into the draw loop — nothing is actually drawn yet
 - [ ] Indexed rendering path verified with at least one non-trivial primitive
-- [ ] Application code depends only on public renderer headers, not GL directly
 
 ---
 
 ## What Is Missing
 
-### 1. `ShaderProgram` — the biggest gap
+### 1. Built-in Primitive Geometry
 
-There is no shader system at all. The SRS requires (FR-004) a `ShaderProgram` abstraction that:
-- Loads `.glsl` source files from disk
-- Compiles vertex and fragment stages separately
-- Links them into a program
-- Reports compile/link errors with the stage name and source file
-- Allows reuse by identifier
+The SRS (FR-006) requires built-in triangle, quad, and cube primitives for testing. No primitive generation code exists. These would be functions (or a `Primitives` namespace) returning pre-built `MeshBuffer` instances with hard-coded vertex/index arrays.
 
-Without this, `MeshBuffer` is useless — you can't draw anything without a shader telling the GPU what to do with the vertex data.
+### 2. Nothing is actually drawn yet
 
-There are also **no `.glsl` shader files in the repository yet.** The SRS planned a `shaders/` directory; it doesn't exist.
+`ShaderProgram` and `MeshBuffer` both exist and work in isolation, but nothing in `Application::Run()` instantiates them or calls `Bind()`/`Draw()`. The screen still only shows the clear color. Wiring these together is the last step to get geometry on screen.
 
-### 2. Built-in Primitive Geometry
-
-The SRS (FR-006) requires built-in triangle, quad, and cube primitives for testing. No primitive generation code exists. These would be functions/classes that return pre-built `MeshBuffer` instances with hard-coded vertex/index arrays.
-
-### 3. `Renderer::RenderFrame()` draws nothing
-
-The render frame only clears. `MeshBuffer` is not instantiated or called anywhere in the renderer. This needs shader + primitive work first.
-
-### 4. `Options` fields that exist in JSON but aren't consumed
+### 3. `Options` fields that exist in JSON but aren't consumed
 
 `config/settings.json` has `logging.level`, `paths.asset_root`, and `debug.gl_errors` fields, but `Options` only reads `window`. These should be plumbed through when their systems exist.
-
-### 5. GLM not integrated
-
-No math library is set up yet. The moment a camera or transforms are needed (Sprint 3), GLM needs to be added to `CMakeLists.txt`.
