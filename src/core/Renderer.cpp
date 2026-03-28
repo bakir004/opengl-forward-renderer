@@ -3,6 +3,8 @@
 #include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
 
+#include <cassert>
+
 #ifndef NDEBUG
 /// GL debug message callback registered via glDebugMessageCallback (debug builds only).
 /// Forwards high-severity messages as errors and medium-severity as warnings via spdlog.
@@ -11,6 +13,15 @@ static void APIENTRY gl_debug_callback(GLenum, GLenum, GLuint, GLenum severity, 
     else if (severity == GL_DEBUG_SEVERITY_MEDIUM) spdlog::warn("[GL] {}", message);
 }
 #endif
+/// Maps our ClearFlags bitmask to the GLbitfield that glClear expects.
+static GLbitfield ToGLClearMask(ClearFlags flags) {
+    GLbitfield mask = 0;
+    if (!!(flags & ClearFlags::Color))   mask |= GL_COLOR_BUFFER_BIT;
+    if (!!(flags & ClearFlags::Depth))   mask |= GL_DEPTH_BUFFER_BIT;
+    if (!!(flags & ClearFlags::Stencil)) mask |= GL_STENCIL_BUFFER_BIT;
+    return mask;
+}
+
 
 bool Renderer::Initialize() {
     if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress))) {
@@ -38,14 +49,81 @@ bool Renderer::Initialize() {
     SetDepthTest(true, DepthFunc::Less);
     SetBlendMode(BlendMode::Disabled);
     SetCullMode(CullMode::Back);
+    SetClearColor(m_clearColor);          // push cached default to GL
     spdlog::info("Pipeline state initialized");
 
     return true;
 }
 
-void Renderer::Resize(int w, int h){ glViewport(0, 0, w, h); }
-void Renderer::RenderFrame(){ glClearColor(0.1f, 0.1f, 0.1f, 1.0f); glClear(GL_COLOR_BUFFER_BIT); }
+
 void Renderer::Shutdown(){ spdlog::info("Renderer shutdown"); }
+
+void Renderer::BeginFrame(const FrameParams& params) {
+    // In debug builds, catch BeginFrame called twice without EndFrame.
+    assert(!m_inFrame && "BeginFrame() called without a matching EndFrame()");
+    m_inFrame = true;
+
+    // Apply this frame's clear colour (cached - no GL call if unchanged).
+    SetClearColor(params.clearColor);
+
+    // Clear whichever buffers were requested.
+    if (!!(params.clearFlags & ClearFlags::Depth)) {
+        // Make sure depth writes are enabled so the depth buffer actually clears.
+        // If someone called glDepthMask(GL_FALSE) earlier, the clear would be a no-op.
+        glDepthMask(GL_TRUE);
+    }
+    Clear(params.clearFlags);
+
+    // Sprint 3 will push the view + projection UBO here.
+}
+
+void Renderer::EndFrame() {
+    assert(m_inFrame && "EndFrame() called without a matching BeginFrame()");
+    m_inFrame = false;
+
+    // Nothing to do yet.
+    // Sprint 3+: GPU fence, profiler scope close, per-frame stat reset.
+}
+
+void Renderer::SetViewport(int x, int y, int width, int height) {
+    Viewport requested{ x, y, width, height };
+    if (m_viewport == requested) return; // skip redundant driver call
+
+    glViewport(x, y, width, height);
+    m_viewport = requested;
+    spdlog::debug("Viewport: ({}, {})  {}x{}", x, y, width, height);
+}
+
+void Renderer::SetViewport(const Viewport& vp) {
+    SetViewport(vp.x, vp.y, vp.width, vp.height);
+}
+
+void Renderer::SetClearColor(const glm::vec4& color) {
+    // glm::vec4 has no operator== so we compare component-wise.
+    if (color == m_clearColor) return; // cached
+
+    glClearColor(color.r, color.g, color.b, color.a);
+    m_clearColor = color;
+    spdlog::debug("Clear colour: ({:.2f}, {:.2f}, {:.2f}, {:.2f})",
+        color.r, color.g, color.b, color.a);
+}
+
+void Renderer::Clear(ClearFlags flags) {
+    if (!flags) return; // ClearFlags::None - nothing to do
+
+    const GLbitfield mask = ToGLClearMask(flags);
+    glClear(mask);
+}
+void Renderer::Resize(int width, int height) {
+    // Funnels through SetViewport so the cache stays consistent and we log
+    // the change in one place.
+    SetViewport(0, 0, width, height);
+}
+void Renderer::RenderFrame() {
+    BeginFrame();
+    // No geometry yet - Sprint 3 will submit the scene here.
+    EndFrame();
+}
 
 void Renderer::SetDepthTest(const bool enable, const DepthFunc func) {
     // Only update if the state actually changed

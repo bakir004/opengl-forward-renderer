@@ -46,7 +46,14 @@ bool Application::Initialize() {
 void Application::Run() {
     while (!glfwWindowShouldClose(m_window)) {
         glfwPollEvents();
-        m_renderer->RenderFrame();
+
+        // Sprint 3 will build a FrameParams from the active camera and
+        // scene settings before passing it here.
+        m_renderer->BeginFrame();
+
+        // Draw calls go here once ShaderProgram + MeshBuffer are wired up.
+
+        m_renderer->EndFrame();
         glfwSwapBuffers(m_window);
     }
 }
