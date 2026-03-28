@@ -24,9 +24,9 @@ To build this project, you need **CMake (3.26+)** and a **C++ compiler**. On Lin
 
 | System | Package Manager | Command |
 | :--- | :--- | :--- |
-| **Arch Linux** | `pacman` | `sudo pacman -S cmake base-devel libx11 libxrandr libxinerama libxcursor libxi mesa` |
-| **Ubuntu / Debian** | `apt` | `sudo apt update && sudo apt install cmake build-essential libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev` |
-| **Fedora** | `dnf` | `sudo dnf install cmake gcc-c++ libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel mesa-libGL-devel` |
+| **Arch Linux** | `pacman` | `sudo pacman -S cmake base-devel libx11 libxrandr libxinerama libxcursor libxi mesa wayland wayland-protocols libxkbcommon pkgconf ninja` |
+| **Ubuntu / Debian** | `apt` | `sudo apt update && sudo apt install cmake build-essential libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev libwayland-dev wayland-protocols pkg-config libxkbcommon-dev ninja-build` |
+| **Fedora** | `dnf` | `sudo dnf install cmake gcc-c++ make libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel mesa-libGL-devel wayland-devel wayland-protocols-devel libxkbcommon-devel pkgconf-pkg-config ninja-build` |
 | **Windows** | `winget` | `winget install kitware.cmake` |
 
 > **Note for Linux Users:** Even though the build script fetches C++ libraries (GLFW, spdlog, JSON) automatically, the system-level development headers listed above must be installed via your package manager first.

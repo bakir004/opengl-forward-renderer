@@ -5,6 +5,8 @@
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
+/// GLFW callback fired when the framebuffer is resized (e.g. window resize or DPI change).
+/// Forwards the new dimensions to the Renderer so the GL viewport stays in sync.
 static void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     auto app = static_cast<Application*>(glfwGetWindowUserPointer(window));
     if (app) app->GetRenderer()->Resize(width, height);
@@ -44,7 +46,14 @@ bool Application::Initialize() {
 void Application::Run() {
     while (!glfwWindowShouldClose(m_window)) {
         glfwPollEvents();
-        m_renderer->RenderFrame();
+
+        // Sprint 3 will build a FrameParams from the active camera and
+        // scene settings before passing it here.
+        m_renderer->BeginFrame();
+
+        // Draw calls go here once ShaderProgram + MeshBuffer are wired up.
+
+        m_renderer->EndFrame();
         glfwSwapBuffers(m_window);
     }
 }
