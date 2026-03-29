@@ -6,6 +6,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(FETCHCONTENT_BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external")
 include(FetchContent)
 
+FetchContent_Declare(glad
+    GIT_REPOSITORY https://github.com/Dav1dde/glad.git
+    GIT_TAG        v0.1.36
+)
 FetchContent_Declare(glfw
     GIT_REPOSITORY https://github.com/glfw/glfw.git
     GIT_TAG        3.4
@@ -30,12 +34,10 @@ FetchContent_Declare(glm
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_DOCS     OFF CACHE BOOL "" FORCE)
+set(GLAD_PROFILE "core" CACHE STRING "")
+set(GLAD_API "gl=4.6" CACHE STRING "")
 
-FetchContent_MakeAvailable(glfw spdlog json glm)
-
-add_library(glad STATIC ${CMAKE_CURRENT_SOURCE_DIR}/external/glad/src/glad.c)
-target_include_directories(glad PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/external/glad/include)
-target_link_libraries(glad PUBLIC ${CMAKE_DL_LIBS})
+FetchContent_MakeAvailable(glad glfw spdlog json glm)
 
 add_executable(${PROJECT_NAME}
     src/app/main.cpp
