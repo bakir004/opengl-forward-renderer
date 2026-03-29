@@ -1,10 +1,13 @@
 #include "Application.h"
+#include "SampleScene.h"
 #include "../utils/Options.h"
 #include "../core/Renderer.h"
 #include <GLFW/glfw3.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
+/// GLFW callback fired when the framebuffer is resized (e.g. window resize or DPI change).
+/// Forwards the new dimensions to the Renderer so the GL viewport stays in sync.
 static void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     auto app = static_cast<Application*>(glfwGetWindowUserPointer(window));
     if (app) app->GetRenderer()->Resize(width, height);
@@ -12,6 +15,7 @@ static void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 
 Application::Application() : m_renderer(std::make_unique<Renderer>()) {}
 Application::~Application() {
+    m_sampleScene.reset();
     m_renderer->Shutdown();
     if (m_window) { glfwDestroyWindow(m_window); m_window = nullptr; }
     glfwTerminate();
@@ -38,13 +42,32 @@ bool Application::Initialize() {
     glfwSetFramebufferSizeCallback(m_window, framebuffer_size_callback);
     glfwSwapInterval(options.window.vsync ? 1 : 0);
 
-    return m_renderer->Initialize();
+    if (!m_renderer->Initialize())
+        return false;
+
+    m_sampleScene = std::make_unique<SampleScene>();
+    if (!m_sampleScene->Setup("shaders/basic.vert", "shaders/basic.frag")) {
+        spdlog::warn("SampleScene setup failed; scene will not draw");
+        m_sampleScene.reset();
+    }
+    return true;
 }
 
 void Application::Run() {
     while (!glfwWindowShouldClose(m_window)) {
         glfwPollEvents();
-        m_renderer->RenderFrame();
+
+        // Sprint 3 will build a FrameParams from the active camera and
+        // scene settings before passing it here.
+        FrameParams frame{};
+        frame.clearColor = { 0.08f, 0.09f, 0.12f, 1.0f };
+        m_renderer->BeginFrame(frame);
+
+        // Draw calls go here once ShaderProgram + MeshBuffer are wired up.
+        if (m_sampleScene)
+            m_sampleScene->Render(*m_renderer, static_cast<float>(glfwGetTime()));
+
+        m_renderer->EndFrame();
         glfwSwapBuffers(m_window);
     }
 }
