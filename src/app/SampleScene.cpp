@@ -1,5 +1,3 @@
-// SampleScene.cpp — implementation of the Sprint 2 sample scene (Dev 10 integration).
-
 #include "SampleScene.h"
 
 #include "../core/MeshBuffer.h"
