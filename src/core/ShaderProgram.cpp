@@ -9,16 +9,13 @@ using std::string;
 
 // === Hardcoded Fallback Strings ===
 static const char* FALLBACK_VERT = R"(
-    #version 460 core
     layout (location = 0) in vec3 aPos;
     void main() {
         gl_Position = vec4(aPos, 1.0);
     }
 )";
 
-// Bright Magenta color
 static const char* FALLBACK_FRAG = R"(
-    #version 460 core
     out vec4 FragColor;
     void main() {
         FragColor = vec4(1.0, 0.0, 1.0, 1.0);
@@ -111,23 +108,29 @@ std::optional<string> ShaderProgram::ReadFile(const string& path){
 }
 
 GLuint ShaderProgram::CompileStage(const string& source, GLenum stageType, const string& sourcePath){
+    GLint major, minor;
+    glGetIntegerv(GL_MAJOR_VERSION, &major);
+    glGetIntegerv(GL_MINOR_VERSION, &minor);
+    string versionStr = "#version " + std::to_string(major) + std::to_string(minor) + "0 core\n";
+    const char* sources[] = { versionStr.c_str(), source.c_str() };
+
     GLuint shader = glCreateShader(stageType);
-    const char* src = source.c_str();
-    glShaderSource(shader, 1, &src, nullptr);
+    glShaderSource(shader, 2, sources, nullptr); 
     glCompileShader(shader);
 
     GLint success = 0;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    if (!success){
+    if (!success) {
         GLint logLength = 0;
         glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
         string log(static_cast<size_t>(logLength), '\0');
         glGetShaderInfoLog(shader, logLength, nullptr, log.data());
-        spdlog::error("[Shader] {} stage compile error in '{}':\n{}", 
+        spdlog::error("[Shader] {} compile error in '{}':\n{}", 
             (stageType == GL_VERTEX_SHADER ? "Vertex" : "Fragment"), sourcePath, log);
         glDeleteShader(shader);
         return 0;
     }
+    return shader;
     return shader;
 }
 

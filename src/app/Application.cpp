@@ -30,13 +30,33 @@ bool Application::Initialize() {
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 #endif
 
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    // Try creating the highest GL context we support, falling back to older versions if needed.
+    struct GLVersion { int major; int minor; };
+    std::vector<GLVersion> versions = {
+        {4, 6}, {4, 5}, {4, 4}, {4, 3}, {4, 2}, {4, 1}, {4, 0}, {3, 3}
+    };
 
-    m_window = glfwCreateWindow(options.window.width, options.window.height, options.window.title.c_str(), nullptr, nullptr);
-    if (!m_window) { spdlog::error("glfwCreateWindow failed"); glfwTerminate(); return false; }
+    bool windowCreated = false;
+    for (const auto& v : versions) {
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, v.major);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, v.minor);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+        
+        m_window = glfwCreateWindow(options.window.width, options.window.height, "Forward Renderer", nullptr, nullptr);
+        if (m_window) {
+            windowCreated = true;
+            break;
+        }
+    }
 
+    if (!windowCreated) {
+        spdlog::error("Failed to create any OpenGL context (3.3+ required)");
+        glfwTerminate();
+        return false;
+    }
+
+    // Make the GL context current and set up our callback before initializing the renderer, so it can make GL calls and log as needed.
     glfwMakeContextCurrent(m_window);
     glfwSetWindowUserPointer(m_window, this);
     glfwSetFramebufferSizeCallback(m_window, framebuffer_size_callback);
