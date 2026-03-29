@@ -1,6 +1,6 @@
 # Sprint 2 — Minimal Renderer Core, Shaders, and First Geometry
 
-**Status:** Partially complete — GPU buffer layer done, shader system and primitive geometry not yet implemented
+**Status:** Complete
 **Objective:** Replace the bootstrap-only renderer with a reusable minimal renderer capable of drawing indexed geometry through managed shader, buffer, vertex layout, and primitive abstractions.
 
 ---
@@ -13,15 +13,21 @@
 | `src/core/Buffer.h/.cpp` | RAII wrapper for a single OpenGL buffer object (VBO or EBO) |
 | `src/core/VertexArray.h/.cpp` | RAII wrapper for an OpenGL Vertex Array Object (VAO) |
 | `src/core/VertexLayout.h/.cpp` | Describes vertex memory layout; automates `glVertexAttribPointer` setup |
-| `src/core/MeshBuffer.h/.cpp` | GPU mesh abstraction: owns VAO + VBO + EBO, exposes `Bind/Draw` |
+| `src/core/MeshBuffer.h/.cpp` | GPU mesh abstraction: owns VAO + VBO + optional EBO; supports indexed and non-indexed rendering |
+| `src/core/ShaderProgram.h/.cpp` | Loads, compiles, links GLSL stages; caches uniform locations; exposes typed `SetUniform` overloads |
+| `src/core/Primitives.h/.cpp` | CPU-side primitive generators (triangle, quad, cube) returning `PrimitiveMeshData` → `MeshBuffer` |
+| `src/app/SampleScene.h/.cpp` | Sprint 2 demo scene: loads `basic.vert/frag`, uploads three primitives, issues draws via `Renderer::SubmitDraw` |
+| `shaders/basic.vert` | Pass-through vertex shader (clip-space positions, per-vertex colour); no MVP yet |
+| `shaders/basic.frag` | Outputs interpolated `v_Color`; no lighting |
 
 ### Files Modified
 | File | Change |
 |---|---|
-| `CMakeLists.txt` | Added `Buffer.cpp`, `VertexArray.cpp`, `VertexLayout.cpp`, `MeshBuffer.cpp` to the build |
-| `src/core/Renderer.h/.cpp` | Added doc comments; `RenderFrame` still only clears (not yet wired to geometry) |
-| `src/utils/Options.h/.cpp` | Added doc comments; error message improved |
+| `CMakeLists.txt` | Added all new `.cpp` sources; integrated GLM via FetchContent |
+| `src/core/Renderer.h/.cpp` | Added `BeginFrame`/`EndFrame`, `SubmitDraw`, `UnbindShader`, `ClearFlags` bitmask, `FrameParams`; deprecated `RenderFrame()` |
 | `src/core/Renderer.h/.cpp` | Added pipeline state management: `SetDepthTest`, `SetBlendMode`, `SetCullMode` with enum-based API and state caching |
+| `src/utils/Options.h/.cpp` | Added doc comments; error message improved |
+| `src/app/Application.h/.cpp` | Owns `SampleScene`; calls `scene.Setup(...)` in `Initialize` and `scene.Render(...)` in the main loop |
 
 ---
 
@@ -174,16 +180,27 @@ This separation of concerns means you can reuse the same `MeshBuffer` with diffe
 
 ---
 
-### Current State of `Renderer::RenderFrame()`
+### Per-Frame Draw Flow (Sprint 2 final)
+
+`RenderFrame()` is now deprecated. The new pattern, wired up in `Application::Run()`:
 
 ```cpp
-void Renderer::RenderFrame() {
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-}
+renderer.BeginFrame();               // glClear with FrameParams defaults
+scene.Render(renderer, elapsed);     // calls SubmitDraw for each primitive
+renderer.EndFrame();                 // asserts m_inFrame, resets flag
 ```
 
-This only clears the screen to a dark gray. **`MeshBuffer` is not yet used here.** The buffer infrastructure exists but is not yet wired into actual draw calls. There is also no shader system yet, so nothing can actually be drawn even if a `MeshBuffer` were created.
+Inside `SampleScene::Render`:
+```cpp
+renderer.SetDepthTest(true, DepthFunc::Less);
+renderer.SetCullMode(CullMode::Back);
+renderer.SubmitDraw(*m_shader, *m_triangle);  // non-indexed: glDrawArrays
+renderer.SubmitDraw(*m_shader, *m_quad);      // indexed: glDrawElements
+renderer.SubmitDraw(*m_shader, *m_cube);      // indexed: glDrawElements
+renderer.UnbindShader();
+```
+
+`SubmitDraw` binds the shader and mesh, calls `Draw()`, then unbinds the mesh. Geometry is drawn in clip space — no MVP uniforms yet (Sprint 3).
 
 ---
 
@@ -307,44 +324,67 @@ This ensures the renderer starts in a known, predictable state.
 - [x] `Buffer` RAII wrapper implemented with correct EBO unbind behavior
 - [x] `VertexArray` RAII wrapper implemented
 - [x] `VertexLayout` system implemented with automatic stride/offset calculation
-- [x] `MeshBuffer` abstraction implemented with correct VAO setup order
+- [x] `MeshBuffer` abstraction implemented with correct VAO setup order; supports indexed and non-indexed paths
 - [x] All classes have doc comments on public methods
-- [ ] `ShaderProgram` abstraction with source loading, compilation, and link error reporting
-- [ ] Fallback/error shader strategy for development visibility
-- [ ] Built-in primitive generation (triangle, quad, cube) using `MeshBuffer`
-- [ ] `Renderer::RenderFrame()` actually draws geometry (not just clears)
-- [ ] Indexed rendering path verified with at least one non-trivial primitive
-- [ ] Application code depends only on public renderer headers, not GL directly
+- [x] `ShaderProgram` abstraction with source loading, compilation, and link error reporting
+- [x] Built-in primitive generation (triangle, quad, cube) using `MeshBuffer`
+- [x] `Renderer::SubmitDraw` wired to real geometry via `SampleScene`
+- [x] Indexed rendering path verified with quad and cube primitives
+- [x] Application code depends only on public renderer headers, not GL directly
+- [x] Fallback/error shader strategy for development visibility
 
 ---
 
-## What Is Missing
+## New Classes Added in Feature/Primitive-Generation
 
-### 1. `ShaderProgram` — the biggest gap
+### `ShaderProgram` — `src/core/ShaderProgram.h/.cpp`
 
-There is no shader system at all. The SRS requires (FR-004) a `ShaderProgram` abstraction that:
-- Loads `.glsl` source files from disk
-- Compiles vertex and fragment stages separately
-- Links them into a program
-- Reports compile/link errors with the stage name and source file
-- Allows reuse by identifier
+Manages the full lifecycle of a GLSL shader program.
 
-Without this, `MeshBuffer` is useless — you can't draw anything without a shader telling the GPU what to do with the vertex data.
+**Load → compile → link flow:**
+```
+ShaderProgram(vertPath, fragPath)
+  1. ReadFile(vertPath)  → source string
+  2. CompileStage(source, GL_VERTEX_SHADER, path)   → GLuint
+  3. ReadFile(fragPath)  → source string
+  4. CompileStage(source, GL_FRAGMENT_SHADER, path) → GLuint
+  5. LinkProgram(vert, frag, ...)                   → m_id
+```
+`CompileStage` calls `glGetShaderInfoLog` and forwards errors to `spdlog::error` with the source path included. `IsValid()` returns `m_id != 0`. `SampleScene::Setup` checks `IsValid()` before proceeding.
 
-There are also **no `.glsl` shader files in the repository yet.** The SRS planned a `shaders/` directory; it doesn't exist.
+**Uniform helpers:**
+`SetUniform(name, value)` is overloaded for `float`, `int`, `bool`, `vec2`–`vec4`, `mat3`, `mat4`. Locations are cached in `m_uniformCache` to avoid repeated `glGetUniformLocation` calls per frame.
 
-### 2. Built-in Primitive Geometry
+---
 
-The SRS (FR-006) requires built-in triangle, quad, and cube primitives for testing. No primitive generation code exists. These would be functions/classes that return pre-built `MeshBuffer` instances with hard-coded vertex/index arrays.
+### `Primitives` — `src/core/Primitives.h/.cpp`
 
-### 3. `Renderer::RenderFrame()` draws nothing
+Three factory functions that return `PrimitiveMeshData` (CPU-side `std::vector<VertexPC>` + `std::vector<uint32_t>`):
 
-The render frame only clears. `MeshBuffer` is not instantiated or called anywhere in the renderer. This needs shader + primitive work first.
+| Function | Render path | Notes |
+|---|---|---|
+| `GenerateTriangle()` | Non-indexed (`glDrawArrays`) | 3 vertices, per-vertex RGB |
+| `GenerateQuad()` | Indexed (`glDrawElements`) | 4 vertices, 6 indices (2 triangles) |
+| `GenerateCube()` | Indexed (`glDrawElements`) | 24 vertices (unique per face), 36 indices |
 
-### 4. `Options` fields that exist in JSON but aren't consumed
+`PrimitiveMeshData::CreateMeshBuffer()` constructs and returns a ready-to-draw `MeshBuffer`.
+
+`VertexPC` is a `standard_layout` struct of two `glm::vec3`s (position + color), matching `basic.vert` locations 0 and 1.
+
+---
+
+### `SampleScene` — `src/app/SampleScene.h/.cpp`
+
+Owns the three `MeshBuffer` instances and the `ShaderProgram`. `Setup(vertPath, fragPath)` loads the shader and uploads geometry. `Render(renderer, time)` issues three `SubmitDraw` calls each frame. Vertex positions are baked in clip space so the scene is visible without a camera.
+
+---
+
+## What Is Still Pending (carry to Sprint 3)
+
+### 1. `Options` fields that exist in JSON but aren't consumed
 
 `config/settings.json` has `logging.level`, `paths.asset_root`, and `debug.gl_errors` fields, but `Options` only reads `window`. These should be plumbed through when their systems exist.
 
-### 5. GLM not integrated
+### 2. MVP uniforms (by design — deferred to Sprint 3)
 
-No math library is set up yet. The moment a camera or transforms are needed (Sprint 3), GLM needs to be added to `CMakeLists.txt`.
+`basic.vert` draws in clip space with no transforms. Model, view, and projection matrices are Sprint 3 work (camera + transform system).
