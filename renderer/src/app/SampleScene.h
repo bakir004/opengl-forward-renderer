@@ -1,7 +1,7 @@
 #pragma once
 
-#include "core/MeshBuffer.h"
-#include "core/ShaderProgram.h"
+#include "../core/MeshBuffer.h"
+#include "../core/ShaderProgram.h"
 
 #include <memory>
 #include <string>
