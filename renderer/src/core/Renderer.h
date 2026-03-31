@@ -138,9 +138,6 @@ class Renderer {
         /// Configures face culling to skip rendering front/back faces.
         /// @param mode The desired cull mode
         void SetCullMode(CullMode mode);
-		//jyst for compatibility with old code, will be removed eventually
-        [[deprecated("Use BeginFrame() / EndFrame() directly")]]
-        void RenderFrame();
 
         void SubmitDraw(const ShaderProgram& shader, const MeshBuffer& mesh);
         void UnbindShader();
