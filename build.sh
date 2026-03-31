@@ -38,16 +38,17 @@ CONFIG="${1:-Debug}"
 mkdir -p "$BUILD_DIR"
 
 cmake -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE="$CONFIG" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-cmake --build "$BUILD_DIR" --config "$CONFIG" --parallel "$(nproc 2>/dev/null || sysctl -n hw.logicalcpu)"
+cmake --build "$BUILD_DIR" --config "$CONFIG" --parallel "$(nproc 2>/dev/null || sysctl -n hw.logicalcpu)" --target RendererLib
+cmake --build "$BUILD_DIR" --config "$CONFIG" --parallel "$(nproc 2>/dev/null || sysctl -n hw.logicalcpu)" --target TestApp
 
 # Symlink compile_commands for Neovim/LSP
 ln -sf "$BUILD_DIR/compile_commands.json" . 2>/dev/null || true
 
 echo "Build successful. Running..."
-# Check if executable exists before running
-if [ -f "$BUILD_DIR/ForwardRenderer" ]; then
-    "$BUILD_DIR/ForwardRenderer"
+EXECUTABLE="$BUILD_DIR/test-app/TestApp"
+if [ -f "$EXECUTABLE" ]; then
+    "$EXECUTABLE"
 else
-    echo "Error: ForwardRenderer executable not found in $BUILD_DIR"
+    echo "Error: TestApp executable not found at $EXECUTABLE"
     exit 1
 fi

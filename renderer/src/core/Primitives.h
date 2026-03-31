@@ -51,3 +51,11 @@ struct PrimitiveMeshData
 
 /// Generates a unit cube centered at the origin with unique colors per face.
 [[nodiscard]] PrimitiveMeshData GenerateCube();
+
+/// Generates a UV sphere centered at the origin.
+///
+/// @param radius  Sphere radius in local space.
+/// @param detail  Controls mesh density: stacks = detail, slices = detail * 2.
+///                Minimum effective value is 2 (below that is clamped).
+///                detail=4 gives a low-poly sphere; detail=32 gives a smooth one.
+[[nodiscard]] PrimitiveMeshData GenerateSphere(float radius, int detail);
