@@ -41,21 +41,26 @@ bool SampleScene::Setup(const std::string& vertexShaderPath, const std::string& 
     constexpr float kXLeft     = -0.58f;
     constexpr float kXCenter   = 0.0f;
     constexpr float kXRight    = 0.58f;
-    constexpr float kYRow      = -0.02f;
+    constexpr float kYTop      = 0.40f;
+    constexpr float kYBottom   = -0.40f;
     constexpr float kScale2D   = 0.40f;
     constexpr float kScaleCube = 0.32f;
 
     auto tri = GenerateTriangle();
-    PlaceInClipSpace(tri, glm::vec3(kXLeft, kYRow, 0.0f), kScale2D);
+    PlaceInClipSpace(tri, glm::vec3(kXLeft, kYTop, 0.0f), kScale2D);
     m_triangle = std::make_unique<MeshBuffer>(tri.CreateMeshBuffer());
 
     auto quad = GenerateQuad();
-    PlaceInClipSpace(quad, glm::vec3(kXCenter, kYRow, 0.0f), kScale2D);
+    PlaceInClipSpace(quad, glm::vec3(kXCenter, kYTop, 0.0f), kScale2D);
     m_quad = std::make_unique<MeshBuffer>(quad.CreateMeshBuffer());
 
     auto cube = GenerateCube();
-    PlaceInClipSpace(cube, glm::vec3(kXRight, kYRow, 0.0f), kScaleCube);
+    PlaceInClipSpace(cube, glm::vec3(kXRight, kYTop, 0.0f), kScaleCube);
     m_cube = std::make_unique<MeshBuffer>(cube.CreateMeshBuffer());
+
+    auto sphere = GenerateSphere(0.28f, 16);
+    PlaceInClipSpace(sphere, glm::vec3(kXCenter, kYBottom, 0.0f), 1.0f);
+    m_sphere = std::make_unique<MeshBuffer>(sphere.CreateMeshBuffer());
 
     m_ready = true;
     spdlog::info("[SampleScene] Ready (triangle, quad, cube)");
@@ -71,6 +76,7 @@ void SampleScene::Render(Renderer& renderer, float /*timeSeconds*/) {
     renderer.SubmitDraw(*m_shader, *m_triangle);
     renderer.SubmitDraw(*m_shader, *m_quad);
     renderer.SubmitDraw(*m_shader, *m_cube);
+    renderer.SubmitDraw(*m_shader, *m_sphere);
 
     renderer.UnbindShader();
 }

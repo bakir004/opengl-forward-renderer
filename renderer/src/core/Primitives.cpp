@@ -2,6 +2,8 @@
 #include "Primitives.h"
 
 #include <spdlog/spdlog.h>
+#include <algorithm>
+#include <cmath>
 
 GLsizeiptr PrimitiveMeshData::GetVertexBufferSize() const
 {
@@ -88,13 +90,13 @@ PrimitiveMeshData GenerateCube()
 {
     PrimitiveMeshData mesh;
     mesh.vertices = {
-        // Front (+Z)
+        // Back (+Z)
         {{-0.5f, -0.5f,  0.5f}, {1.0f, 0.2f, 0.2f}},
         {{ 0.5f, -0.5f,  0.5f}, {1.0f, 0.2f, 0.2f}},
         {{ 0.5f,  0.5f,  0.5f}, {1.0f, 0.2f, 0.2f}},
         {{-0.5f,  0.5f,  0.5f}, {1.0f, 0.2f, 0.2f}},
 
-        // Back (-Z)
+        // Front (-Z, towards screen)
         {{ 0.5f, -0.5f, -0.5f}, {0.2f, 1.0f, 0.2f}},
         {{-0.5f, -0.5f, -0.5f}, {0.2f, 1.0f, 0.2f}},
         {{-0.5f,  0.5f, -0.5f}, {0.2f, 1.0f, 0.2f}},
@@ -133,6 +135,61 @@ PrimitiveMeshData GenerateCube()
         16, 17, 18, 18, 19, 16,
         20, 21, 22, 22, 23, 20,
     };
+
+    return mesh;
+}
+
+PrimitiveMeshData GenerateSphere(float radius, int detail)
+{
+    const int stacks = std::max(2, detail);
+    const int slices = std::max(3, detail * 2);
+
+    PrimitiveMeshData mesh;
+    mesh.vertices.reserve(static_cast<size_t>((stacks + 1) * (slices + 1)));
+    mesh.indices.reserve(static_cast<size_t>(stacks * slices * 6));
+
+    const float pi = std::atan(1.0f) * 4.0f;
+
+    // Generate vertices ring by ring, top (phi=0) to bottom (phi=PI).
+    // Each ring has (slices+1) vertices; the first and last share position
+    // but are kept separate so index stitching stays uniform.
+    for (int i = 0; i <= stacks; ++i)
+    {
+        float phi = pi * static_cast<float>(i) / static_cast<float>(stacks);
+        float y   = radius * std::cos(phi);
+        float r   = radius * std::sin(phi); // ring radius at this latitude
+
+        for (int j = 0; j <= slices; ++j)
+        {
+            float theta = 2.0f * pi * static_cast<float>(j) / static_cast<float>(slices);
+            float x = r * std::cos(theta);
+            float z = r * std::sin(theta);
+
+            glm::vec3 pos(x, y, z);
+            // Map surface normal (pos/radius) from [-1,1] to [0,1] for color.
+            glm::vec3 color = (pos / radius) * 0.5f + glm::vec3(0.5f);
+            mesh.vertices.push_back({pos, color});
+        }
+    }
+
+    // Stitch adjacent rings into quads (two triangles each).
+    // vertex [i][j] lives at index i*(slices+1)+j.
+    for (int i = 0; i < stacks; ++i)
+    {
+        for (int j = 0; j < slices; ++j)
+        {
+            uint32_t a = static_cast<uint32_t>(i * (slices + 1) + j);
+            uint32_t b = a + static_cast<uint32_t>(slices + 1);
+
+            mesh.indices.push_back(a);
+            mesh.indices.push_back(a + 1);
+            mesh.indices.push_back(b);
+
+            mesh.indices.push_back(a + 1);
+            mesh.indices.push_back(b + 1);
+            mesh.indices.push_back(b);
+        }
+    }
 
     return mesh;
 }

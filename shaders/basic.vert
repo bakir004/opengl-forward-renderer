@@ -1,5 +1,3 @@
-#version 460 core
-
 // Vertex inputs
 // These locations must match the VertexLayout passed to MeshBuffer.
 layout(location = 0) in vec3 a_Position;

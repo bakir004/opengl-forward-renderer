@@ -1,5 +1,3 @@
-#version 460 core
-
 // Inputs from vertex stage
 in vec3 v_Color;
 

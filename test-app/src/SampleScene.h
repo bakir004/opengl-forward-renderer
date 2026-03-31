@@ -41,5 +41,6 @@ class SampleScene {
         std::unique_ptr<MeshBuffer>    m_triangle; ///< Non-indexed triangle mesh.
         std::unique_ptr<MeshBuffer>    m_quad;     ///< Indexed quad mesh.
         std::unique_ptr<MeshBuffer>    m_cube;     ///< Indexed cube mesh (non-trivial index path).
+        std::unique_ptr<MeshBuffer>    m_sphere;   ///< Indexed sphere mesh.
         bool                           m_ready = false; ///< \c true when GPU resources are usable.
 };
