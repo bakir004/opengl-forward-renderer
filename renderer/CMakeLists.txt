@@ -18,6 +18,8 @@ add_library(${PROJECT_NAME} STATIC
         src/utils/Options.cpp
         src/core/Camera.h
         src/core/Camera.cpp
+        src/core/UniformBuffer.h
+        src/core/UniformBuffer.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC src)

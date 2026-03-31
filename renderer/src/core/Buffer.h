@@ -1,12 +1,12 @@
 #pragma once
 #include <glad/glad.h>
 
-/// RAII wrapper around an OpenGL buffer object (VBO or EBO).
+/// RAII wrapper around an OpenGL buffer object (VBO, EBO, or UBO).
 /// Manages GPU memory lifetime — the buffer is deleted when this object is destroyed.
 /// Copy is disabled; use move semantics to transfer ownership.
 class Buffer {
 public:
-    enum Type { VERTEX, ELEMENT };
+    enum Type { VERTEX, ELEMENT, UNIFORM };
 
     /// Allocates a GPU buffer and uploads initial data.
     /// @param type   VERTEX for GL_ARRAY_BUFFER, ELEMENT for GL_ELEMENT_ARRAY_BUFFER
@@ -39,7 +39,12 @@ public:
     /// @param offset Byte offset into the buffer to start writing at (default 0)
     void UpdateData(const void* data, GLsizeiptr size, GLintptr offset = 0);
 
+    /// Returns the underlying GL buffer object ID.
+    /// Used by higher-level wrappers (e.g. UniformBuffer) that need to call GL functions
+    /// which require the raw ID and have no equivalent on Buffer itself (e.g. glBindBufferBase).
+    GLuint GetID() const { return m_id; }
+
 private:
     GLuint m_id = 0;
-    Type m_type;      // VERTEX or ELEMENT
+    Type m_type;      // VERTEX, ELEMENT, or UNIFORM
 };

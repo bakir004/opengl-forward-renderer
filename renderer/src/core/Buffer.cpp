@@ -5,17 +5,20 @@
 Buffer::Buffer(Type type, const void* data, GLsizeiptr size, GLenum usage) : m_type(type) {
     glGenBuffers(1, &m_id);
     if (m_id == 0) {
-        spdlog::error("[Buffer] glGenBuffers returned 0 — GL context may not be current or GPU buffer limit reached (type: {})",
-            type == VERTEX ? "VBO" : "EBO");
+        const char* typeName = (type == VERTEX) ? "VBO" : (type == ELEMENT) ? "EBO" : "UBO";
+        spdlog::error("[Buffer] glGenBuffers returned 0 — GL context may not be current or GPU buffer limit reached (type: {})", typeName);
         return;
     }
 
     Bind();
-    GLenum target = (m_type == VERTEX) ? GL_ARRAY_BUFFER : GL_ELEMENT_ARRAY_BUFFER;
+    GLenum target = (m_type == VERTEX) ? GL_ARRAY_BUFFER
+                  : (m_type == ELEMENT) ? GL_ELEMENT_ARRAY_BUFFER
+                  :                       GL_UNIFORM_BUFFER;
     glBufferData(target, size, data, usage);
     // Do not unbind EBOs: glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0) modifies the currently
     // bound VAO's state, which would silently detach this buffer from the VAO.
-    if (m_type == VERTEX) Unbind();
+    // VERTEX and UNIFORM buffers are safe to unbind immediately.
+    if (m_type != ELEMENT) Unbind();
 }
 
 Buffer::~Buffer() {
@@ -39,20 +42,26 @@ Buffer& Buffer::operator=(Buffer&& other) noexcept {
     return *this;
 }
 
+static GLenum ToGLTarget(Buffer::Type type) {
+    switch (type) {
+        case Buffer::VERTEX:  return GL_ARRAY_BUFFER;
+        case Buffer::ELEMENT: return GL_ELEMENT_ARRAY_BUFFER;
+        case Buffer::UNIFORM: return GL_UNIFORM_BUFFER;
+    }
+    return GL_ARRAY_BUFFER;
+}
+
 void Buffer::Bind() const {
-    GLenum target = (m_type == VERTEX) ? GL_ARRAY_BUFFER : GL_ELEMENT_ARRAY_BUFFER;
-    glBindBuffer(target, m_id);
+    glBindBuffer(ToGLTarget(m_type), m_id);
 }
 
 void Buffer::Unbind() const {
-    GLenum target = (m_type == VERTEX) ? GL_ARRAY_BUFFER : GL_ELEMENT_ARRAY_BUFFER;
-    glBindBuffer(target, 0);
+    glBindBuffer(ToGLTarget(m_type), 0);
 }
 
 void Buffer::UpdateData(const void* data, GLsizeiptr size, GLintptr offset) {
     Bind();
-    GLenum target = (m_type == VERTEX) ? GL_ARRAY_BUFFER : GL_ELEMENT_ARRAY_BUFFER;
-    glBufferSubData(target, offset, size, data);
-    // Same reason as constructor: unbinding an EBO while a VAO is bound detaches it from that VAO.
-    if (m_type == VERTEX) Unbind();
+    glBufferSubData(ToGLTarget(m_type), offset, size, data);
+    // EBO unbind while a VAO is bound detaches it from that VAO — skip for ELEMENT only.
+    if (m_type != ELEMENT) Unbind();
 }
