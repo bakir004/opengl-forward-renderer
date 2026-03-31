@@ -7,27 +7,48 @@
 
 ## What Was Done
 
-### Files Added
+### Project Architecture Refactoring (Post-Sprint 2)
+
+The project was restructured into a **static library + test application** architecture:
+
+- **`renderer/`** — Static library (`librenderer.a` / `renderer.lib`) containing all core rendering abstractions
+    - `renderer/src/core/` — Buffer, VertexArray, VertexLayout, MeshBuffer, ShaderProgram, Primitives, Renderer
+    - `renderer/src/app/` — Application (window/context lifecycle)
+    - `renderer/src/utils/` — Options
+- **`test-app/`** — Executable that links against `renderer` and provides `SampleScene` demo
+    - `test-app/src/main.cpp` — Entry point
+    - `test-app/src/SampleScene.h/.cpp` — Demo scene (not part of library)
+- **Root `CMakeLists.txt`** — Orchestrates FetchContent for dependencies and adds both subdirectories
+
+**Why this matters:**
+- The renderer is now a **reusable library**. Future projects can link against it without carrying demo code.
+- `SampleScene` is explicitly **not** part of the library — it's application-specific demo code.
+- Clean separation: core abstractions live in `renderer/`, usage examples live in `test-app/`.
+
+### Files Added (Sprint 2 Core Work)
 | File | Purpose |
 |---|---|
-| `src/core/Buffer.h/.cpp` | RAII wrapper for a single OpenGL buffer object (VBO or EBO) |
-| `src/core/VertexArray.h/.cpp` | RAII wrapper for an OpenGL Vertex Array Object (VAO) |
-| `src/core/VertexLayout.h/.cpp` | Describes vertex memory layout; automates `glVertexAttribPointer` setup |
-| `src/core/MeshBuffer.h/.cpp` | GPU mesh abstraction: owns VAO + VBO + optional EBO; supports indexed and non-indexed rendering |
-| `src/core/ShaderProgram.h/.cpp` | Loads, compiles, links GLSL stages; caches uniform locations; exposes typed `SetUniform` overloads |
-| `src/core/Primitives.h/.cpp` | CPU-side primitive generators (triangle, quad, cube) returning `PrimitiveMeshData` → `MeshBuffer` |
-| `src/app/SampleScene.h/.cpp` | Sprint 2 demo scene: loads `basic.vert/frag`, uploads three primitives, issues draws via `Renderer::SubmitDraw` |
+| `renderer/src/core/Buffer.h/.cpp` | RAII wrapper for a single OpenGL buffer object (VBO or EBO) |
+| `renderer/src/core/VertexArray.h/.cpp` | RAII wrapper for an OpenGL Vertex Array Object (VAO) |
+| `renderer/src/core/VertexLayout.h/.cpp` | Describes vertex memory layout; automates `glVertexAttribPointer` setup |
+| `renderer/src/core/MeshBuffer.h/.cpp` | GPU mesh abstraction: owns VAO + VBO + optional EBO; supports indexed and non-indexed rendering |
+| `renderer/src/core/ShaderProgram.h/.cpp` | Loads, compiles, links GLSL stages; caches uniform locations; exposes typed `SetUniform` overloads |
+| `renderer/src/core/Primitives.h/.cpp` | CPU-side primitive generators (triangle, quad, cube) returning `PrimitiveMeshData` → `MeshBuffer` |
+| `test-app/src/SampleScene.h/.cpp` | Sprint 2 demo scene: loads `basic.vert/frag`, uploads three primitives, issues draws via `Renderer::SubmitDraw` (application-side, not in library) |
 | `shaders/basic.vert` | Pass-through vertex shader (clip-space positions, per-vertex colour); no MVP yet |
 | `shaders/basic.frag` | Outputs interpolated `v_Color`; no lighting |
 
 ### Files Modified
 | File | Change |
 |---|---|
-| `CMakeLists.txt` | Added all new `.cpp` sources; integrated GLM via FetchContent |
-| `src/core/Renderer.h/.cpp` | Added `BeginFrame`/`EndFrame`, `SubmitDraw`, `UnbindShader`, `ClearFlags` bitmask, `FrameParams`; deprecated `RenderFrame()` |
-| `src/core/Renderer.h/.cpp` | Added pipeline state management: `SetDepthTest`, `SetBlendMode`, `SetCullMode` with enum-based API and state caching |
-| `src/utils/Options.h/.cpp` | Added doc comments; error message improved |
-| `src/app/Application.h/.cpp` | Owns `SampleScene`; calls `scene.Setup(...)` in `Initialize` and `scene.Render(...)` in the main loop |
+| Root `CMakeLists.txt` | Restructured to use `add_subdirectory(renderer)` and `add_subdirectory(test-app)`; FetchContent for all dependencies |
+| `renderer/CMakeLists.txt` | New file — defines `renderer` static library target |
+| `test-app/CMakeLists.txt` | New file — defines `test_app` executable, links against `renderer` |
+| `renderer/src/core/Renderer.h/.cpp` | Added `BeginFrame`/`EndFrame`, `SubmitDraw`, `UnbindShader`, `ClearFlags` bitmask, `FrameParams`; deprecated `RenderFrame()` |
+| `renderer/src/core/Renderer.h/.cpp` | Added pipeline state management: `SetDepthTest`, `SetBlendMode`, `SetCullMode` with enum-based API and state caching |
+| `renderer/src/utils/Options.h/.cpp` | Added doc comments; error message improved |
+| `renderer/src/app/Application.h/.cpp` | Moved to `renderer/src/app/`; no longer owns `SampleScene` (that's application code now) |
+| `test-app/src/main.cpp` | Entry point moved to test-app; creates `Application`, owns `SampleScene`, drives main loop |
 
 ---
 
@@ -182,15 +203,22 @@ This separation of concerns means you can reuse the same `MeshBuffer` with diffe
 
 ### Per-Frame Draw Flow (Sprint 2 final)
 
-`RenderFrame()` is now deprecated. The new pattern, wired up in `Application::Run()`:
+`RenderFrame()` is now deprecated. The new pattern, wired up in `test-app/src/main.cpp`:
 
 ```cpp
-renderer.BeginFrame();               // glClear with FrameParams defaults
-scene.Render(renderer, elapsed);     // calls SubmitDraw for each primitive
-renderer.EndFrame();                 // asserts m_inFrame, resets flag
+// Main loop (application-side code in test-app):
+while (!glfwWindowShouldClose(window)) {
+    glfwPollEvents();
+
+    renderer.BeginFrame();               // glClear with FrameParams defaults
+    scene.Render(renderer, elapsed);     // calls SubmitDraw for each primitive
+    renderer.EndFrame();                 // asserts m_inFrame, resets flag
+
+    glfwSwapBuffers(window);
+}
 ```
 
-Inside `SampleScene::Render`:
+Inside `SampleScene::Render` (in `test-app/src/SampleScene.cpp`):
 ```cpp
 renderer.SetDepthTest(true, DepthFunc::Less);
 renderer.SetCullMode(CullMode::Back);
@@ -201,6 +229,8 @@ renderer.UnbindShader();
 ```
 
 `SubmitDraw` binds the shader and mesh, calls `Draw()`, then unbinds the mesh. Geometry is drawn in clip space — no MVP uniforms yet (Sprint 3).
+
+**Note:** `Application` class is part of the `renderer` library but does **not** own `SampleScene`. The library provides windowing/context lifecycle; applications using the library create their own scene management.
 
 ---
 
@@ -337,7 +367,7 @@ This ensures the renderer starts in a known, predictable state.
 
 ## New Classes Added in Feature/Primitive-Generation
 
-### `ShaderProgram` — `src/core/ShaderProgram.h/.cpp`
+### `ShaderProgram` — `renderer/src/core/ShaderProgram.h/.cpp`
 
 Manages the full lifecycle of a GLSL shader program.
 
@@ -345,19 +375,29 @@ Manages the full lifecycle of a GLSL shader program.
 ```
 ShaderProgram(vertPath, fragPath)
   1. ReadFile(vertPath)  → source string
-  2. CompileStage(source, GL_VERTEX_SHADER, path)   → GLuint
-  3. ReadFile(fragPath)  → source string
-  4. CompileStage(source, GL_FRAGMENT_SHADER, path) → GLuint
-  5. LinkProgram(vert, frag, ...)                   → m_id
+  2. InjectVersion(source) → prepends #version based on OpenGL context version
+  3. CompileStage(source, GL_VERTEX_SHADER, path)   → GLuint
+  4. ReadFile(fragPath)  → source string
+  5. InjectVersion(source) → prepends #version based on OpenGL context version
+  6. CompileStage(source, GL_FRAGMENT_SHADER, path) → GLuint
+  7. LinkProgram(vert, frag, ...)                   → m_id
 ```
 `CompileStage` calls `glGetShaderInfoLog` and forwards errors to `spdlog::error` with the source path included. `IsValid()` returns `m_id != 0`. `SampleScene::Setup` checks `IsValid()` before proceeding.
+
+**Dynamic GLSL versioning:**
+Shader files no longer hardcode `#version` directives. `InjectVersion()` queries the active OpenGL context via `glGetIntegerv(GL_MAJOR_VERSION, ...)` and prepends the appropriate `#version` directive:
+- OpenGL 4.6 → `#version 460 core`
+- OpenGL 4.3 → `#version 430 core`
+- etc.
+
+This allows the same shader source to run on different OpenGL versions without manual editing.
 
 **Uniform helpers:**
 `SetUniform(name, value)` is overloaded for `float`, `int`, `bool`, `vec2`–`vec4`, `mat3`, `mat4`. Locations are cached in `m_uniformCache` to avoid repeated `glGetUniformLocation` calls per frame.
 
 ---
 
-### `Primitives` — `src/core/Primitives.h/.cpp`
+### `Primitives` — `renderer/src/core/Primitives.h/.cpp`
 
 Three factory functions that return `PrimitiveMeshData` (CPU-side `std::vector<VertexPC>` + `std::vector<uint32_t>`):
 
@@ -373,9 +413,13 @@ Three factory functions that return `PrimitiveMeshData` (CPU-side `std::vector<V
 
 ---
 
-### `SampleScene` — `src/app/SampleScene.h/.cpp`
+### `SampleScene` — `test-app/src/SampleScene.h/.cpp`
+
+**Application-side demo code — not part of the renderer library.**
 
 Owns the three `MeshBuffer` instances and the `ShaderProgram`. `Setup(vertPath, fragPath)` loads the shader and uploads geometry. `Render(renderer, time)` issues three `SubmitDraw` calls each frame. Vertex positions are baked in clip space so the scene is visible without a camera.
+
+This class demonstrates how to use the renderer library but is deliberately kept out of `librenderer` — applications linking against the renderer define their own scene structures.
 
 ---
 
