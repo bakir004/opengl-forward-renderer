@@ -81,8 +81,25 @@ if exist "%BUILD_DIR%\compile_commands.json" (
 )
 
 echo Build successful. Running...
-if exist "%BUILD_DIR%\%CONFIG%\ForwardRenderer.exe" (
-    "%BUILD_DIR%\%CONFIG%\ForwardRenderer.exe"
+set "RUN_EXE="
+
+if exist "%BUILD_DIR%\test-app\%CONFIG%\TestApp.exe" set "RUN_EXE=%BUILD_DIR%\test-app\%CONFIG%\TestApp.exe"
+if not defined RUN_EXE if exist "%BUILD_DIR%\test-app\TestApp.exe" set "RUN_EXE=%BUILD_DIR%\test-app\TestApp.exe"
+if not defined RUN_EXE if exist "%BUILD_DIR%\%CONFIG%\TestApp.exe" set "RUN_EXE=%BUILD_DIR%\%CONFIG%\TestApp.exe"
+if not defined RUN_EXE if exist "%BUILD_DIR%\TestApp.exe" set "RUN_EXE=%BUILD_DIR%\TestApp.exe"
+
+if not defined RUN_EXE (
+    for /R "%BUILD_DIR%" %%F in (TestApp.exe) do (
+        set "RUN_EXE=%%~fF"
+        goto :run_app
+    )
+)
+
+:run_app
+
+if defined RUN_EXE (
+    "%RUN_EXE%"
 ) else (
-    "%BUILD_DIR%\ForwardRenderer.exe"
+    echo Error: Built executable not found. Expected TestApp.exe in %BUILD_DIR% output directories.
+    exit /b 1
 )
