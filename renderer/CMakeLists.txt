@@ -14,6 +14,8 @@ add_library(${PROJECT_NAME} STATIC
         src/core/Primitives.cpp
         src/core/ShaderProgram.cpp
         src/utils/Options.cpp
+        src/core/Camera.h
+        src/core/Camera.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC src)
