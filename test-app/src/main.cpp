@@ -4,25 +4,25 @@
 
 int main()
 {
-    spdlog::info("TestApp starting...");
+    spdlog::info("[TestApp] Starting");
 
     Application app;
     if (!app.Initialize())
     {
-        spdlog::error("Failed to initialize Application");
+        spdlog::error("[TestApp] Application::Initialize() failed — aborting");
         return -1;
     }
 
     SampleScene scene;
     if (!scene.Setup("shaders/basic.vert", "shaders/basic.frag"))
-        spdlog::warn("SampleScene setup failed; scene will not draw");
+        spdlog::warn("[TestApp] SampleScene::Setup() failed — no geometry will be rendered this session");
 
-    spdlog::info("Rendering triangle, quad, and cube. Press ESC or close window to exit.");
+    spdlog::info("[TestApp] Entering main loop");
 
     app.Run([&scene](Renderer& renderer, float time) {
         scene.Render(renderer, time);
     });
 
-    spdlog::info("TestApp shutting down...");
+    spdlog::info("[TestApp] Shutting down");
     return 0;
 }

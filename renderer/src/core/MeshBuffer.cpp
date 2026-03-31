@@ -19,7 +19,6 @@ MeshBuffer::MeshBuffer(const void* vertexData,
     assert(vertexBufferSize > 0 && "MeshBuffer: vertexBufferSize must be greater than 0");
     assert(vertexCount > 0 && "MeshBuffer: vertexCount must be greater than 0");
 
-    // Either both indexData + indexCount are valid, or neither is used.
     assert(((indexData != nullptr) && (indexCount > 0)) ||
            ((indexData == nullptr) && (indexCount == 0)));
 
@@ -34,29 +33,25 @@ MeshBuffer::MeshBuffer(const void* vertexData,
 
     // Bind VAO first so vertex attrib state and optional EBO binding get recorded into it.
     m_vao.Bind();
-
     m_vbo.Bind();
 
     if (m_isIndexed)
-    {
         m_ebo->Bind();
-    }
 
-    // Assumes VertexLayout::Apply() expects the correct VAO + VBO to already be bound.
     layout.Apply();
 
-    // Only unbind the VAO. EBO binding is VAO state.
+    // Only unbind the VAO. EBO binding is VAO state — unbinding the EBO here would detach it.
     m_vao.Unbind();
 
     if (m_isIndexed)
     {
-        spdlog::info("MeshBuffer created successfully (indexed, {} vertices, {} indices)",
-                     m_vertexCount, m_indexCount);
+        spdlog::info("[MeshBuffer] Uploaded indexed mesh: {} vertices, {} indices ({} bytes)",
+            m_vertexCount, m_indexCount, vertexBufferSize);
     }
     else
     {
-        spdlog::info("MeshBuffer created successfully (non-indexed, {} vertices)",
-                     m_vertexCount);
+        spdlog::info("[MeshBuffer] Uploaded non-indexed mesh: {} vertices ({} bytes)",
+            m_vertexCount, vertexBufferSize);
     }
 }
 
@@ -74,7 +69,7 @@ void MeshBuffer::Draw() const
 {
     if (m_vertexCount <= 0)
     {
-        spdlog::warn("MeshBuffer::Draw() called with no vertices");
+        spdlog::error("[MeshBuffer] Draw() called with vertex count 0 — mesh was never uploaded or was moved from");
         return;
     }
 
@@ -84,7 +79,7 @@ void MeshBuffer::Draw() const
     {
         if (m_indexCount <= 0)
         {
-            spdlog::warn("MeshBuffer::Draw() called with indexed mode but no indices");
+            spdlog::error("[MeshBuffer] Draw() called in indexed mode but index count is 0 — mesh state is corrupt");
             return;
         }
 

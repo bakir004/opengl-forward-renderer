@@ -5,7 +5,8 @@
 Buffer::Buffer(Type type, const void* data, GLsizeiptr size, GLenum usage) : m_type(type) {
     glGenBuffers(1, &m_id);
     if (m_id == 0) {
-        spdlog::error("Failed to generate OpenGL buffer");
+        spdlog::error("[Buffer] glGenBuffers returned 0 — GL context may not be current or GPU buffer limit reached (type: {})",
+            type == VERTEX ? "VBO" : "EBO");
         return;
     }
 

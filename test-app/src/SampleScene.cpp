@@ -1,4 +1,4 @@
-// SampleScene.cpp — implementation of the Sprint 2 sample scene (Dev 10 integration).
+// SampleScene.cpp — Sprint 2 sample scene.
 
 #include "SampleScene.h"
 
@@ -11,13 +11,6 @@
 
 namespace {
 
-/// Applies a uniform scale and translation to every vertex in \p mesh (clip-space placement).
-///
-/// Used because Sprint 2 keeps the vertex shader free of model matrices; positions are baked on the CPU.
-///
-/// @param mesh           Mutable \ref PrimitiveMeshData from \c GenerateTriangle / \c GenerateQuad / \c GenerateCube.
-/// @param translate      Offset applied after scaling (clip-space).
-/// @param uniformScale   Isotropic scale factor applied before \p translate.
 void PlaceInClipSpace(PrimitiveMeshData& mesh, glm::vec3 translate, float uniformScale) {
     for (auto& v : mesh.vertices)
         v.position = translate + uniformScale * v.position;
@@ -31,10 +24,13 @@ bool SampleScene::Setup(const std::string& vertexShaderPath, const std::string& 
     m_triangle.reset();
     m_quad.reset();
     m_cube.reset();
+    m_sphere.reset();
+
+    spdlog::info("[SampleScene] Setting up with shaders: '{}' + '{}'", vertexShaderPath, fragmentShaderPath);
 
     m_shader = std::make_unique<ShaderProgram>(vertexShaderPath, fragmentShaderPath);
     if (!m_shader->IsValid()) {
-        spdlog::error("[SampleScene] Shader program invalid: {} + {}", vertexShaderPath, fragmentShaderPath);
+        spdlog::error("[SampleScene] Shader program failed to compile/link — scene cannot render without a valid shader");
         return false;
     }
 
@@ -63,7 +59,7 @@ bool SampleScene::Setup(const std::string& vertexShaderPath, const std::string& 
     m_sphere = std::make_unique<MeshBuffer>(sphere.CreateMeshBuffer());
 
     m_ready = true;
-    spdlog::info("[SampleScene] Ready (triangle, quad, cube)");
+    spdlog::info("[SampleScene] Ready — triangle, quad, cube, sphere");
     return true;
 }
 

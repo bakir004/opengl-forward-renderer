@@ -37,7 +37,7 @@ MeshBuffer PrimitiveMeshData::CreateMeshBuffer(GLenum usage) const
 {
     if (vertices.empty())
     {
-        spdlog::warn("PrimitiveMeshData::CreateMeshBuffer() called with empty vertex data");
+        spdlog::error("[Primitives] CreateMeshBuffer() called on empty PrimitiveMeshData — no vertices to upload");
     }
 
     const void* vertexData = vertices.empty() ? nullptr : vertices.data();
@@ -61,10 +61,6 @@ PrimitiveMeshData GenerateTriangle()
         {{ 0.6f, -0.5f, 0.0f}, {0.2f, 1.0f, 0.2f}},
         {{ 0.0f,  0.6f, 0.0f}, {0.2f, 0.4f, 1.0f}},
     };
-
-    // Non-indexed path test
-    mesh.indices = {};
-
     return mesh;
 }
 
@@ -77,12 +73,10 @@ PrimitiveMeshData GenerateQuad()
         {{ 0.5f,  0.5f, 0.0f}, {0.2f, 0.4f, 1.0f}},
         {{-0.5f,  0.5f, 0.0f}, {1.0f, 0.9f, 0.2f}},
     };
-
     mesh.indices = {
         0, 1, 2,
         2, 3, 0,
     };
-
     return mesh;
 }
 
@@ -126,7 +120,6 @@ PrimitiveMeshData GenerateCube()
         {{ 0.5f, -0.5f,  0.5f}, {0.2f, 1.0f, 1.0f}},
         {{-0.5f, -0.5f,  0.5f}, {0.2f, 1.0f, 1.0f}},
     };
-
     mesh.indices = {
          0,  1,  2,  2,  3,  0,
          4,  5,  6,  6,  7,  4,
@@ -135,10 +128,8 @@ PrimitiveMeshData GenerateCube()
         16, 17, 18, 18, 19, 16,
         20, 21, 22, 22, 23, 20,
     };
-
     return mesh;
 }
-
 PrimitiveMeshData GenerateSphere(float radius, int detail)
 {
     const int stacks = std::max(2, detail);

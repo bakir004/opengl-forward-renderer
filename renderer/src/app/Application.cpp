@@ -20,7 +20,10 @@ Application::~Application() {
 }
 
 bool Application::Initialize() {
-    if (!glfwInit()) { spdlog::error("glfwInit failed"); return false; }
+    if (!glfwInit()) {
+        spdlog::error("[Application] GLFW initialization failed — glfwInit() returned false");
+        return false;
+    }
 
     Options options("config/settings.json");
 
@@ -35,30 +38,38 @@ bool Application::Initialize() {
     };
 
     bool windowCreated = false;
+    int createdMajor = 0, createdMinor = 0;
     for (const auto& v : versions) {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, v.major);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, v.minor);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-        
+
         m_window = glfwCreateWindow(options.window.width, options.window.height, options.window.title.c_str(), nullptr, nullptr);
         if (m_window) {
             windowCreated = true;
+            createdMajor = v.major;
+            createdMinor = v.minor;
             break;
         }
     }
 
     if (!windowCreated) {
-        spdlog::error("Failed to create any OpenGL context (3.3+ required)");
+        spdlog::error("[Application] Failed to create GLFW window — no supported OpenGL context available (tried 4.6 down to 3.3 Core Profile)");
         glfwTerminate();
         return false;
     }
 
-    // Make the GL context current and set up our callback before initializing the renderer, so it can make GL calls and log as needed.
+    spdlog::info("[Application] Window created ({}x{}, OpenGL {}.{} Core Profile)",
+        options.window.width, options.window.height, createdMajor, createdMinor);
+
     glfwMakeContextCurrent(m_window);
     glfwSetWindowUserPointer(m_window, this);
     glfwSetFramebufferSizeCallback(m_window, framebuffer_size_callback);
-    glfwSwapInterval(options.window.vsync ? 1 : 0);
+
+    int vsyncInterval = options.window.vsync ? 1 : 0;
+    glfwSwapInterval(vsyncInterval);
+    spdlog::info("[Application] VSync {}", vsyncInterval ? "enabled" : "disabled");
 
     if (!m_renderer->Initialize())
         return false;
