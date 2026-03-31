@@ -15,6 +15,7 @@
 /// Matches shaders/basic.vert:
 /// - location 0: position (vec3)
 /// - location 1: color    (vec3)
+/// Also matches the layout created by \ref PrimitiveMeshData::CreateLayout.
 struct VertexPC
 {
     glm::vec3 position{0.0f, 0.0f, 0.0f};

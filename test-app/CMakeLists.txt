@@ -16,7 +16,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 # Copy shaders to test app output directory
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_SOURCE_DIR}/shaders"
-        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders"
-        COMMENT "Copying shaders to test app output directory"
+        "${CMAKE_SOURCE_DIR}/assets"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
+        COMMENT "Copying assets to test app output directory"
 )
