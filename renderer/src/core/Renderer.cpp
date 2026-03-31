@@ -113,11 +113,6 @@ void Renderer::Resize(int width, int height) {
     SetViewport(0, 0, width, height);
 }
 
-void Renderer::RenderFrame() {
-    BeginFrame();
-    EndFrame();
-}
-
 void Renderer::SetDepthTest(const bool enable, const DepthFunc func) {
     if (m_depthTestEnabled != enable) {
         if (enable) {
