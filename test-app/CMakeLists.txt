@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 # Test application executable
 add_executable(${PROJECT_NAME}
         src/main.cpp
+        src/SampleScene.cpp
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE

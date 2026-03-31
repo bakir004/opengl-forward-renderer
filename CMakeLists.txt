@@ -41,4 +41,4 @@ FetchContent_MakeAvailable(glad glfw spdlog json glm)
 
 # Add subdirectories for library and executable
 add_subdirectory(renderer)
-add_subdirectory(testApp)
+add_subdirectory(test-app)

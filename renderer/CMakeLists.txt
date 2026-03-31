@@ -6,7 +6,6 @@ set(CMAKE_CXX_STANDARD 20)
 # Renderer static library
 add_library(${PROJECT_NAME} STATIC
         src/app/Application.cpp
-        src/app/SampleScene.cpp
         src/core/Renderer.cpp
         src/core/Buffer.cpp
         src/core/VertexArray.cpp

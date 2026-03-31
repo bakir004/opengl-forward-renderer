@@ -1,5 +1,4 @@
 #include "Application.h"
-#include "SampleScene.h"
 #include "../utils/Options.h"
 #include "../core/Renderer.h"
 #include <GLFW/glfw3.h>
@@ -15,7 +14,6 @@ static void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 
 Application::Application() : m_renderer(std::make_unique<Renderer>()) {}
 Application::~Application() {
-    m_sampleScene.reset();
     m_renderer->Shutdown();
     if (m_window) { glfwDestroyWindow(m_window); m_window = nullptr; }
     glfwTerminate();
@@ -43,7 +41,7 @@ bool Application::Initialize() {
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
         
-        m_window = glfwCreateWindow(options.window.width, options.window.height, "Forward Renderer", nullptr, nullptr);
+        m_window = glfwCreateWindow(options.window.width, options.window.height, options.window.title.c_str(), nullptr, nullptr);
         if (m_window) {
             windowCreated = true;
             break;
@@ -65,27 +63,19 @@ bool Application::Initialize() {
     if (!m_renderer->Initialize())
         return false;
 
-    m_sampleScene = std::make_unique<SampleScene>();
-    if (!m_sampleScene->Setup("shaders/basic.vert", "shaders/basic.frag")) {
-        spdlog::warn("SampleScene setup failed; scene will not draw");
-        m_sampleScene.reset();
-    }
     return true;
 }
 
-void Application::Run() {
+void Application::Run(std::function<void(Renderer&, float)> onRender) {
     while (!glfwWindowShouldClose(m_window)) {
         glfwPollEvents();
 
-        // Sprint 3 will build a FrameParams from the active camera and
-        // scene settings before passing it here.
         FrameParams frame{};
         frame.clearColor = { 0.08f, 0.09f, 0.12f, 1.0f };
         m_renderer->BeginFrame(frame);
 
-        // Draw calls go here once ShaderProgram + MeshBuffer are wired up.
-        if (m_sampleScene)
-            m_sampleScene->Render(*m_renderer, static_cast<float>(glfwGetTime()));
+        if (onRender)
+            onRender(*m_renderer, static_cast<float>(glfwGetTime()));
 
         m_renderer->EndFrame();
         glfwSwapBuffers(m_window);

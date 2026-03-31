@@ -1,9 +1,9 @@
 #pragma once
+#include <functional>
 #include <memory>
 
 struct GLFWwindow;
 class Renderer;
-class SampleScene;
 
 /// Top-level application class. Owns the GLFW window and the Renderer.
 /// Manages the full lifetime of the window, GL context, and main loop.
@@ -20,8 +20,11 @@ class Application {
         bool Initialize();
 
         /// Runs the main loop: polls events, renders a frame, and swaps buffers each iteration.
+        /// Calls \p onRender each frame between BeginFrame and EndFrame.
         /// Exits when the window is closed.
-        void Run();
+        ///
+        /// @param onRender Called each frame with the active Renderer and elapsed time in seconds.
+        void Run(std::function<void(Renderer&, float)> onRender = nullptr);
 
         /// Returns a non-owning pointer to the active Renderer.
         /// Used by the framebuffer resize callback to forward resize events.
@@ -30,5 +33,4 @@ class Application {
     private:
         GLFWwindow* m_window = nullptr;
         std::unique_ptr<Renderer> m_renderer;
-        std::unique_ptr<SampleScene> m_sampleScene;
 };

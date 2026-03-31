@@ -2,10 +2,10 @@
 
 #include "SampleScene.h"
 
-#include "../core/MeshBuffer.h"
-#include "../core/Primitives.h"
-#include "../core/Renderer.h"
-#include "../core/ShaderProgram.h"
+#include "core/MeshBuffer.h"
+#include "core/Primitives.h"
+#include "core/Renderer.h"
+#include "core/ShaderProgram.h"
 
 #include <spdlog/spdlog.h>
 

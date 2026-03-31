@@ -1,4 +1,5 @@
 #include "app/Application.h"
+#include "SampleScene.h"
 #include <spdlog/spdlog.h>
 
 int main()
@@ -12,10 +13,15 @@ int main()
         return -1;
     }
 
+    SampleScene scene;
+    if (!scene.Setup("shaders/basic.vert", "shaders/basic.frag"))
+        spdlog::warn("SampleScene setup failed; scene will not draw");
+
     spdlog::info("Rendering triangle, quad, and cube. Press ESC or close window to exit.");
 
-    // Application::Run() internally uses SampleScene to render all 3 primitives
-    app.Run();
+    app.Run([&scene](Renderer& renderer, float time) {
+        scene.Render(renderer, time);
+    });
 
     spdlog::info("TestApp shutting down...");
     return 0;
