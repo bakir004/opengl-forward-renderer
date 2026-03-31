@@ -28,7 +28,7 @@ ShaderProgram::ShaderProgram(const string& vertexPath, const string& fragmentPat
     auto fragSource = ReadFile(fragmentPath);
 
     GLuint vertShader = 0, fragShader = 0;
-    
+
     if (vertSource && fragSource) {
         vertShader = CompileStage(*vertSource, GL_VERTEX_SHADER, vertexPath);
         if (vertShader != 0) {
@@ -38,17 +38,19 @@ ShaderProgram::ShaderProgram(const string& vertexPath, const string& fragmentPat
             }
         }
     } else {
-        spdlog::error("[Shader] Missing source files for {} or {}", vertexPath, fragmentPath);
+        if (!vertSource) spdlog::error("[Shader] Could not read vertex shader file '{}'", vertexPath);
+        if (!fragSource) spdlog::error("[Shader] Could not read fragment shader file '{}'", fragmentPath);
     }
 
     if (m_id == 0) {
-        spdlog::warn("[Shader] '{}' failed. Loading hardcoded Magenta fallback.", vertexPath);
-        
-        GLuint fbVert = CompileStage(FALLBACK_VERT, GL_VERTEX_SHADER, "FALLBACK_VERT");
+        spdlog::warn("[Shader] '{}' + '{}' failed to compile/link — falling back to hardcoded magenta shader",
+            vertexPath, fragmentPath);
+
+        GLuint fbVert = CompileStage(FALLBACK_VERT, GL_VERTEX_SHADER,   "FALLBACK_VERT");
         GLuint fbFrag = CompileStage(FALLBACK_FRAG, GL_FRAGMENT_SHADER, "FALLBACK_FRAG");
         m_id = LinkProgram(fbVert, fbFrag, "FALLBACK_VERT", "FALLBACK_FRAG");
     } else {
-        spdlog::info("[Shader] Program linked: '{}' + '{}'", vertexPath, fragmentPath);
+        spdlog::info("[Shader] Linked: '{}' + '{}'", vertexPath, fragmentPath);
     }
 }
 
@@ -115,7 +117,7 @@ GLuint ShaderProgram::CompileStage(const string& source, GLenum stageType, const
     const char* sources[] = { versionStr.c_str(), source.c_str() };
 
     GLuint shader = glCreateShader(stageType);
-    glShaderSource(shader, 2, sources, nullptr); 
+    glShaderSource(shader, 2, sources, nullptr);
     glCompileShader(shader);
 
     GLint success = 0;
@@ -125,12 +127,11 @@ GLuint ShaderProgram::CompileStage(const string& source, GLenum stageType, const
         glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
         string log(static_cast<size_t>(logLength), '\0');
         glGetShaderInfoLog(shader, logLength, nullptr, log.data());
-        spdlog::error("[Shader] {} compile error in '{}':\n{}", 
+        spdlog::error("[Shader] {} stage compile error in '{}':\n{}",
             (stageType == GL_VERTEX_SHADER ? "Vertex" : "Fragment"), sourcePath, log);
         glDeleteShader(shader);
         return 0;
     }
-    return shader;
     return shader;
 }
 

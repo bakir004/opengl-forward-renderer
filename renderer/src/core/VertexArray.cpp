@@ -5,7 +5,7 @@
 VertexArray::VertexArray() {
     glGenVertexArrays(1, &m_id);
     if (m_id == 0) {
-        spdlog::error("Failed to generate OpenGL vertex array");
+        spdlog::error("[VAO] glGenVertexArrays returned 0 — GL context may not be current or GPU VAO limit reached");
     }
 }
 
