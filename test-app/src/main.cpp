@@ -14,11 +14,12 @@ int main()
     }
 
     SampleScene scene;
-    if (!scene.Setup("shaders/basic.vert", "shaders/basic.frag"))
+    if (!scene.Setup("assets/shaders/basic.vert", "assets/shaders/basic.frag"))
         spdlog::warn("[TestApp] SampleScene::Setup() failed — no geometry will be rendered this session");
 
     spdlog::info("[TestApp] Entering main loop");
 
+    // Main loop: runs every frame until the window is closed. Calls the provided lambda with the active Renderer and elapsed time in seconds.
     app.Run([&scene](Renderer& renderer, float time) {
         scene.Render(renderer, time);
     });

@@ -1,5 +1,3 @@
-// SampleScene.cpp — Sprint 2 sample scene.
-
 #include "SampleScene.h"
 
 #include "core/MeshBuffer.h"
@@ -16,7 +14,7 @@ void PlaceInClipSpace(PrimitiveMeshData& mesh, glm::vec3 translate, float unifor
         v.position = translate + uniformScale * v.position;
 }
 
-} // namespace
+} // namespace for hiding this helper from external use
 
 bool SampleScene::Setup(const std::string& vertexShaderPath, const std::string& fragmentShaderPath) {
     m_ready = false;
@@ -68,6 +66,9 @@ void SampleScene::Render(Renderer& renderer, float /*timeSeconds*/) {
 
     renderer.SetDepthTest(true, DepthFunc::Less);
     renderer.SetCullMode(CullMode::Back);
+
+    // this also works, the submit draws dont need to set the same shader every time
+    m_shader->Bind();
 
     renderer.SubmitDraw(*m_shader, *m_triangle);
     renderer.SubmitDraw(*m_shader, *m_quad);

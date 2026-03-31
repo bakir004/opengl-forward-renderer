@@ -34,10 +34,8 @@ MeshBuffer::MeshBuffer(const void* vertexData,
     // Bind VAO first so vertex attrib state and optional EBO binding get recorded into it.
     m_vao.Bind();
     m_vbo.Bind();
-
     if (m_isIndexed)
         m_ebo->Bind();
-
     layout.Apply();
 
     // Only unbind the VAO. EBO binding is VAO state — unbinding the EBO here would detach it.
