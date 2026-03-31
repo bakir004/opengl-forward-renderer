@@ -6,10 +6,6 @@ set(CMAKE_CXX_STANDARD 20)
 set(FETCHCONTENT_BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external")
 include(FetchContent)
 
-FetchContent_Declare(glad
-        GIT_REPOSITORY https://github.com/Dav1dde/glad.git
-        GIT_TAG        v0.1.36
-)
 FetchContent_Declare(glfw
         GIT_REPOSITORY https://github.com/glfw/glfw.git
         GIT_TAG        3.4
@@ -34,11 +30,15 @@ FetchContent_Declare(glm
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_DOCS     OFF CACHE BOOL "" FORCE)
-set(GLAD_PROFILE "core" CACHE STRING "")
-set(GLAD_API "gl=4.6" CACHE STRING "")
 
-FetchContent_MakeAvailable(glad glfw spdlog json glm)
+FetchContent_MakeAvailable(glfw spdlog json glm)
 
-# Add subdirectories for library and executable
+add_library(glad STATIC
+        external/glad/src/glad.c
+)
+target_include_directories(glad PUBLIC
+        external/glad/include
+)
+
 add_subdirectory(renderer)
 add_subdirectory(test-app)

@@ -1,5 +1,6 @@
 .cache
 /external/*
+!/external/glad
 /build/*
 compile_commands.json
 .vscode
