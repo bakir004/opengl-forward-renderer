@@ -81,7 +81,9 @@ public:
     /// @param up     World up hint used to resolve the right vector (default: +Y).
     void SetTarget(glm::vec3 target, glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f));
  
-    [[nodiscard]] glm::vec3 GetPosition() const { return m_position; }
+    [[nodiscard]] glm::vec3 GetPosition() const;
+
+    [[nodiscard]] glm::mat4 GetViewProjection() const;
  
     // -----------------------------------------------------------------------
     //  Orientation
