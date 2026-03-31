@@ -13,6 +13,8 @@ add_library(${PROJECT_NAME} STATIC
         src/core/MeshBuffer.cpp
         src/core/Primitives.cpp
         src/core/ShaderProgram.cpp
+        src/core/Transform.h
+        src/core/Transform.cpp
         src/utils/Options.cpp
         src/core/Camera.h
         src/core/Camera.cpp
