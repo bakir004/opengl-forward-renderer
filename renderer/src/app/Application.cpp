@@ -1,6 +1,8 @@
 #include "Application.h"
 #include "../utils/Options.h"
 #include "../core/Renderer.h"
+#include "../core/KeyboardInput.h"
+#include "../core/MouseInput.h"
 #include <GLFW/glfw3.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
@@ -74,12 +76,20 @@ bool Application::Initialize() {
     if (!m_renderer->Initialize())
         return false;
 
+    m_input = std::make_unique<KeyboardInput>(m_window);
+    spdlog::info("[Application] KeyboardInput initialized");
+
+    m_mouse = std::make_unique<MouseInput>(m_window);
+    spdlog::info("[Application] MouseInput initialized");
+
     return true;
 }
 
 void Application::Run(std::function<void(Renderer&, float)> onRender) {
     while (!glfwWindowShouldClose(m_window)) {
         glfwPollEvents();
+        m_input->Update();
+        m_mouse->Update();
 
         FrameParams frame{};
         frame.clearColor = { 0.08f, 0.09f, 0.12f, 1.0f };

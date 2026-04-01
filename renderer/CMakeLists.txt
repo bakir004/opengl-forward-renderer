@@ -20,6 +20,10 @@ add_library(${PROJECT_NAME} STATIC
         src/core/Camera.cpp
         src/core/UniformBuffer.h
         src/core/UniformBuffer.cpp
+        src/core/KeyboardInput.h
+        src/core/KeyboardInput.cpp
+        src/core/MouseInput.h
+        src/core/MouseInput.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC src)
