@@ -176,9 +176,17 @@ PrimitiveMeshData GenerateSphere(float radius, int detail)
             mesh.indices.push_back(a + 1);
             mesh.indices.push_back(b);
 
+            mesh.indices.push_back(b);
+            mesh.indices.push_back(a + 1);
+            mesh.indices.push_back(a);
+
             mesh.indices.push_back(a + 1);
             mesh.indices.push_back(b + 1);
             mesh.indices.push_back(b);
+
+            mesh.indices.push_back(b);
+            mesh.indices.push_back(b + 1);
+            mesh.indices.push_back(a + 1);
         }
     }
 

@@ -91,6 +91,7 @@ void SampleScene::Render(FrameSubmission& submission, float /*timeSeconds*/) {
     playerCubeItem.transform.SetTranslation(m_playerPosition);
 
     RenderItem sphereItem;
+    sphereItem.drawMode = DrawMode::Wireframe;
     sphereItem.mesh = m_sphere.get();
     sphereItem.shader = m_shader.get();
     sphereItem.transform.SetTranslation({1.2f, 0.0f, -3.0f});
