@@ -1,4 +1,4 @@
-#include "MeshBuffer.h"
+#include "core/MeshBuffer.h"
 
 #include <cassert>
 #include <spdlog/spdlog.h>

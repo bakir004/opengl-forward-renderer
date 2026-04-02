@@ -1,4 +1,4 @@
-#include "KeyboardInput.h"
+#include "core/KeyboardInput.h"
 #include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
 

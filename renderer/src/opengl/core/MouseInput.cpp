@@ -1,4 +1,4 @@
-#include "MouseInput.h"
+#include "core/MouseInput.h"
 #include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
 

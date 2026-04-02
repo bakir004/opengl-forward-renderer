@@ -1,4 +1,4 @@
-#include "VertexLayout.h"
+#include "core/VertexLayout.h"
 
 /// Returns the byte size of one GL type. Only types we actually use are listed;
 /// add more here if you ever need GL_INT, GL_UNSIGNED_BYTE, etc.

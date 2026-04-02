@@ -1,4 +1,4 @@
-#include "Buffer.h"
+#include "core/Buffer.h"
 #include <glad/glad.h>
 #include <spdlog/spdlog.h>
 
