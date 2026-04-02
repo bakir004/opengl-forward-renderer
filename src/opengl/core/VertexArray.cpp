@@ -1,4 +1,4 @@
-#include "VertexArray.h"
+#include "core/VertexArray.h"
 #include <spdlog/spdlog.h>
 #include <glad/glad.h>
 

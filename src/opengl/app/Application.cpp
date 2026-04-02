@@ -1,9 +1,9 @@
-#include "Application.h"
-#include "../utils/Options.h"
-#include "../core/Renderer.h"
-#include "../core/KeyboardInput.h"
-#include "../core/MouseInput.h"
-#include "../scene/FrameSubmission.h"
+#include "app/Application.h"
+#include "utils/Options.h"
+#include "core/Renderer.h"
+#include "core/KeyboardInput.h"
+#include "core/MouseInput.h"
+#include "scene/FrameSubmission.h"
 #include <GLFW/glfw3.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>

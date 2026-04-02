@@ -1,4 +1,4 @@
-#include "UniformBuffer.h"
+#include "core/UniformBuffer.h"
 #include <spdlog/spdlog.h>
 
 UniformBuffer::UniformBuffer(GLsizeiptr size, GLenum usage)

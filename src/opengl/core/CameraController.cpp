@@ -1,4 +1,4 @@
-#include "CameraController.h"
+#include "core/CameraController.h"
 #include <GLFW/glfw3.h>
 
 CameraController::CameraController(Camera& camera)

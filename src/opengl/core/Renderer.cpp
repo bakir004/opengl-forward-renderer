@@ -1,9 +1,9 @@
-#include "Renderer.h"
-#include "MeshBuffer.h"
-#include "ShaderProgram.h"
-#include "UniformBuffer.h"
-#include "../scene/FrameSubmission.h"
-#include "../scene/RenderItem.h"
+#include "core/Renderer.h"
+#include "core/MeshBuffer.h"
+#include "core/ShaderProgram.h"
+#include "core/UniformBuffer.h"
+#include "scene/FrameSubmission.h"
+#include "scene/RenderItem.h"
 #include <glm/glm.hpp>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>

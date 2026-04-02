@@ -40,5 +40,5 @@ target_include_directories(glad PUBLIC
         external/glad/include
 )
 
-add_subdirectory(renderer)
+add_subdirectory(src)
 add_subdirectory(test-app)
