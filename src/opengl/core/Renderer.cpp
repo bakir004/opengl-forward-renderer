@@ -67,6 +67,11 @@ void Renderer::Shutdown() {
     spdlog::info("[Renderer] Shutdown complete");
 }
 
+void Renderer::Cleanup() {
+    m_cameraUBO.reset();
+    spdlog::debug("[Renderer] GL resources released");
+}
+
 void Renderer::BeginFrame(const FrameParams& params) {
     assert(!m_inFrame && "BeginFrame() called without a matching EndFrame()");
     m_inFrame = true;

@@ -110,6 +110,7 @@ class Renderer {
         bool Initialize();
         /// Performs any cleanup before the GL context is destroyed.
         void Shutdown();
+        void Cleanup();
         void BeginFrame(const FrameParams& params = {});
         void BeginFrame(const class FrameSubmission& submission);
         void EndFrame();
