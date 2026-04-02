@@ -17,6 +17,7 @@ static void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 
 Application::Application() : m_renderer(std::make_unique<Renderer>()) {}
 Application::~Application() {
+    if (m_renderer) m_renderer->Cleanup();
     m_renderer->Shutdown();
     if (m_window) { glfwDestroyWindow(m_window); m_window = nullptr; }
     glfwTerminate();
