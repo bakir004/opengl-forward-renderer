@@ -92,10 +92,10 @@ class Renderer {
         Viewport   m_viewport = {};
         glm::vec4  m_clearColor = { 0.1f, 0.1f, 0.1f, 1.0f };
         // Cached pipeline state to avoid redundant GL calls
-        bool m_depthTestEnabled = true;
+        bool m_depthTestEnabled = false;
         DepthFunc m_depthFunc = DepthFunc::Less;
         BlendMode m_blendMode = BlendMode::Disabled;
-        CullMode m_cullMode = CullMode::Back;
+        CullMode m_cullMode = CullMode::Disabled;
 
         // Set to true between BeginFrame() and EndFrame() so we can assert on
         // mismatched calls in debug builds.
