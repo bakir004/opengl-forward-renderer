@@ -1,8 +1,12 @@
 #pragma once
 #include <glm/glm.hpp>
+#include <memory>
+#include "UniformBuffer.h"
 
 class ShaderProgram;
 class MeshBuffer;
+struct RenderItem;
+struct FrameSubmission;
 
 /// Depth test comparison functions
 enum class DepthFunc {
@@ -97,6 +101,8 @@ class Renderer {
         // mismatched calls in debug builds.
         bool m_inFrame = false;
 
+        std::unique_ptr<UniformBuffer> m_cameraUBO;
+
     public:
         /// Loads GL function pointers via GLAD and sets up the debug callback in debug builds.
         /// Must be called after a GL context is current.
@@ -105,6 +111,7 @@ class Renderer {
         /// Performs any cleanup before the GL context is destroyed.
         void Shutdown();
         void BeginFrame(const FrameParams& params = {});
+        void BeginFrame(const class FrameSubmission& submission);
         void EndFrame();
         void SetViewport(int x, int y, int width, int height);
         /// Viewport overload that accepts a pre-filled Viewport struct.
@@ -140,5 +147,7 @@ class Renderer {
         void SetCullMode(CullMode mode);
 
         void SubmitDraw(const ShaderProgram& shader, const MeshBuffer& mesh);
+        void SubmitDraw(const ShaderProgram& shader, const MeshBuffer& mesh, const glm::mat4& modelMatrix);
+        void SubmitDraw(const RenderItem& item);
         void UnbindShader();
 };

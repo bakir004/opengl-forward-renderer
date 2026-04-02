@@ -1,6 +1,10 @@
 #include "Renderer.h"
 #include "MeshBuffer.h"
 #include "ShaderProgram.h"
+#include "UniformBuffer.h"
+#include "../scene/FrameSubmission.h"
+#include "../scene/RenderItem.h"
+#include <glm/glm.hpp>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
@@ -73,6 +77,28 @@ void Renderer::BeginFrame(const FrameParams& params) {
         glDepthMask(GL_TRUE);
 
     Clear(params.clearFlags);
+}
+
+void Renderer::BeginFrame(const FrameSubmission& submission) {
+    assert(!m_inFrame && "BeginFrame() called without a matching EndFrame()");
+    m_inFrame = true;
+
+    if (submission.camera) {
+        if (!m_cameraUBO)
+            m_cameraUBO = std::make_unique<UniformBuffer>(sizeof(CameraData), GL_DYNAMIC_DRAW);
+
+        CameraData camData = submission.camera->BuildCameraData(submission.time, submission.deltaTime);
+        m_cameraUBO->Upload(&camData, sizeof(CameraData));
+        m_cameraUBO->BindToSlot(0);
+    }
+
+    SetViewport(submission.viewport);
+    SetClearColor(submission.clearColor);
+
+    if (!!(submission.clearFlags & ClearFlags::Depth))
+        glDepthMask(GL_TRUE);
+
+    Clear(submission.clearFlags);
 }
 
 void Renderer::EndFrame() {
@@ -208,9 +234,39 @@ void Renderer::SetCullMode(const CullMode mode) {
 }
 
 void Renderer::SubmitDraw(const ShaderProgram& shader, const MeshBuffer& mesh) {
+    SubmitDraw(shader, mesh, glm::mat4(1.0f));
+}
+
+void Renderer::SubmitDraw(const ShaderProgram& shader, const MeshBuffer& mesh, const glm::mat4& modelMatrix) {
     assert(m_inFrame && "SubmitDraw() must be called between BeginFrame() and EndFrame()");
+
     shader.Bind();
+    shader.SetUniform("u_Model", modelMatrix);
+
+    glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(modelMatrix)));
+    shader.SetUniform("u_NormalMatrix", normalMatrix);
+
     mesh.Draw();
+}
+
+void Renderer::SubmitDraw(const RenderItem& item) {
+    if (!item.flags.visible || !item.mesh || !item.shader)
+        return;
+
+    // Set render mode.
+    switch (item.drawMode) {
+        case DrawMode::Fill:      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);   break;
+        case DrawMode::Wireframe: glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);   break;
+        case DrawMode::Points:    glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);  break;
+    }
+
+    // Topology is handled by MeshBuffer::Draw (for now assumes triangle).  
+    // If needed, MeshBuffer can expose draw call variant to honor topology.
+
+    SubmitDraw(*item.shader, *item.mesh, item.transform.GetModelMatrix());
+
+    // Restore fill mode by default (to avoid affecting subsequent draws).
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
 void Renderer::UnbindShader() {
