@@ -71,8 +71,10 @@ void Camera::SetTarget(glm::vec3 target, glm::vec3 up) {
 }
 
 [[nodiscard]] glm::vec3 Camera::GetPosition() const {
-    if (m_mode == CameraMode::ThirdPerson)
+    if (m_mode == CameraMode::ThirdPerson) {
+        RebuildBasis();
         return m_orbitTarget - m_forward * m_orbitRadius;
+    }
     return m_position;
 }
 
@@ -118,17 +120,29 @@ void Camera::Move(CameraDirection direction, float speed, float deltaTime) {
     const glm::vec3 moveUp = (m_mode == CameraMode::FreeFly) ? m_up : kWorldUp;
 
     switch (direction) {
-        case CameraDirection::Forward: m_position += horizontalForward * dist;
+        case CameraDirection::Forward:
+            if (m_mode == CameraMode::ThirdPerson) m_orbitTarget += horizontalForward * dist;
+            else m_position += horizontalForward * dist;
             break;
-        case CameraDirection::Backward: m_position -= horizontalForward * dist;
+        case CameraDirection::Backward:
+            if (m_mode == CameraMode::ThirdPerson) m_orbitTarget -= horizontalForward * dist;
+            else m_position -= horizontalForward * dist;
             break;
-        case CameraDirection::Right: m_position += m_right * dist;
+        case CameraDirection::Right:
+            if (m_mode == CameraMode::ThirdPerson) m_orbitTarget += m_right * dist;
+            else m_position += m_right * dist;
             break;
-        case CameraDirection::Left: m_position -= m_right * dist;
+        case CameraDirection::Left:
+            if (m_mode == CameraMode::ThirdPerson) m_orbitTarget -= m_right * dist;
+            else m_position -= m_right * dist;
             break;
-        case CameraDirection::Up: m_position += moveUp * dist;
+        case CameraDirection::Up:
+            if (m_mode == CameraMode::ThirdPerson) m_orbitTarget += moveUp * dist;
+            else m_position += moveUp * dist;
             break;
-        case CameraDirection::Down: m_position -= moveUp * dist;
+        case CameraDirection::Down:
+            if (m_mode == CameraMode::ThirdPerson) m_orbitTarget -= moveUp * dist;
+            else m_position -= moveUp * dist;
             break;
     }
 
@@ -239,13 +253,15 @@ const glm::mat4 &Camera::GetProjection() const {
 //  Composite output
 // ---------------------------------------------------------------------------
 
-CameraData Camera::BuildCameraData() const {
+CameraData Camera::BuildCameraData(float time, float deltaTime) const {
     CameraData data;
     data.view = GetView();
     data.projection = GetProjection();
     data.viewProj = data.projection * data.view; // column-major: P * V
-    data.position = m_position;
+    data.position = GetPosition();
     data._pad0 = 0.0f;
+    data.time = time;
+    data.deltaTime = deltaTime;
     return data;
 }
 

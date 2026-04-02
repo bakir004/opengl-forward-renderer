@@ -32,6 +32,8 @@ struct CameraData {
     glm::mat4 viewProj   = glm::mat4(1.0f);  ///< Combined view * projection
     glm::vec3 position   = glm::vec3(0.0f);  ///< World-space camera position
     float     _pad0      = 0.0f;             ///< std140 padding (vec3 → vec4)
+    float     time       = 0.0f;             ///< Timing data (seconds)
+    float     deltaTime  = 0.0f;             ///< Per-frame delta
 };
  
 /// Pure-math perspective camera with lazy matrix recomputation.
@@ -187,7 +189,7 @@ public:
  
     /// Fills a CameraData struct for upload to the per-frame UBO.
     /// Triggers matrix rebuilds only if state has changed.
-    [[nodiscard]] CameraData BuildCameraData() const;
+    [[nodiscard]] CameraData BuildCameraData(float time = 0.0f, float deltaTime = 0.0f) const;
  
 private:
     // -----------------------------------------------------------------------

@@ -9,6 +9,8 @@ class MouseInput;
 
 /// Top-level application class. Owns the GLFW window and the Renderer.
 /// Manages the full lifetime of the window, GL context, and main loop.
+struct FrameSubmission;
+
 class Application {
     public:
         Application();
@@ -28,6 +30,10 @@ class Application {
         /// @param onRender Called each frame with the active Renderer and elapsed time in seconds.
         void Run(std::function<void(Renderer&, float)> onRender = nullptr);
 
+        /// Runs the main loop with frame submission.
+        /// onRender fills FrameSubmission data; Renderer::BeginFrame(submission) is used.
+        void Run(std::function<void(FrameSubmission&, float)> onRender);
+
         /// Returns a non-owning pointer to the active Renderer.
         /// Used by the framebuffer resize callback to forward resize events.
         Renderer* GetRenderer() const { return m_renderer.get(); }
@@ -40,9 +46,14 @@ class Application {
         /// Valid after Initialize() returns true.
         MouseInput* GetMouseInput() const { return m_mouse.get(); }
 
+        /// Returns the current framebuffer dimensions in pixels.
+        /// Useful for syncing external camera aspect ratio state with the window.
+        void GetFramebufferSize(int& width, int& height) const;
+
     private:
         GLFWwindow* m_window = nullptr;
         std::unique_ptr<Renderer>      m_renderer;
         std::unique_ptr<KeyboardInput> m_input;
         std::unique_ptr<MouseInput>    m_mouse;
+        float                          m_lastFrameTime = 0.0f;
 };

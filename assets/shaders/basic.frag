@@ -1,7 +1,7 @@
 // Inputs from vertex stage
 in vec3 v_Color;
 
-// Fragment output
+// Frag output
 out vec4 FragColor;
 
 void main()

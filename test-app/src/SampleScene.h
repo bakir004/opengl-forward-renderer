@@ -2,6 +2,7 @@
 
 #include "core/MeshBuffer.h"
 #include "core/ShaderProgram.h"
+#include "scene/FrameSubmission.h"
 
 #include <memory>
 #include <string>
@@ -31,10 +32,14 @@ class SampleScene {
         ///
         /// @param renderer      Active renderer (must be between \ref Renderer::BeginFrame and \ref Renderer::EndFrame).
         /// @param timeSeconds   Reserved for future per-frame animation (unused; clip-space layout is baked in \ref Setup).
-        void Render(Renderer& renderer, float timeSeconds);
+        void Render(FrameSubmission& submission, float timeSeconds);
 
         /// @return \c true after a successful \ref Setup; otherwise \c false.
         [[nodiscard]] bool IsReady() const { return m_ready; }
+
+        /// Sets the player-controlled cube position for the scene in world space.
+        void SetPlayerPosition(const glm::vec3& position);
+        [[nodiscard]] const glm::vec3& GetPlayerPosition() const { return m_playerPosition; }
 
     private:
         std::unique_ptr<ShaderProgram> m_shader;   ///< Basic lit-colour program (\c basic.vert / \c basic.frag).
@@ -42,5 +47,6 @@ class SampleScene {
         std::unique_ptr<MeshBuffer>    m_quad;     ///< Indexed quad mesh.
         std::unique_ptr<MeshBuffer>    m_cube;     ///< Indexed cube mesh (non-trivial index path).
         std::unique_ptr<MeshBuffer>    m_sphere;   ///< Indexed sphere mesh.
+        glm::vec3                      m_playerPosition = glm::vec3(0.0f);
         bool                           m_ready = false; ///< \c true when GPU resources are usable.
 };
