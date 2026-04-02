@@ -48,6 +48,7 @@ bool Application::Initialize() {
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
+        glfwWindowHint(GLFW_DEPTH_BITS, 24);
         m_window = glfwCreateWindow(options.window.width, options.window.height, options.window.title.c_str(), nullptr, nullptr);
         if (m_window) {
             windowCreated = true;
