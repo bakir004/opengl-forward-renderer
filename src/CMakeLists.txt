@@ -7,6 +7,10 @@ set(CMAKE_CXX_STANDARD 20)
 add_library(${PROJECT_NAME} STATIC
         opengl/app/Application.cpp
         opengl/core/Renderer.cpp
+        opengl/core/FrameClearInfo.cpp
+        opengl/core/SubmissionContext.cpp
+        opengl/core/InitContext.cpp
+        opengl/core/RenderQueue.cpp
         opengl/core/Buffer.cpp
         opengl/core/VertexArray.cpp
         opengl/core/VertexLayout.cpp
@@ -20,6 +24,7 @@ add_library(${PROJECT_NAME} STATIC
         opengl/core/UniformBuffer.cpp
         opengl/core/KeyboardInput.cpp
         opengl/core/MouseInput.cpp
+        opengl/scene/Scene.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC include)
