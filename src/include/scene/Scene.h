@@ -1,0 +1,55 @@
+#pragma once
+
+#include "core/Camera.h"
+#include "scene/RenderItem.h"
+#include <glm/glm.hpp>
+#include <memory>
+#include <vector>
+
+class KeyboardInput;
+class MouseInput;
+struct FrameSubmission;
+
+/// Base class for all scenes.
+///
+/// A scene owns its camera and all renderable objects. Subclasses declare content
+/// in their own setup method (AddObject, SetCamera, SetClearColor) and override
+/// OnUpdate for per-frame logic. Application::Run(Scene&) drives the loop.
+class Scene {
+public:
+    virtual ~Scene() = default;
+
+    /// Called once per frame. Override to handle input and update scene state.
+    virtual void OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mouse) {}
+
+protected:
+    /// Replaces the scene camera.
+    void SetCamera(Camera camera);
+
+    /// Sets the background clear colour.
+    void SetClearColor(glm::vec4 color);
+
+    /// Adds a render item to the scene.
+    /// @return Index that can be passed to GetObject() for per-frame updates.
+    size_t AddObject(RenderItem item);
+
+    /// Returns a mutable reference to the object at the given index.
+    RenderItem& GetObject(size_t index);
+
+    /// Returns a mutable reference to the scene camera.
+    Camera& GetCamera();
+
+private:
+    /// Called by Application each frame before rendering.
+    /// Updates camera aspect ratio from the current framebuffer, then calls OnUpdate.
+    void InternalUpdate(float deltaTime, KeyboardInput& input, MouseInput& mouse, int fbWidth, int fbHeight);
+
+    /// Fills a FrameSubmission from current scene state. Called by Application.
+    void BuildSubmission(FrameSubmission& out) const;
+
+    Camera               m_camera;
+    std::vector<RenderItem> m_objects;
+    glm::vec4            m_clearColor = {0.08f, 0.09f, 0.12f, 1.0f};
+
+    friend class Application;
+};

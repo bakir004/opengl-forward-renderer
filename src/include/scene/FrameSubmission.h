@@ -1,17 +1,17 @@
 #pragma once
 
 #include <vector>
-#include <glm/glm.hpp>
 #include "core/Camera.h"
-#include "core/Renderer.h"
-#include "RenderItem.h"
+#include "core/FrameClearInfo.h"
+#include "core/SubmissionContext.h"
+#include "scene/RenderItem.h"
 
+/// Data collected by Scene::BuildSubmission and consumed by Renderer::BeginFrame.
 struct FrameSubmission {
-    const Camera* camera = nullptr;
-    Viewport viewport{0, 0, 1280, 720};
-    glm::vec4 clearColor{0.1f, 0.1f, 0.1f, 1.0f};
-    ClearFlags clearFlags = ClearFlags::ColorDepth;
+    const Camera*     camera  = nullptr;
+    FrameClearInfo    clearInfo;   ///< viewport + clear colour + clear flags
+    SubmissionContext context;     ///< pipeline state for this frame's main pass
     std::vector<RenderItem> objects;
-    float time = 0.0f;
+    float time      = 0.0f;
     float deltaTime = 0.0f;
 };

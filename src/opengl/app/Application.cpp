@@ -1,9 +1,10 @@
 #include "app/Application.h"
+#include "scene/Scene.h"
+#include "scene/FrameSubmission.h"
 #include "utils/Options.h"
 #include "core/Renderer.h"
 #include "core/KeyboardInput.h"
 #include "core/MouseInput.h"
-#include "scene/FrameSubmission.h"
 #include <GLFW/glfw3.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
@@ -90,58 +91,35 @@ bool Application::Initialize() {
 void Application::GetFramebufferSize(int& width, int& height) const {
     glfwGetFramebufferSize(m_window, &width, &height);
 }
-void Application::Run(std::function<void(Renderer&, float)> onRender) {
-    while (!glfwWindowShouldClose(m_window)) {
-        glfwPollEvents();
-        m_input->Update();
-        m_mouse->Update();
 
-        FrameParams frame{};
-        frame.clearColor = { 0.08f, 0.09f, 0.12f, 1.0f };
-        m_renderer->BeginFrame(frame);
+void Application::Update(Scene& scene) {
+    glfwPollEvents();
+    m_input->Update();
+    m_mouse->Update();
 
-        if (onRender)
-            onRender(*m_renderer, static_cast<float>(glfwGetTime()));
+    int w = 0, h = 0;
+    GetFramebufferSize(w, h);
 
-        m_renderer->EndFrame();
-        glfwSwapBuffers(m_window);
-    }
+    const float currTime = static_cast<float>(glfwGetTime());
+    const float dt = (m_lastFrameTime > 0.0f) ? (currTime - m_lastFrameTime) : 0.0f;
+    m_lastFrameTime = currTime;
+
+    scene.InternalUpdate(dt, *m_input, *m_mouse, w, h);
+
+    FrameSubmission submission;
+    scene.BuildSubmission(submission);
+    submission.clearInfo.viewport = {0, 0, w, h};
+    submission.time      = currTime;
+    submission.deltaTime = dt;
+
+    m_renderer->BeginFrame(submission);
+    for (const auto& item : submission.objects)
+        m_renderer->SubmitDraw(item);
+    m_renderer->EndFrame();
+    glfwSwapBuffers(m_window);
 }
 
-void Application::Run(std::function<void(FrameSubmission&, float)> onRender) {
-    while (!glfwWindowShouldClose(m_window)) {
-        glfwPollEvents();
-        m_input->Update();
-        m_mouse->Update();
-
-        int width = 0, height = 0;
-        GetFramebufferSize(width, height);
-
-        FrameSubmission submission;
-        submission.camera = nullptr; // caller will set camera
-        submission.viewport = {0, 0, width, height};
-        float currTime = static_cast<float>(glfwGetTime());
-        submission.time = currTime;
-        submission.deltaTime = (m_lastFrameTime > 0.0f) ? (currTime - m_lastFrameTime) : 0.0f;
-        m_lastFrameTime = currTime;
-
-        if (onRender)
-            onRender(submission, submission.time);
-
-        if (submission.camera)
-            m_renderer->BeginFrame(submission);
-        else {
-            FrameParams frame{};
-            frame.clearColor = submission.clearColor;
-            frame.clearFlags = submission.clearFlags;
-            m_renderer->BeginFrame(frame);
-        }
-
-        for (const auto& item : submission.objects) {
-            m_renderer->SubmitDraw(item);
-        }
-
-        m_renderer->EndFrame();
-        glfwSwapBuffers(m_window);
-    }
+void Application::Run(Scene& scene) {
+    while (!glfwWindowShouldClose(m_window))
+        Update(scene);
 }
