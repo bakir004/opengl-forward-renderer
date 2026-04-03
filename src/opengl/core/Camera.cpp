@@ -198,8 +198,16 @@ void Camera::OnResize(int width, int height) {
 
 void Camera::SetMode(CameraMode mode) {
     if (m_mode == mode) return;
+
+    // Leaving ThirdPerson: sync m_position to the actual eye position so the
+    // next mode starts exactly where the camera was visually — no jump or rotate.
+    if (m_mode == CameraMode::ThirdPerson) {
+        RebuildBasis();
+        m_position = m_orbitTarget - m_forward * m_orbitRadius;
+    }
+
     m_mode = mode;
-    m_viewDirty = true; // basis computation changes between modes
+    m_viewDirty = true;
 }
 
 // ---------------------------------------------------------------------------
