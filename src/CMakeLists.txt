@@ -25,6 +25,10 @@ add_library(${PROJECT_NAME} STATIC
         opengl/core/KeyboardInput.cpp
         opengl/core/MouseInput.cpp
         opengl/scene/Scene.cpp
+        opengl/scene/RenderItem.cpp
+        opengl/core/Texture2D.cpp
+        opengl/core/Material.cpp
+        opengl/assets/AssetImporter.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC include)
@@ -39,3 +43,16 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
         nlohmann_json::nlohmann_json
         glm::glm
 )
+
+# stb_image — header-only, expose include dir
+if(TARGET stb)
+    target_link_libraries(${PROJECT_NAME} PUBLIC stb)
+else()
+    # Fallback: if FetchContent populated stb, add its include directory directly.
+    target_include_directories(${PROJECT_NAME} PUBLIC ${stb_SOURCE_DIR})
+endif()
+
+# Assimp (enabled once Task 3 is wired)
+# if(TARGET assimp::assimp)
+#     target_link_libraries(${PROJECT_NAME} PUBLIC assimp::assimp)
+# endif()
