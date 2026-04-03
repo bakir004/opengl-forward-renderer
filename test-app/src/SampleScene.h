@@ -5,7 +5,7 @@
 #include "core/ShaderProgram.h"
 #include <memory>
 
-/// Demo scene: triangle, quad, several cubes, and a sphere.
+/// Demo scene: triangle, quad, several cubes, a pyramid, and a sphere.
 /// Camera and all render items are declared in Setup().
 /// Per-frame input handling lives in OnUpdate().
 class SampleScene : public Scene {
@@ -18,11 +18,15 @@ public:
 
 private:
     std::unique_ptr<ShaderProgram> m_shader;
-    std::unique_ptr<MeshBuffer>    m_triangle;
-    std::unique_ptr<MeshBuffer>    m_quad;
-    std::unique_ptr<MeshBuffer>    m_cube;
-    std::unique_ptr<MeshBuffer>    m_sphere;
+
+    // Geometry (uploaded to GPU once, shared across multiple RenderItems)
+    std::unique_ptr<MeshBuffer> m_triangle;
+    std::unique_ptr<MeshBuffer> m_quad;
+    std::unique_ptr<MeshBuffer> m_rainbowCube;
+    std::unique_ptr<MeshBuffer> m_solidCube;
+    std::unique_ptr<MeshBuffer> m_pyramid;
+    std::unique_ptr<MeshBuffer> m_sphere;
 
     size_t    m_playerCubeIdx  = 0;
-    glm::vec3 m_playerPosition = {0.4f, 0.0f, -3.0f};
+    glm::vec3 m_playerPosition = {-2.0f, 0.0f, -2.0f};
 };
