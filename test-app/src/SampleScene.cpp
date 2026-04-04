@@ -140,17 +140,17 @@ void SampleScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mo
     // Camera mode switching
     if (input.IsKeyPressed(GLFW_KEY_F1)) {
         cam.SetMode(CameraMode::FreeFly);
-        spdlog::info("[Camera] mode: FreeFly");
+        spdlog::debug("[Camera] mode: FreeFly");
     }
     if (input.IsKeyPressed(GLFW_KEY_F2)) {
         cam.SetMode(CameraMode::FirstPerson);
-        spdlog::info("[Camera] mode: FirstPerson");
+        spdlog::debug("[Camera] mode: FirstPerson");
     }
     if (input.IsKeyPressed(GLFW_KEY_F3)) {
         cam.SetMode(CameraMode::ThirdPerson);
         cam.SetOrbitTarget(m_playerPosition);
         cam.SetOrbitRadius(5.0f);
-        spdlog::info("[Camera] mode: ThirdPerson");
+        spdlog::debug("[Camera] mode: ThirdPerson");
     }
 
     // Mouse look
@@ -207,7 +207,7 @@ void SampleScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mo
     const bool rotating = mouse.IsCaptured() && (mouse.GetDeltaX() != 0.0f || mouse.GetDeltaY() != 0.0f);
     if (moving || rotating) {
         const glm::vec3 pos = cam.GetPosition();
-        spdlog::info("[Camera] pos=({:.2f}, {:.2f}, {:.2f})  yaw={:.1f}°  pitch={:.1f}°",
+        spdlog::debug("[Camera] pos=({:.2f}, {:.2f}, {:.2f})  yaw={:.1f}°  pitch={:.1f}°",
                      pos.x, pos.y, pos.z, cam.GetYaw(), cam.GetPitch());
     }
 }

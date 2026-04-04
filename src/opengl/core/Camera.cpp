@@ -188,9 +188,10 @@ void Camera::OnResize(int width, int height) {
                      width, height);
         return;
     }
-    SetAspectRatio(static_cast<float>(width) / static_cast<float>(height));
-    spdlog::debug("[Camera] Aspect updated to {:.4f} ({}x{})",
-                  m_aspect, width, height);
+    float newAspect = static_cast<float>(width) / static_cast<float>(height);
+    if (newAspect == m_aspect) return;
+    SetAspectRatio(newAspect);
+    spdlog::debug("[Camera] Aspect updated to {:.4f} ({}x{})", m_aspect, width, height);
 }
 
 // ---------------------------------------------------------------------------
