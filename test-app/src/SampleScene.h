@@ -22,6 +22,7 @@ private:
     // Geometry (uploaded to GPU once, shared across multiple RenderItems)
     std::unique_ptr<MeshBuffer> m_triangle;
     std::unique_ptr<MeshBuffer> m_quad;
+    std::unique_ptr<MeshBuffer> m_colorQuad;
     std::unique_ptr<MeshBuffer> m_rainbowCube;
     std::unique_ptr<MeshBuffer> m_solidCube;
     std::unique_ptr<MeshBuffer> m_pyramid;
@@ -30,5 +31,5 @@ private:
     size_t    m_playerCubeIdx  = 0;
     size_t    m_pyramidIdx     = 0;
     float     m_pyramidRotY    = 0.0f;
-    glm::vec3 m_playerPosition = {-2.0f, 0.0f, -2.0f};
+    glm::vec3 m_playerPosition = {-2.0f, 0.0f, 2.0f};
 };

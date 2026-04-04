@@ -23,6 +23,9 @@ bool SampleScene::Setup() {
     m_triangle   = std::make_unique<MeshBuffer>(GenerateTriangle().CreateMeshBuffer());
     m_quad       = std::make_unique<MeshBuffer>(GenerateQuad().CreateMeshBuffer());
     m_rainbowCube= std::make_unique<MeshBuffer>(GenerateCube().CreateMeshBuffer());
+    m_colorQuad  = std::make_unique<MeshBuffer>(
+        GenerateQuad({ .colorMode = ColorMode::Solid, 
+                       .baseColor = {0.4f, 0.8f, 0.4f} }).CreateMeshBuffer());
 
     // Solid-coloured cube — steel blue, faces slightly varied so edges read in 3-D
     m_solidCube  = std::make_unique<MeshBuffer>(
@@ -51,7 +54,7 @@ bool SampleScene::Setup() {
     
     // d) a ground plane
     RenderItem groundItem;
-    groundItem.mesh   = m_quad.get();
+    groundItem.mesh   = m_colorQuad.get();
     groundItem.shader = m_shader.get();
     groundItem.transform.SetTranslation({0.0f, -1.0f, 0.0f});
     groundItem.transform.SetRotationEulerDegrees({-90.0f, 0.0f, 0.0f});
@@ -100,15 +103,14 @@ bool SampleScene::Setup() {
     pyItem.mesh   = m_pyramid.get();
     pyItem.shader = m_shader.get();
     pyItem.transform.SetTranslation({-2.0f, 1.5f, -8.0f});
-    pyItem.transform.SetScale({1.5f, 1.5f, 1.5f});
+    pyItem.transform.SetScale({1.5f, 2.0f, 1.5f});
     m_pyramidIdx = AddObject(pyItem);
 
     RenderItem sphItem;
     sphItem.mesh     = m_sphere.get();
     sphItem.shader   = m_shader.get();
-    sphItem.drawMode = DrawMode::Wireframe;
     sphItem.transform.SetTranslation({2.0f, 1.5f, -8.0f});
-    sphItem.transform.SetScale({2.0f, 2.0f, 2.0f});
+    sphItem.transform.SetScale({2.0f, 3.0f, 2.0f});
     AddObject(sphItem);
 
     // Player Cube (so OnUpdate has a valid index)
@@ -180,7 +182,7 @@ void SampleScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mo
         const glm::vec3 rightXZ = glm::normalize(glm::vec3(cam.GetRight().x,   0.0f, cam.GetRight().z));
         moveDirXZ = fwdXZ * fwd + rightXZ * right;
         m_playerPosition += moveDirXZ * (kSpeed * deltaTime);
-        cam.SetPosition(m_playerPosition + glm::vec3(0.0f, 1.7f, 0.0f));
+        cam.SetPosition(m_playerPosition);
     } else if (cam.GetMode() == CameraMode::ThirdPerson) {
         const glm::vec3 fwdXZ   = glm::normalize(glm::vec3(cam.GetForward().x, 0.0f, cam.GetForward().z));
         const glm::vec3 rightXZ = glm::normalize(glm::vec3(cam.GetRight().x,   0.0f, cam.GetRight().z));
