@@ -1,10 +1,15 @@
 #include "app/Application.h"
 #include "scene/Scene.h"
 #include "scene/FrameSubmission.h"
+#include "scene/RenderItem.h"
+#include "core/Camera.h"
 #include "utils/Options.h"
 #include "core/Renderer.h"
 #include "core/KeyboardInput.h"
 #include "core/MouseInput.h"
+#include <imgui.h>
+#include <backends/imgui_impl_glfw.h>
+#include <backends/imgui_impl_opengl3.h>
 #include <GLFW/glfw3.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
@@ -18,6 +23,13 @@ static void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 
 Application::Application() : m_renderer(std::make_unique<Renderer>()) {}
 Application::~Application() {
+    if (m_imguiInitialized) {
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplGlfw_Shutdown();
+        ImGui::DestroyContext();
+        m_imguiInitialized = false;
+    }
+
     m_renderer->Shutdown();
     if (m_window) { glfwDestroyWindow(m_window); m_window = nullptr; }
     glfwTerminate();
@@ -85,6 +97,22 @@ bool Application::Initialize() {
     m_mouse = std::make_unique<MouseInput>(m_window);
     spdlog::info("[Application] MouseInput initialized");
 
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark();
+
+    if (!ImGui_ImplGlfw_InitForOpenGL(m_window, true)) {
+        spdlog::warn("[Application] ImGui GLFW backend init failed — debug overlay disabled");
+        ImGui::DestroyContext();
+    } else if (!ImGui_ImplOpenGL3_Init("#version 330")) {
+        spdlog::warn("[Application] ImGui OpenGL backend init failed — debug overlay disabled");
+        ImGui_ImplGlfw_Shutdown();
+        ImGui::DestroyContext();
+    } else {
+        m_imguiInitialized = true;
+        spdlog::info("[Application] ImGui debug overlay initialized");
+    }
+
     return true;
 }
 void Application::GetFramebufferSize(int& width, int& height) const {
@@ -112,9 +140,56 @@ void Application::Update(Scene& scene) {
     submission.deltaTime = dt;
 
     m_renderer->BeginFrame(submission);
-    for (const auto& item : submission.objects)
-        m_renderer->SubmitDraw(item);
+    m_lastSubmittedItems = 0;
+    for (const auto& item : submission.objects) {
+        RenderItem drawItem = item;
+        if (m_wireframeOverride)
+            drawItem.drawMode = DrawMode::Wireframe;
+
+        m_renderer->SubmitDraw(drawItem);
+        ++m_lastSubmittedItems;
+    }
+
     m_renderer->EndFrame();
+
+    if (m_imguiInitialized) {
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        ImGui::SetNextWindowBgAlpha(0.85f);
+        if (ImGui::Begin("Renderer Debug")) {
+            const float frameMs = dt * 1000.0f;
+            const float fps = (dt > 0.0f) ? (1.0f / dt) : 0.0f;
+
+            ImGui::Text("Frame time: %.2f ms", frameMs);
+            ImGui::Text("FPS: %.1f", fps);
+            ImGui::Separator();
+
+            if (submission.camera) {
+                const glm::vec3 cameraPos = submission.camera->GetPosition();
+                ImGui::Text("Camera pos: %.2f, %.2f, %.2f", cameraPos.x, cameraPos.y, cameraPos.z);
+                ImGui::Text("Camera yaw/pitch: %.1f / %.1f",
+                            submission.camera->GetYaw(),
+                            submission.camera->GetPitch());
+            } else {
+                ImGui::TextUnformatted("Camera: none");
+            }
+
+            ImGui::Separator();
+            ImGui::Text("Framebuffer: %d x %d", w, h);
+            ImGui::Checkbox("Wireframe override", &m_wireframeOverride);
+            ImGui::Text("Submitted render items: %d", static_cast<int>(m_lastSubmittedItems));
+
+            if (m_mouse && m_mouse->IsCaptured())
+                ImGui::TextUnformatted("Hint: Press TAB to release mouse for UI interaction");
+        }
+        ImGui::End();
+
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    }
+
     glfwSwapBuffers(m_window);
 }
 
