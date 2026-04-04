@@ -93,7 +93,7 @@ bool SolarSystemScene::Setup() {
             .baseColor = {0.55f, 0.52f, 0.48f}
         }).CreateMeshBuffer());
 
-    // Player ship — rainbow cube; tiny scale makes it feel like a spacecraft
+    // Player ship — rainbow cube; a tiny scale makes it feel like a spacecraft
     m_shipMesh = std::make_unique<MeshBuffer>(
         GenerateCube().CreateMeshBuffer());
 
