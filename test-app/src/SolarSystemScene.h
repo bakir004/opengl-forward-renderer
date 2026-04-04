@@ -11,7 +11,7 @@
 ///   • Moons each have a distinct solid color (own mesh per moon)
 ///   • Saturn rings built from proper annular vertex geometry (no scaled quads)
 ///   • Orbit rings (world-plane quads) removed
-///   • Asteroids remain grey pyramids
+///   • Asteroids remain gray pyramids
 ///   • Starfield: ~300 tiny pyramids scattered at radius ~200 (static)
 ///
 /// Camera starts in FreeFly above the ecliptic.
