@@ -1,5 +1,4 @@
 #include "SolarSystemScene.h"
-
 #include "core/Camera.h"
 #include "core/KeyboardInput.h"
 #include "core/MouseInput.h"
