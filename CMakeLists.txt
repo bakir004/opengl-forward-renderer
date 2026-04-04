@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 set(FETCHCONTENT_BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external")
 include(FetchContent)
+set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
 
 FetchContent_Declare(glfw
         GIT_REPOSITORY https://github.com/glfw/glfw.git
@@ -33,9 +34,9 @@ FetchContent_Declare(stb
         GIT_SHALLOW    TRUE
 )
 
-FetchContent_Declare(assimp
-        GIT_REPOSITORY https://github.com/assimp/assimp.git
-        GIT_TAG        v5.3.1
+FetchContent_Declare(imgui
+        GIT_REPOSITORY https://github.com/ocornut/imgui.git
+        GIT_TAG        v1.90.8
         GIT_SHALLOW    TRUE
 )
 
@@ -43,17 +44,15 @@ set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_DOCS     OFF CACHE BOOL "" FORCE)
 
-set(ASSIMP_BUILD_TESTS          OFF CACHE BOOL "" FORCE)
-set(ASSIMP_INSTALL              OFF CACHE BOOL "" FORCE)
-set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
-set(ASSIMP_BUILD_OBJ_IMPORTER   ON  CACHE BOOL "" FORCE)
-set(ASSIMP_BUILD_GLTF_IMPORTER  ON  CACHE BOOL "" FORCE)
-set(ASSIMP_BUILD_FBX_IMPORTER   ON  CACHE BOOL "" FORCE)
-set(ASSIMP_BUILD_COLLADA_IMPORTER ON CACHE BOOL "" FORCE)
-set(ASSIMP_BUILD_ALL_EXPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
-set(ASSIMP_NO_EXPORT            ON  CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(glfw spdlog json glm stb)
 
-FetchContent_MakeAvailable(glfw spdlog json glm stb assimp)
+FetchContent_GetProperties(imgui)
+if(NOT imgui_POPULATED)
+        if(POLICY CMP0169)
+                cmake_policy(SET CMP0169 OLD)
+        endif()
+        FetchContent_Populate(imgui)
+endif()
 
 add_library(glad STATIC
         external/glad/src/glad.c

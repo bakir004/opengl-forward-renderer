@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 #include <memory>
 
 struct GLFWwindow;
@@ -42,4 +43,7 @@ class Application {
         std::unique_ptr<KeyboardInput> m_input;
         std::unique_ptr<MouseInput>    m_mouse;
         float                          m_lastFrameTime = 0.0f;
+        bool                           m_imguiInitialized = false;
+        bool                           m_wireframeOverride = false;
+        std::size_t                    m_lastSubmittedItems = 0;
 };

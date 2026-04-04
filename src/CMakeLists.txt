@@ -35,6 +35,28 @@ target_include_directories(${PROJECT_NAME} PUBLIC include)
 
 find_package(OpenGL REQUIRED)
 
+add_library(imgui STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+)
+
+target_include_directories(imgui PUBLIC
+    ${imgui_SOURCE_DIR}
+    ${imgui_SOURCE_DIR}/backends
+)
+
+target_compile_definitions(imgui PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLAD)
+
+target_link_libraries(imgui PUBLIC
+    glad
+    glfw
+    OpenGL::GL
+)
+
 target_link_libraries(${PROJECT_NAME} PUBLIC
         glad
         glfw
@@ -43,6 +65,8 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
         nlohmann_json::nlohmann_json
         glm::glm
 )
+
+target_link_libraries(${PROJECT_NAME} PRIVATE imgui)
 
 # stb_image — header-only, expose include dir
 if(TARGET stb)
