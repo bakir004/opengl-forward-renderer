@@ -94,6 +94,7 @@ void Camera::SetOrientation(float yawDegrees, float pitchDegrees) {
 
 void Camera::Rotate(float dYaw, float dPitch) {
     m_yaw += dYaw;
+    m_yaw = std::fmod(m_yaw, 360.);
     m_pitch = std::clamp(m_pitch + dPitch, kPitchMin, kPitchMax);
     m_viewDirty = true;
 }
