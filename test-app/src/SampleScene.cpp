@@ -41,41 +41,77 @@ bool SampleScene::Setup() {
 
     // ── Camera ───────────────────────────────────────────────────────────────
     Camera cam;
-    cam.SetPosition({0.0f, 1.0f, 5.0f});
+    // e) a camera starting position that immediately shows depth and perspective
+    cam.SetPosition({0.0f, 3.0f, 8.0f});
+    cam.SetOrientation(-90.0f, -15.0f); // Look down slightly
     SetCamera(cam);
     SetClearColor({0.08f, 0.09f, 0.12f, 1.0f});
 
     // ── Objects ───────────────────────────────────────────────────────────────
-    //  Layout (all at z = -3 unless noted):
-    //
-    //   -2.0   -1.2   -0.4    0.4    1.2    2.0   x
-    //      tri   quad  solidC  rbwC  sphere
-    //                  pyra (z=-4.5, between rows)
-    //   smallCube (z=-5) / farCube (z=-7)
+    
+    // d) a ground plane
+    RenderItem groundItem;
+    groundItem.mesh   = m_quad.get();
+    groundItem.shader = m_shader.get();
+    groundItem.transform.SetTranslation({0.0f, -1.0f, 0.0f});
+    groundItem.transform.SetRotationEulerDegrees({-90.0f, 0.0f, 0.0f});
+    groundItem.transform.SetScale({20.0f, 20.0f, 20.0f});
+    AddObject(groundItem);
 
-    RenderItem triItem;
-    triItem.mesh   = m_triangle.get();
-    triItem.shader = m_shader.get();
-    triItem.transform.SetTranslation({-1.2f, 0.0f, -3.0f});
-    triItem.transform.SetScale({0.6f, 0.6f, 0.6f});
-    AddObject(triItem);
+    // a), b), c) several cubes and quads placed at different positions, scales, and rotations
+    // Row 1: Cubes
+    for (int i = 0; i < 5; ++i) {
+        RenderItem cubeItem;
+        cubeItem.mesh   = (i % 2 == 0) ? m_rainbowCube.get() : m_solidCube.get();
+        cubeItem.shader = m_shader.get();
+        
+        float xPath = -4.0f + (i * 2.0f);
+        cubeItem.transform.SetTranslation({xPath, 0.0f, -2.0f});
+        
+        float s = 0.5f + (i * 0.15f);
+        cubeItem.transform.SetScale({s, s, s});
+        
+        float rotY = i * 25.0f; 
+        float rotX = i * 15.0f;
+        cubeItem.transform.SetRotationEulerDegrees({rotX, rotY, 0.0f});
+        AddObject(cubeItem);
+    }
+    
+    // Row 2: Quads (visualise transforms)
+    for (int i = 0; i < 5; ++i) {
+        RenderItem quadItem;
+        quadItem.mesh   = m_quad.get();
+        quadItem.shader = m_shader.get();
+        
+        float xPath = -4.0f + (i * 2.0f);
+        quadItem.transform.SetTranslation({xPath, 0.5f, -5.0f});
+        
+        float sx = 0.6f + (i * 0.2f);
+        float sy = 0.6f + ((4 - i) * 0.1f);
+        quadItem.transform.SetScale({sx, sy, 1.0f});
+        
+        float rotZ = i * -15.0f; 
+        quadItem.transform.SetRotationEulerDegrees({0.0f, 0.0f, rotZ});
+        AddObject(quadItem);
+    }
 
-    RenderItem quadItem;
-    quadItem.mesh   = m_quad.get();
-    quadItem.shader = m_shader.get();
-    quadItem.transform.SetTranslation({-0.4f, 0.0f, -3.0f});
-    quadItem.transform.SetScale({0.6f, 0.6f, 0.6f});
-    AddObject(quadItem);
+    // Row 3: Mixed extra shapes
+    RenderItem pyItem;
+    pyItem.mesh   = m_pyramid.get();
+    pyItem.shader = m_shader.get();
+    pyItem.transform.SetTranslation({-2.0f, 1.5f, -8.0f});
+    pyItem.transform.SetScale({1.5f, 1.5f, 1.5f});
+    m_pyramidIdx = AddObject(pyItem);
 
-    // Solid blue cube (static)
-    RenderItem solidCubeItem;
-    solidCubeItem.mesh   = m_solidCube.get();
-    solidCubeItem.shader = m_shader.get();
-    solidCubeItem.transform.SetTranslation({0.4f, 0.0f, -3.0f});
-    solidCubeItem.transform.SetScale({0.6f, 0.6f, 0.6f});
-    AddObject(solidCubeItem);
+    RenderItem sphItem;
+    sphItem.mesh     = m_sphere.get();
+    sphItem.shader   = m_shader.get();
+    sphItem.drawMode = DrawMode::Wireframe;
+    sphItem.transform.SetTranslation({2.0f, 1.5f, -8.0f});
+    sphItem.transform.SetScale({2.0f, 2.0f, 2.0f});
+    AddObject(sphItem);
 
-    // Rainbow cube — player-controlled
+    // Player Cube (so OnUpdate has a valid index)
     RenderItem playerCube;
     playerCube.mesh   = m_rainbowCube.get();
     playerCube.shader = m_shader.get();
@@ -83,40 +119,7 @@ bool SampleScene::Setup() {
     playerCube.transform.SetScale({0.7f, 0.7f, 0.7f});
     m_playerCubeIdx = AddObject(playerCube);
 
-    // Sphere — wireframe, double-sided
-    RenderItem sphereItem;
-    sphereItem.mesh     = m_sphere.get();
-    sphereItem.shader   = m_shader.get();
-    sphereItem.drawMode = DrawMode::Wireframe;
-    sphereItem.transform.SetTranslation({1.2f, 0.0f, -3.0f});
-    AddObject(sphereItem);
-
-    // Pyramid — solid orange, slightly back and below eye level
-    RenderItem pyramidItem;
-    pyramidItem.mesh   = m_pyramid.get();
-    pyramidItem.shader = m_shader.get();
-    pyramidItem.transform.SetTranslation({0.0f, -0.5f, -4.5f});
-    pyramidItem.transform.SetScale({0.8f, 0.8f, 0.8f});
-    AddObject(pyramidItem);
-
-    // Small rainbow cube off to the side
-    RenderItem smallCube;
-    smallCube.mesh   = m_rainbowCube.get();
-    smallCube.shader = m_shader.get();
-    smallCube.transform.SetTranslation({-2.0f, 0.0f, -5.0f});
-    smallCube.transform.SetScale({0.5f, 0.5f, 0.5f});
-    AddObject(smallCube);
-
-    // Distant solid cube
-    RenderItem farCube;
-    farCube.mesh   = m_solidCube.get();
-    farCube.shader = m_shader.get();
-    farCube.transform.SetTranslation({1.5f, 0.5f, -7.0f});
-    farCube.transform.SetScale({0.7f, 0.7f, 0.7f});
-    AddObject(farCube);
-
-    spdlog::info("[SampleScene] Ready — triangle | quad | solid-cube | rainbow-cube | "
-                 "sphere (wireframe) | pyramid | + 2 background cubes");
+    spdlog::info("[SampleScene] Ready — detailed test scene with ground, rows of cubes/quads loaded");
     return true;
 }
 
@@ -124,6 +127,11 @@ void SampleScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mo
     // TAB — toggle mouse capture
     if (input.IsKeyPressed(GLFW_KEY_TAB))
         mouse.SetCaptured(!mouse.IsCaptured());
+
+    // Animate pyramid continuously
+    m_pyramidRotY += 60.0f * deltaTime; // 60 degrees per sec
+    auto& pyTransform = GetObject(m_pyramidIdx).transform;
+    pyTransform.SetRotationEulerDegrees({0.0f, m_pyramidRotY, 0.0f});
 
     Camera& cam = GetCamera();
 
@@ -138,7 +146,7 @@ void SampleScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mo
     }
     if (input.IsKeyPressed(GLFW_KEY_F3)) {
         cam.SetMode(CameraMode::ThirdPerson);
-        cam.SetOrbitTarget({0.0f, 0.0f, 0.0f});
+        cam.SetOrbitTarget(m_playerPosition);
         cam.SetOrbitRadius(5.0f);
         spdlog::info("[Camera] mode: ThirdPerson");
     }

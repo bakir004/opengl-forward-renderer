@@ -28,5 +28,7 @@ private:
     std::unique_ptr<MeshBuffer> m_sphere;
 
     size_t    m_playerCubeIdx  = 0;
+    size_t    m_pyramidIdx     = 0;
+    float     m_pyramidRotY    = 0.0f;
     glm::vec3 m_playerPosition = {-2.0f, 0.0f, -2.0f};
 };
