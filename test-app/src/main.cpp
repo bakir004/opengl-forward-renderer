@@ -2,6 +2,8 @@
 #include "SampleScene.h"
 #include <spdlog/spdlog.h>
 
+#include "SolarSystemScene.h"
+
 int main() {
     spdlog::info("[TestApp] Starting");
 
@@ -11,9 +13,9 @@ int main() {
         return -1;
     }
 
-    SampleScene scene;
+    SolarSystemScene scene;
     if (!scene.Setup())
-        spdlog::warn("[TestApp] SampleScene::Setup() failed — no geometry will be rendered");
+        spdlog::warn("[TestApp] SolarSystemScene::Setup() failed — no geometry will be rendered");
 
     spdlog::info("[TestApp] Tab = toggle mouse look | WASD/Space/LCtrl = move | F1/F2/F3 = camera mode");
 
