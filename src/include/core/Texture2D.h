@@ -42,6 +42,11 @@ public:
     static Texture2D CreateFallback(unsigned char r, unsigned char g,
                                     unsigned char b, unsigned char a = 255);
 
+    /// Creates a checkerboard fallback texture (magenta + black pattern).
+    /// Used as a highly visible error indicator when an asset fails to load.
+    /// @param size  Width and height of the texture in pixels (must be power of 2).
+    static Texture2D CreateCheckerboard(int size = 8);
+
     ~Texture2D();
 
     Texture2D(const Texture2D&)            = delete;
