@@ -26,17 +26,17 @@ static const struct PlanetDef {
 } kPlanets[] = {
     // Mercury — small fast grey rock
     {14.0f, 0.80f, 0.0f, 0.0f, 2.0f, 0.55f, {0.62f, 0.60f, 0.58f}, "Mercury"},
-    // Venus   — creamy yellow, slow retrograde spin
+    // Venus — creamy yellow, slow retrograde spin
     {22.0f, 0.60f, 1.0f, 3.4f, -0.5f, 0.95f, {0.93f, 0.82f, 0.60f}, "Venus"},
-    // Earth   — blue with a hint of green
+    // Earth — blue with a hint of green
     {31.0f, 0.50f, 2.1f, 23.5f, 1.8f, 1.00f, {0.25f, 0.55f, 0.90f}, "Earth"},
-    // Mars    — rusty red
+    // Mars — rusty red
     {42.0f, 0.40f, 3.5f, 25.2f, 1.7f, 0.70f, {0.85f, 0.35f, 0.18f}, "Mars"},
     // Jupiter — biggest planet, warm banded orange
     {62.0f, 0.23f, 0.8f, 3.1f, 3.5f, 2.50f, {0.88f, 0.72f, 0.52f}, "Jupiter"},
-    // Saturn  — pale gold; rings added separately below
-    {84.0f, 0.15f, 1.6f, 26.7f, 3.2f, 2.10f, {0.94f, 0.87f, 0.62f}, "Saturn"},
-    // Uranus  — icy blue, extreme axial tilt
+    // Saturn — pale gold; rings added separately below
+    {84.0f, 0.15f, 1.6f, 26.7f, 1.5f, 2.10f, {0.94f, 0.87f, 0.62f}, "Saturn"},
+    // Uranus — icy blue, extreme axial tilt
     {108.0f, 0.11f, 2.4f, 97.8f, 2.1f, 1.55f, {0.60f, 0.90f, 0.95f}, "Uranus"},
     // Neptune — deep cobalt blue
     {132.0f, 0.09f, 4.2f, 28.3f, 2.3f, 1.50f, {0.20f, 0.35f, 0.90f}, "Neptune"},
@@ -50,30 +50,32 @@ static const struct MoonDef {
     float orbitSpeed;
     float startAngle;
     float scale;
+    glm::vec3 color;
+    const char *name;
 } kMoons[] = {
-    // Earth — Luna
-    {2, 2.20f, 3.5f, 0.0f, 0.27f},
-    // Mars — Phobos / Deimos (tiny)
-    {3, 1.60f, 5.5f, 0.0f, 0.14f},
-    {3, 2.60f, 3.2f, 1.5f, 0.10f},
+    // Earth — Luna (pale grey-white)
+    {2, 2.20f, 3.5f, 0.0f, 0.27f, {0.85f, 0.84f, 0.80f}, "Luna"},
+    // Mars — Phobos (dark reddish-brown) / Deimos (lighter tan)
+    {3, 1.60f, 5.5f, 0.0f, 0.14f, {0.50f, 0.33f, 0.22f}, "Phobos"},
+    {3, 2.60f, 3.2f, 1.5f, 0.10f, {0.68f, 0.58f, 0.45f}, "Deimos"},
     // Jupiter — 4 Galilean moons
-    {4, 3.50f, 4.8f, 0.0f, 0.25f},
-    {4, 4.60f, 3.6f, 1.0f, 0.22f},
-    {4, 6.00f, 2.9f, 2.2f, 0.38f},
-    {4, 7.50f, 2.1f, 3.8f, 0.35f},
-    // Saturn — 2 moons (rings handled separately)
-    {5, 6.00f, 3.0f, 0.5f, 0.25f},
-    {5, 8.00f, 2.2f, 2.7f, 0.20f},
+    {4, 3.50f, 4.8f, 0.0f, 0.25f, {0.72f, 0.58f, 0.42f}, "Io"}, // sulphur orange
+    {4, 4.60f, 3.6f, 1.0f, 0.22f, {0.70f, 0.80f, 0.90f}, "Europa"}, // icy blue-white
+    {4, 6.00f, 2.9f, 2.2f, 0.38f, {0.55f, 0.50f, 0.48f}, "Ganymede"}, // dark grey
+    {4, 7.50f, 2.1f, 3.8f, 0.35f, {0.42f, 0.32f, 0.28f}, "Callisto"}, // cratered dark
+    // Saturn — 2 moons
+    {5, 6.00f, 3.0f, 0.5f, 0.25f, {0.90f, 0.88f, 0.82f}, "Titan"}, // hazy cream
+    {5, 8.00f, 2.2f, 2.7f, 0.20f, {0.78f, 0.76f, 0.72f}, "Rhea"}, // pale grey
     // Uranus — 1 moon
-    {6, 3.20f, 2.8f, 1.2f, 0.18f},
-    // Neptune — Triton (retrograde)
-    {7, 3.00f, -2.5f, 0.0f, 0.28f},
+    {6, 3.20f, 2.8f, 1.2f, 0.18f, {0.62f, 0.70f, 0.75f}, "Titania"}, // cool blue-grey
+    // Neptune — Triton (retrograde, pinkish nitrogen ice)
+    {7, 3.00f, -2.5f, 0.0f, 0.28f, {0.88f, 0.76f, 0.74f}, "Triton"},
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool SolarSystemScene::Setup() {
-    spdlog::info("[SolarSystemScene] Setting up (v2)");
+    spdlog::info("[SolarSystemScene] Setting up (v3)");
 
     m_shader = std::make_unique<ShaderProgram>(
         "assets/shaders/basic.vert",
@@ -84,10 +86,6 @@ bool SolarSystemScene::Setup() {
     }
 
     // ── Shared geometry ───────────────────────────────────────────────────────
-
-    // Sun + moons share the rainbow sphere (they read as distinct from solid planets)
-    m_sphereMesh = std::make_unique<MeshBuffer>(
-        GenerateSphere(1.0f, 32, {.doubleSided = true}).CreateMeshBuffer());
 
     // Asteroid belt rocks
     m_asteroidMesh = std::make_unique<MeshBuffer>(
@@ -107,76 +105,134 @@ bool SolarSystemScene::Setup() {
             .baseColor = {0.95f, 0.95f, 1.00f}
         }).CreateMeshBuffer());
 
-    // Orbit ring — single shared flat quad; each ring just gets a different XZ scale
-    m_orbitRingMesh = std::make_unique<MeshBuffer>(
-        GenerateQuad({
-            .colorMode = ColorMode::Solid,
-            .baseColor = {0.30f, 0.32f, 0.38f}
-        }).CreateMeshBuffer());
+    // Saturn rings — built as proper annular meshes from vertices.
+    // Each ring is a flat triangle-strip annulus in the XZ plane,
+    // with innerRadius and outerRadius defining the band width.
+    // We generate 3 concentric bands: inner (warm gold), mid (tan), outer (dusty).
+    // Builds a flat annular ring mesh in the XZ plane as an indexed triangle list.
+    // Vertex layout matches the engine's standard interleaved format:
+    //   attrib 0: position  (vec3, offset  0)
+    //   attrib 1: color     (vec3, offset 12)
+    //   stride = 6 floats = 24 bytes
+    auto MakeRingMesh = [](float innerRadius, float outerRadius,
+                           const glm::vec3 &color, int segments) -> MeshBuffer {
+        // 'segments' outer verts + 'segments' inner verts, no duplicated seam vertex
+        // because the index buffer wraps around with modulo.
+        const int totalVerts = segments * 2; // [0..seg-1] = outer, [seg..2*seg-1] = inner
+        std::vector<float> verts;
+        verts.reserve(static_cast<size_t>(totalVerts) * 6);
 
-    // Saturn ring layers — three concentric quads with distinct tints
+        const float step = glm::two_pi<float>() / static_cast<float>(segments);
+        for (int i = 0; i < segments; ++i) {
+            const float theta = step * static_cast<float>(i);
+            const float c = std::cos(theta), s = std::sin(theta);
+            // Outer ring vertex
+            verts.insert(verts.end(), {
+                             outerRadius * c, 0.0f, outerRadius * s,
+                             color.r, color.g, color.b
+                         });
+        }
+        for (int i = 0; i < segments; ++i) {
+            const float theta = step * static_cast<float>(i);
+            const float c = std::cos(theta), s = std::sin(theta);
+            // Inner ring vertex
+            verts.insert(verts.end(), {
+                             innerRadius * c, 0.0f, innerRadius * s,
+                             color.r, color.g, color.b
+                         });
+        }
+
+        // Two triangles per segment quad:
+        //   outer[i], outer[i+1], inner[i]
+        //   inner[i], outer[i+1], inner[i+1]
+        // Indices wrap via modulo so no seam vertex is needed.
+        std::vector<uint32_t> indices;
+        indices.reserve(static_cast<size_t>(segments) * 12);
+        for (int i = 0; i < segments; ++i) {
+            const uint32_t o0 = static_cast<uint32_t>(i);
+            const uint32_t o1 = static_cast<uint32_t>((i + 1) % segments);
+            const uint32_t i0 = static_cast<uint32_t>(segments + i);
+            const uint32_t i1 = static_cast<uint32_t>(segments + (i + 1) % segments);
+            // Front face
+            indices.insert(indices.end(), {
+                               o0, o1, i0,
+                               i0, o1, i1
+                           });
+            // Back face (reversed winding so the underside is also visible)
+            indices.insert(indices.end(), {
+                               i0, o1, o0,
+                               i1, o1, i0
+                           });
+        }
+
+        const VertexLayout layout({
+            {0, 3, GL_FLOAT, GL_FALSE}, // position
+            {1, 3, GL_FLOAT, GL_FALSE}, // color
+        });
+
+        return MeshBuffer(
+            verts.data(),
+            static_cast<GLsizeiptr>(verts.size() * sizeof(float)),
+            static_cast<GLsizei>(totalVerts),
+            indices.data(),
+            static_cast<GLsizei>(indices.size()),
+            layout,
+            GL_STATIC_DRAW);
+    };
+
+    // Saturn's body scale is 2.10; rings start just outside the surface.
+    constexpr float kSatBodyScale = 2.10f;
     m_satRingInner = std::make_unique<MeshBuffer>(
-        GenerateQuad({
-            .colorMode = ColorMode::Solid,
-            .baseColor = {0.82f, 0.74f, 0.55f}
-        }).CreateMeshBuffer()); // warm gold
+        MakeRingMesh(kSatBodyScale * 1.25f, kSatBodyScale * 1.95f,
+                     {0.82f, 0.74f, 0.55f}, 128)); // warm gold band
     m_satRingMid = std::make_unique<MeshBuffer>(
-        GenerateQuad({
-            .colorMode = ColorMode::Solid,
-            .baseColor = {0.72f, 0.65f, 0.48f}
-        }).CreateMeshBuffer()); // mid tan
+        MakeRingMesh(kSatBodyScale * 2.00f, kSatBodyScale * 2.75f,
+                     {0.72f, 0.65f, 0.48f}, 128)); // mid tan band
     m_satRingOuter = std::make_unique<MeshBuffer>(
-        GenerateQuad({
-            .colorMode = ColorMode::Solid,
-            .baseColor = {0.55f, 0.50f, 0.38f}
-        }).CreateMeshBuffer()); // dusty outer
+        MakeRingMesh(kSatBodyScale * 2.80f, kSatBodyScale * 3.60f,
+                     {0.55f, 0.50f, 0.38f}, 128)); // dusty outer band
 
     // ── Sun ───────────────────────────────────────────────────────────────────
     {
+        std::unique_ptr<MeshBuffer> sunMesh = std::make_unique<MeshBuffer>(
+            GenerateSphere(1.0f, 32, {
+                               .colorMode = ColorMode::Solid,
+                               .baseColor = {1.0f, 0.90f, 0.25f}, // warm yellow
+                               .doubleSided = true
+                           }).CreateMeshBuffer());
+
         RenderItem sun;
-        sun.mesh = m_sphereMesh.get();
+        sun.mesh = sunMesh.get();
         sun.shader = m_shader.get();
-        sun.transform.SetScale({5.5f, 5.5f, 5.5f}); // dominant central body
+        sun.transform.SetScale({5.5f, 5.5f, 5.5f});
         sun.transform.SetTranslation({0.0f, 0.0f, 0.0f});
         m_sunIdx = AddObject(sun);
+
+        m_planetMeshes.push_back(std::move(sunMesh)); // reuse m_planetMeshes to own it
     }
 
-    // ── Planets + orbit rings ─────────────────────────────────────────────────
+    // ── Planets ───────────────────────────────────────────────────────────────
     for (const auto &def: kPlanets) {
         AddPlanet(def.orbitRadius, def.orbitSpeed, def.startAngle,
                   def.tiltDeg, def.selfRotSpeed, def.scale, def.color);
-        AddOrbitRing(def.orbitRadius);
         spdlog::info("[SolarSystemScene] Added planet: {}", def.name);
     }
 
     // ── Moons ─────────────────────────────────────────────────────────────────
     for (const auto &def: kMoons)
-        AddMoon(def.parent, def.orbitRadius, def.orbitSpeed, def.startAngle, def.scale);
+        AddMoon(def.parent, def.orbitRadius, def.orbitSpeed, def.startAngle, def.scale, def.color);
 
     // ── Saturn ring detail (planet index 5) ───────────────────────────────────
-    // Three concentric flat quads layered on the same plane as Saturn's equator.
-    // scaleMultiplier is relative to Saturn's scale (2.10).
-    // Inner ring just clears the planet surface; outer fades to a dusty haze.
+    // Three concentric annular meshes (proper vertex rings, not scaled quads).
+    // Their geometry is already in world-relative units (Saturn body = 2.10).
+    // We only need to track idx + follow Saturn's position/tilt each frame.
     {
-        const float satScale = kPlanets[5].scale; // 2.10
-
-        struct LayerDef {
-            MeshBuffer *mesh;
-            float mult;
-        };
-        const LayerDef layers[] = {
-            {m_satRingInner.get(), 2.20f},
-            {m_satRingMid.get(), 3.10f},
-            {m_satRingOuter.get(), 4.00f},
-        };
-
-        for (const auto &l: layers) {
+        for (MeshBuffer *mesh: {m_satRingInner.get(), m_satRingMid.get(), m_satRingOuter.get()}) {
             RenderItem item;
-            item.mesh = l.mesh;
+            item.mesh = mesh;
             item.shader = m_shader.get();
-            // Transform set each frame in OnUpdate to follow Saturn
             SaturnRingLayer sr;
-            sr.scaleMultiplier = l.mult * satScale;
+            sr.scaleMultiplier = 1.0f; // geometry already sized; kept for struct compat
             sr.idx = AddObject(item);
             m_saturnRings.push_back(sr);
         }
@@ -255,8 +311,8 @@ bool SolarSystemScene::Setup() {
     // ── Camera ────────────────────────────────────────────────────────────────
     // Positioned high above the ecliptic, angled down to see the full system.
     Camera cam;
-    cam.SetPosition({0.0f, 110.0f, 160.0f});
-    cam.SetOrientation(-90.0f, -30.0f);
+    cam.SetPosition({0.0f, 200.0f, 0.0f});
+    cam.SetOrientation(0.0f, -90.0f);
     SetCamera(cam);
     SetClearColor({0.01f, 0.01f, 0.05f, 1.0f}); // deep space black
 
@@ -309,7 +365,8 @@ void SolarSystemScene::AddPlanet(float orbitRadius, float orbitSpeed,
 // ── Helper: AddMoon ───────────────────────────────────────────────────────────
 
 void SolarSystemScene::AddMoon(int parentIdx, float orbitRadius,
-                               float orbitSpeed, float startAngle, float scale) {
+                               float orbitSpeed, float startAngle,
+                               float scale, const glm::vec3 &color) {
     const Planet &parent = m_planets[parentIdx];
 
     const float px = std::cos(parent.angle) * parent.orbitRadius;
@@ -317,11 +374,21 @@ void SolarSystemScene::AddMoon(int parentIdx, float orbitRadius,
     const float mx = px + std::cos(startAngle) * orbitRadius;
     const float mz = pz + std::sin(startAngle) * orbitRadius;
 
+    // Each moon gets its own solid-colored sphere mesh
+    std::unique_ptr<MeshBuffer> mesh = std::make_unique<MeshBuffer>(
+        GenerateSphere(1.0f, 24, {
+                           .colorMode = ColorMode::Solid,
+                           .baseColor = color,
+                           .doubleSided = true
+                       }).CreateMeshBuffer());
+
     RenderItem item;
-    item.mesh = m_sphereMesh.get(); // rainbow sphere — visually distinct from planets
     item.shader = m_shader.get();
     item.transform.SetScale({scale, scale, scale});
     item.transform.SetTranslation({mx, 0.0f, mz});
+
+    m_moonMeshes.push_back(std::move(mesh));
+    item.mesh = m_moonMeshes.back().get();
 
     Moon m;
     m.parentPlanet = parentIdx;
@@ -331,22 +398,6 @@ void SolarSystemScene::AddMoon(int parentIdx, float orbitRadius,
     m.scale = scale;
     m.idx = AddObject(item);
     m_moons.push_back(m);
-}
-
-// ── Helper: AddOrbitRing ──────────────────────────────────────────────────────
-
-void SolarSystemScene::AddOrbitRing(float orbitRadius) {
-    // A flat quad lying on the XZ plane. We scale it uniformly so its
-    // "radius" matches the planet's orbit. Thickness (Y) is kept razor thin.
-    // The quad's default size is 1×1, so XZ scale = diameter = 2 × orbitRadius.
-    RenderItem item;
-    item.mesh = m_orbitRingMesh.get();
-    item.shader = m_shader.get();
-    item.transform.SetTranslation({0.0f, 0.0f, 0.0f});
-    item.transform.SetRotationEulerDegrees({90.0f, 0.0f, 0.0f}); // lay flat
-    const float d = orbitRadius * 2.0f;
-    item.transform.SetScale({d, d, 0.012f}); // thin disc
-    AddObject(item); // static — no index needed
 }
 
 // ── OnUpdate ──────────────────────────────────────────────────────────────────
@@ -386,8 +437,8 @@ void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInpu
 
     // ── Movement input ────────────────────────────────────────────────────────
     // Fly speed bumped to match the larger scene scale
-    constexpr float kFlySpeed = 40.0f;
-    constexpr float kShipSpeed = 25.0f;
+    constexpr float kFlySpeed = 20.0f;
+    constexpr float kShipSpeed = 20.0f;
     float fwd = 0.0f, right = 0.0f, up = 0.0f;
     if (input.IsKeyDown(GLFW_KEY_W)) fwd += 1.0f;
     if (input.IsKeyDown(GLFW_KEY_S)) fwd -= 1.0f;
@@ -470,23 +521,19 @@ void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInpu
         }
 
         // ── Saturn ring layers ────────────────────────────────────────────────
-        // All three layers follow Saturn's position and axial tilt, laid flat on
-        // its equatorial plane. Each is a different diameter — inner clears the
-        // planet body, outer fades away — giving the classic multi-band ring look.
+        // All three annular rings follow Saturn's position and axial tilt.
+        // No scale override needed — vertices are already in world units.
         {
-            const Planet &saturn = m_planets[5]; // index 5
+            const Planet &saturn = m_planets[5];
             const float px = std::cos(saturn.angle) * saturn.orbitRadius;
             const float pz = std::sin(saturn.angle) * saturn.orbitRadius;
 
             for (const auto &sr: m_saturnRings) {
                 auto &t = GetObject(sr.idx).transform;
                 t.SetTranslation({px, 0.0f, pz});
-                // Rotate 90° to lie flat, then tilt to match Saturn's axial tilt
-                t.SetRotationEulerDegrees({
-                    saturn.tiltDeg + 90.0f,
-                    glm::degrees(saturn.selfRotAngle), 0.0f
-                });
-                t.SetScale({sr.scaleMultiplier, sr.scaleMultiplier, 0.04f}); // paper-thin
+                // Tilt to match Saturn's axial tilt; rings lie in its equatorial plane
+                t.SetRotationEulerDegrees({saturn.tiltDeg, glm::degrees(saturn.selfRotAngle), 0.0f});
+                t.SetScale({1.0f, 1.0f, 1.0f});
             }
         }
 
