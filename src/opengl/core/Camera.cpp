@@ -108,7 +108,7 @@ void Camera::Move(CameraDirection direction, float speed, float deltaTime) {
 
     const float dist = speed * deltaTime;
 
-    // For FirstPerson, forward/backward movement ignores vertical component
+    // For FirstPerson, forward/backward movement ignores the vertical component
     // (no flying). For FreeFly, full 3-DoF movement is allowed.
     glm::vec3 horizontalForward = m_forward;
     if (m_mode == CameraMode::FirstPerson) {
@@ -116,8 +116,8 @@ void Camera::Move(CameraDirection direction, float speed, float deltaTime) {
         horizontalForward = glm::normalize(glm::vec3(m_forward.x, 0.0f, m_forward.z));
     }
 
-    // Up/Down in FirstPerson always moves along world Y.
-    const glm::vec3 moveUp = (m_mode == CameraMode::FreeFly) ? m_up : kWorldUp;
+    // Up/Down always moves along world Y axis, regardless of camera orientation.
+    constexpr glm::vec3 moveUp = kWorldUp;
 
     switch (direction) {
         case CameraDirection::Forward:
