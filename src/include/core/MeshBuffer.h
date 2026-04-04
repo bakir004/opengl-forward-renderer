@@ -51,11 +51,11 @@ public:
     void Bind() const;
     void Unbind() const;
 
-    /// Draws the mesh.
+    /// Draws the mesh with a chosen primitive topology.
     ///
-    /// - indexed   -> glDrawElements(GL_TRIANGLES, ...)
-    /// - non-indexed -> glDrawArrays(GL_TRIANGLES, ...)
-    void Draw() const;
+    /// - indexed   -> glDrawElements(primitiveMode, ...)
+    /// - non-indexed -> glDrawArrays(primitiveMode, ...)
+    void Draw(GLenum primitiveMode = GL_TRIANGLES) const;
 
     [[nodiscard]] GLsizei GetVertexCount() const { return m_vertexCount; }
     [[nodiscard]] GLsizei GetIndexCount() const { return m_indexCount; }
