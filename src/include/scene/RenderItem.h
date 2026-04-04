@@ -1,10 +1,11 @@
 #pragma once
 
 #include "core/Transform.h"
-
+#include "core/MeshData.h" 
 class MeshBuffer;
 class ShaderProgram;
 class MaterialInstance;
+class Mesh;
 
 enum class PrimitiveTopology {
     Triangles,
@@ -35,6 +36,8 @@ struct RenderFlags {
 /// Both fields are non-owning raw/weak references — the scene owns the resources.
 struct RenderItem {
     const MeshBuffer*       mesh     = nullptr;
+    const Mesh*   meshMulti    = nullptr;  ///< Multi-submesh path; takes priority over mesh
+    uint32_t      subMeshIndex = 0;        ///< Which submesh to draw
     const ShaderProgram*    shader   = nullptr;   ///< Used when material is null
     const MaterialInstance* material = nullptr;   ///< Takes priority over shader
     Transform               transform;
