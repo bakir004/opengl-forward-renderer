@@ -7,7 +7,17 @@
 #include <cassert>
 
 bool Renderer::Initialize() {
-    return m_initCtx.Initialize(m_currentContext);
+    if (!m_initCtx.Initialize(m_currentContext))
+        return false;
+
+    m_errorShader = std::make_unique<ShaderProgram>(
+        "assets/shaders/basic.vert", "assets/shaders/basic.frag");
+    if (m_errorShader->IsValid())
+        m_queue.SetErrorShader(m_errorShader.get());
+    else
+        spdlog::warn("[Renderer] Error shader failed to load — missing-material objects will be silently dropped");
+
+    return true;
 }
 
 void Renderer::Shutdown() {

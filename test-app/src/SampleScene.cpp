@@ -34,7 +34,7 @@ bool SampleScene::Setup() {
     m_duck = AssetImporter::Import<MeshBuffer>("assets/models/duck/Duck.gltf");
     m_duckMaterial = std::make_shared<Material>(meshShader);
     m_duckMaterial->SetTexture(TextureSlot::Albedo,
-        AssetImporter::LoadTexture("assets/models/duck/DuckCM.png", TextureColorSpace::sRGB));
+       AssetImporter::LoadTexture("assets/models/duck/NEPOSTOJI.png", TextureColorSpace::sRGB));
     m_duckMaterial->SetVec4("u_TintColor", {1.0f, 0.0f, 1.0f, 1.0f});
     m_duckMatInst = std::make_unique<MaterialInstance>(m_duckMaterial);
 
@@ -167,7 +167,7 @@ bool SampleScene::Setup() {
     if (m_avocado) {
         RenderItem avocadoItem;
         avocadoItem.mesh      = m_avocado.get();
-        avocadoItem.material  = m_avocadoMatInst.get();
+        avocadoItem.material  = nullptr;
         avocadoItem.transform.SetTranslation({0.0f, -1.0f, 0.0f});
         avocadoItem.transform.SetScale({20.0f, 20.0f, 20.0f}); // glTF units are meters; avocado is ~5 cm
         AddObject(avocadoItem);

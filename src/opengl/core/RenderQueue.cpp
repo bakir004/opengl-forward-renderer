@@ -9,6 +9,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
+#include <spdlog/spdlog.h>
 
 static GLenum ToGLPrimitive(PrimitiveTopology topology) {
     switch (topology) {
@@ -23,8 +24,20 @@ static GLenum ToGLPrimitive(PrimitiveTopology topology) {
 
 void RenderQueue::Add(const RenderItem& item) {
     if (!item.flags.visible || !item.mesh) return;
-    if (!item.material && !item.shader)   return;
+    if (!item.material && !item.shader) {
+        if (m_errorShader) {
+            RenderItem fallback  = item;
+            fallback.shader      = m_errorShader;
+            fallback.material    = nullptr;
+            m_items.push_back(fallback);
+        }
+        return;
+    }
     m_items.push_back(item);
+}
+
+void RenderQueue::SetErrorShader(const ShaderProgram* shader) {
+    m_errorShader = shader;
 }
 
 void RenderQueue::Sort() {
