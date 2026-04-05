@@ -23,6 +23,11 @@ IF EXIST .git (
 set BUILD_DIR=build
 set CONFIG=%1
 
+if not exist "imgui.ini" (
+    type nul > "imgui.ini"
+    echo Created local imgui.ini
+)
+
 if "%CONFIG%"=="" set CONFIG=Debug
 
 set "GENERATOR="

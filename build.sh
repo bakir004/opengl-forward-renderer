@@ -33,6 +33,11 @@ fi
 BUILD_DIR="build"
 CONFIG="${1:-Debug}"
 
+if [ ! -f "imgui.ini" ]; then
+    touch "imgui.ini"
+    echo "Created local imgui.ini"
+fi
+
 detect_jobs() {
     if command -v nproc >/dev/null 2>&1; then
         nproc
