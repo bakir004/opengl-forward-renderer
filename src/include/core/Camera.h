@@ -133,7 +133,7 @@ public:
     void SetClipPlanes(float nearClip, float farClip);
  
     /// Convenience overload called from the framebuffer-resize callback.
-    /// Recomputes aspect ratio and marks projection dirty.
+    /// Recomputes an aspect ratio and marks projection dirty.
     /// @param width  New framebuffer width  (pixels, must be > 0)
     /// @param height New framebuffer height (pixels, must be > 0)
     void OnResize(int width, int height);

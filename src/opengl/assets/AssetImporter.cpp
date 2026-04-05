@@ -190,9 +190,8 @@ std::shared_ptr<Texture2D> AssetImporter::LoadTexture(const std::string& path,
     }
 
     if (!fs::exists(resolved)) {
-        spdlog::warn("[AssetImporter] Texture not found: '{}' — using magenta fallback", path);
-        auto fallback = std::make_shared<Texture2D>(
-            Texture2D::CreateFallback(255, 0, 255));
+        spdlog::warn("[AssetImporter] Texture not found: '{}' — using checkerboard fallback", path);
+        auto fallback = std::make_shared<Texture2D>(Texture2D::CreateCheckerboard());
         // Cache under the original (unresolved) path so repeated misses are fast.
         s_textures[path] = fallback;
         return fallback;
@@ -201,7 +200,7 @@ std::shared_ptr<Texture2D> AssetImporter::LoadTexture(const std::string& path,
     auto tex = std::make_shared<Texture2D>(resolved, colorSpace, sampler, flipY);
     if (!tex->IsValid()) {
         spdlog::error("[AssetImporter] Texture upload failed: '{}'", resolved);
-        auto fallback = std::make_shared<Texture2D>(Texture2D::CreateFallback(255, 0, 255));
+        auto fallback = std::make_shared<Texture2D>(Texture2D::CreateCheckerboard());
         s_textures[resolved] = fallback;
         return fallback;
     }

@@ -12,14 +12,14 @@ void KeyboardInput::Update() {
     for (int k = GLFW_KEY_SPACE; k <= GLFW_KEY_GRAVE_ACCENT; ++k) {
         m_current[k] = (glfwGetKey(m_window, k) == GLFW_PRESS);
         if (m_current[k] && !m_previous[k])
-            spdlog::info("[KeyboardInput] Key pressed: {}", KeyName(k));
+            spdlog::debug("[KeyboardInput] Key pressed: {}", KeyName(k));
     }
 
     // Poll special/function keys: ESCAPE (256) through MENU (348).
     for (int k = GLFW_KEY_ESCAPE; k <= GLFW_KEY_LAST; ++k) {
         m_current[k] = (glfwGetKey(m_window, k) == GLFW_PRESS);
         if (m_current[k] && !m_previous[k])
-            spdlog::info("[KeyboardInput] Key pressed: {}", KeyName(k));
+            spdlog::debug("[KeyboardInput] Key pressed: {}", KeyName(k));
     }
 }
 

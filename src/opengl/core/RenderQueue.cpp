@@ -9,6 +9,17 @@
 #include <glm/glm.hpp>
 #include <algorithm>
 
+static GLenum ToGLPrimitive(PrimitiveTopology topology) {
+    switch (topology) {
+        case PrimitiveTopology::Triangles:     return GL_TRIANGLES;
+        case PrimitiveTopology::Lines:         return GL_LINES;
+        case PrimitiveTopology::Points:        return GL_POINTS;
+        case PrimitiveTopology::TriangleStrip: return GL_TRIANGLE_STRIP;
+        case PrimitiveTopology::LineStrip:     return GL_LINE_STRIP;
+    }
+    return GL_TRIANGLES;
+}
+
 void RenderQueue::Add(const RenderItem& item) {
     if (!item.flags.visible || !item.mesh) return;
     if (!item.material && !item.shader)   return;

@@ -63,7 +63,7 @@ void MeshBuffer::Unbind() const
     m_vao.Unbind();
 }
 
-void MeshBuffer::Draw() const
+void MeshBuffer::Draw(GLenum primitiveMode) const
 {
     if (m_vertexCount <= 0)
     {
@@ -81,10 +81,10 @@ void MeshBuffer::Draw() const
             return;
         }
 
-        glDrawElements(GL_TRIANGLES, m_indexCount, GL_UNSIGNED_INT, nullptr);
+        glDrawElements(primitiveMode, m_indexCount, GL_UNSIGNED_INT, nullptr);
     }
     else
     {
-        glDrawArrays(GL_TRIANGLES, 0, m_vertexCount);
+        glDrawArrays(primitiveMode, 0, m_vertexCount);
     }
 }

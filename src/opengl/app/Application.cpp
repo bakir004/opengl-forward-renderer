@@ -36,6 +36,10 @@ Application::~Application() {
 }
 
 bool Application::Initialize() {
+#ifndef NDEBUG
+    spdlog::set_level(spdlog::level::debug);
+#endif
+
     if (!glfwInit()) {
         spdlog::error("[Application] GLFW initialization failed — glfwInit() returned false");
         return false;
