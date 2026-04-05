@@ -7,7 +7,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 
-/// Solar system scene — v3:
+/// Solar system scene — v4 (refactored):
 ///   • Moons each have a distinct solid color (own mesh per moon)
 ///   • Saturn rings built from proper annular vertex geometry (no scaled quads)
 ///   • Orbit rings (world-plane quads) removed
@@ -24,11 +24,12 @@ private:
     // ── Shared geometry ───────────────────────────────────────────────────────
     std::unique_ptr<ShaderProgram> m_shader;
 
+    std::unique_ptr<MeshBuffer> m_sunMesh;       // owned separately — not a planet
     std::unique_ptr<MeshBuffer> m_asteroidMesh;  // belt rocks (grey pyramid)
     std::unique_ptr<MeshBuffer> m_shipMesh;      // player ship (rainbow cube)
     std::unique_ptr<MeshBuffer> m_starMesh;      // starfield (tiny white pyramid)
 
-    // Per-planet solid-colored sphere mesh (one per planet)
+    // Per-planet solid-colored sphere mesh (one per planet, excludes sun)
     std::vector<std::unique_ptr<MeshBuffer>> m_planetMeshes;
 
     // Per-moon solid-colored sphere mesh (one per moon)
@@ -41,39 +42,38 @@ private:
 
     // ── Per-body runtime data ─────────────────────────────────────────────────
     struct Planet {
-        size_t    idx;
-        float     orbitRadius;
-        float     orbitSpeed;    // rad/s
-        float     angle;         // current angle (rad)
-        float     tiltDeg;
-        float     selfRotSpeed;  // rad/s
-        float     selfRotAngle;
-        float     scale;
-        glm::vec3 color;
+        size_t    idx         = 0;
+        float     orbitRadius = 0.0f;
+        float     orbitSpeed  = 0.0f;   // rad/s
+        float     angle       = 0.0f;   // current angle (rad)
+        float     tiltDeg     = 0.0f;
+        float     selfRotSpeed = 0.0f;  // rad/s
+        float     selfRotAngle = 0.0f;
+        float     scale       = 1.0f;
+        glm::vec3 color       = {1.0f, 1.0f, 1.0f};
     };
 
     struct Moon {
-        size_t    idx;
-        int       parentPlanet;
-        float     orbitRadius;
-        float     orbitSpeed;
-        float     angle;
-        float     scale;
-        glm::vec3 color;
+        size_t    idx         = 0;
+        int       parentPlanet = 0;
+        float     orbitRadius = 0.0f;
+        float     orbitSpeed  = 0.0f;
+        float     angle       = 0.0f;
+        float     scale       = 1.0f;
+        glm::vec3 color       = {1.0f, 1.0f, 1.0f};
     };
 
-    // Saturn's 3 ring layers: idx + scale multiplier (kept for struct compat)
+    // Saturn's 3 ring layers — only the scene-object index is needed at runtime.
     struct SaturnRingLayer {
-        size_t idx;
-        float  scaleMultiplier;
+        size_t idx = 0;
     };
 
     struct Asteroid {
-        size_t idx;
-        float  angle;
-        float  orbitRadius;
-        float  rotAngle;
-        float  rotSpeed;
+        size_t idx         = 0;
+        float  angle       = 0.0f;
+        float  orbitRadius = 0.0f;
+        float  rotAngle    = 0.0f;
+        float  rotSpeed    = 0.0f;
     };
 
     std::vector<Planet>          m_planets;
@@ -85,6 +85,7 @@ private:
     size_t    m_playerIdx    = 0;
     glm::vec3 m_playerPos    = {0.0f, 12.0f, 80.0f};
 
+    float     m_sunRotAngle  = 0.0f; // moved out of static local in OnUpdate
     float     m_beltRotAngle = 0.0f;
     bool      m_isPaused     = false;
 
@@ -95,4 +96,10 @@ private:
 
     void AddMoon(int parentIdx, float orbitRadius, float orbitSpeed,
                  float startAngle, float scale, const glm::vec3& color);
+
+    // Returns the flattened XZ movement direction from forward/right axes
+    // projected onto the horizontal plane — shared by FP and TP camera modes.
+    static glm::vec3 HorizontalMoveDir(const glm::vec3& camForward,
+                                       const glm::vec3& camRight,
+                                       float fwd, float right);
 };
