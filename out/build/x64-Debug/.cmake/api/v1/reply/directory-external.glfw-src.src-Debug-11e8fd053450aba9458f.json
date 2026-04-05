@@ -1,0 +1,45 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"external/glfw-src/src/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 362,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "lib",
+			"paths" : 
+			[
+				"C:/Users/dsedad/Documents/Naila Fakultet ETF/SESTI_SEMESTAR/SI/PROJEKAT/external/glfw-build/src/glfw3.lib"
+			],
+			"targetId" : "glfw::@6bdf2092dac6acb8eb13",
+			"targetIndex" : 5,
+			"type" : "target"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "C:/Users/dsedad/Documents/Naila Fakultet ETF/SESTI_SEMESTAR/SI/PROJEKAT/external/glfw-build/src",
+		"source" : "external/glfw-src/src"
+	}
+}

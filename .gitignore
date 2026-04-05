@@ -4,5 +4,6 @@
 /build/*
 compile_commands.json
 .vscode
+.vs/
 /imgui.ini
 /test-app/imgui.ini
