@@ -201,3 +201,41 @@ void Application::Run(Scene& scene) {
     while (!glfwWindowShouldClose(m_window))
         Update(scene);
 }
+
+void Application::Run(const std::vector<Scene*>& scenes, std::size_t initialSceneIndex) {
+    if (scenes.empty()) {
+        spdlog::warn("[Application] Run(scenes): no scenes provided");
+        return;
+    }
+
+    std::size_t activeSceneIndex = initialSceneIndex;
+    if (activeSceneIndex >= scenes.size() || scenes[activeSceneIndex] == nullptr)
+        activeSceneIndex = 0;
+
+    while (activeSceneIndex < scenes.size() && scenes[activeSceneIndex] == nullptr)
+        ++activeSceneIndex;
+
+    if (activeSceneIndex >= scenes.size()) {
+        spdlog::warn("[Application] Run(scenes): all scene entries are null");
+        return;
+    }
+
+    spdlog::info("[Application] Active scene index: {}", activeSceneIndex);
+    while (!glfwWindowShouldClose(m_window)) {
+        Update(*scenes[activeSceneIndex]);
+
+        // Edge-triggered key checks: press 1..9 to switch to scene indices 0..8.
+        const std::size_t maxSwitchableScenes = std::min<std::size_t>(9, scenes.size());
+        for (std::size_t i = 0; i < maxSwitchableScenes; ++i) {
+            if (scenes[i] == nullptr)
+                continue;
+
+            const int key = GLFW_KEY_1 + static_cast<int>(i);
+            if (m_input->IsKeyPressed(key) && activeSceneIndex != i) {
+                activeSceneIndex = i;
+                spdlog::info("[Application] Switched to scene index {} (key {})", i, i + 1);
+                break;
+            }
+        }
+    }
+}
