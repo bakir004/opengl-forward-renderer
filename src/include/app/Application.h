@@ -1,6 +1,7 @@
 #pragma once
 #include <cstddef>
 #include <memory>
+#include <vector>
 
 struct GLFWwindow;
 class Renderer;
@@ -25,6 +26,12 @@ class Application {
         /// Runs the main loop, driving the given scene each frame.
         /// Calls scene.OnUpdate() then renders all objects the scene contains.
         void Run(Scene& scene);
+
+        /// Runs the main loop with runtime scene switching.
+        /// Press numeric keys 1..9 to switch to scenes at matching indices.
+        /// @param scenes Ordered list of scene pointers. Null entries are ignored.
+        /// @param initialSceneIndex Index of the scene to start with.
+        void Run(const std::vector<Scene*>& scenes, std::size_t initialSceneIndex = 0);
 
         /// Executes one frame: poll events, update input, tick scene, render, swap.
         /// Run() calls this in a loop; expose it here for custom loop control.
