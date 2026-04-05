@@ -29,6 +29,7 @@ add_library(${PROJECT_NAME} STATIC
         opengl/core/Texture2D.cpp
         opengl/core/Material.cpp
         opengl/assets/AssetImporter.cpp
+        opengl/assets/MeshImporter.cpp
         opengl/core/Mesh.cpp
 )
 
@@ -77,7 +78,6 @@ else()
     target_include_directories(${PROJECT_NAME} PUBLIC ${stb_SOURCE_DIR})
 endif()
 
-# Assimp (enabled once Task 3 is wired)
-# if(TARGET assimp::assimp)
-#     target_link_libraries(${PROJECT_NAME} PUBLIC assimp::assimp)
-# endif()
+if(TARGET assimp::assimp)
+    target_link_libraries(${PROJECT_NAME} PUBLIC assimp::assimp)
+endif()

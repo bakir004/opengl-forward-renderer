@@ -4,7 +4,6 @@
 #include "core/SubMesh.h"
 #include <cstdint>
 #include <string>
-#include <vector>
 
 /// GPU mesh with one or more independently drawable submeshes.
 ///

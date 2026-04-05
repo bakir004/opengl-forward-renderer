@@ -3,7 +3,6 @@
 #include "core/Camera.h"
 #include "scene/RenderItem.h"
 #include <glm/glm.hpp>
-#include <memory>
 #include <vector>
 
 class KeyboardInput;

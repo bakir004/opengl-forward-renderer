@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core/Transform.h"
-#include "core/MeshData.h" 
+#include <glm/vec3.hpp>
 class MeshBuffer;
 class ShaderProgram;
 class MaterialInstance;
@@ -41,6 +41,8 @@ struct RenderItem {
     const ShaderProgram*    shader   = nullptr;   ///< Used when material is null
     const MaterialInstance* material = nullptr;   ///< Takes priority over shader
     Transform               transform;
+    glm::vec3               rotationOffsetDeg  = {0.0f, 0.0f, 0.0f}; ///< Local-space mesh orientation fix, applied before transform rotation.
+    glm::vec3               translationOffset  = {0.0f, 0.0f, 0.0f}; ///< Local-space mesh origin fix, applied before transform translation.
     PrimitiveTopology       topology = PrimitiveTopology::Triangles;
     DrawMode                drawMode = DrawMode::Fill;
     RenderFlags             flags;
