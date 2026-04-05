@@ -34,8 +34,8 @@ bool SampleScene::Setup() {
     m_duck = AssetImporter::Import<MeshBuffer>("assets/models/duck/Duck.gltf");
     m_duckMaterial = std::make_shared<Material>(meshShader);
     m_duckMaterial->SetTexture(TextureSlot::Albedo,
-        AssetImporter::LoadTexture("assets/models/duck/DuckCM.png", TextureColorSpace::sRGB));
-    m_duckMaterial->SetVec4("u_TintColor", {1.0f, 0.0f, 1.0f, 1.0f});
+       AssetImporter::LoadTexture("assets/models/duck/DuckCM.png", TextureColorSpace::sRGB));
+    m_duckMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
     m_duckMatInst = std::make_unique<MaterialInstance>(m_duckMaterial);
 
     m_lantern = AssetImporter::Import<MeshBuffer>("assets/models/lantern/Lantern.gltf");

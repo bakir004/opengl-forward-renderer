@@ -1,5 +1,6 @@
 #include "scene/Scene.h"
 #include "scene/FrameSubmission.h"
+#include <spdlog/spdlog.h>
 
 void Scene::SetCamera(Camera camera) {
     m_camera = std::move(camera);
@@ -10,6 +11,8 @@ void Scene::SetClearColor(glm::vec4 color) {
 }
 
 size_t Scene::AddObject(RenderItem item) {
+    if (!item.material && !item.shader)
+        spdlog::warn("[Scene] AddObject: RenderItem has no material or shader — will render with error shader");
     m_objects.push_back(std::move(item));
     return m_objects.size() - 1;
 }

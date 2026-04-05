@@ -4,6 +4,7 @@
 #include "core/SubmissionContext.h"
 #include "core/RenderQueue.h"
 #include "core/UniformBuffer.h"
+#include "core/ShaderProgram.h"
 
 struct RenderItem;
 struct FrameSubmission;
@@ -20,8 +21,9 @@ struct FrameSubmission;
 class Renderer {
     InitContext       m_initCtx;
     SubmissionContext m_currentContext;
-    RenderQueue       m_queue;
+    RenderQueue                    m_queue;
     std::unique_ptr<UniformBuffer> m_cameraUBO;
+    std::unique_ptr<ShaderProgram> m_errorShader;
     bool m_inFrame = false;
 
 public:

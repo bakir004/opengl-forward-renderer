@@ -30,6 +30,12 @@ public:
 
     [[nodiscard]] bool IsEmpty() const;
 
+    /// Sets the fallback shader used when a RenderItem has neither a material
+    /// nor a shader assigned.  The object is still drawn (visibly wrong) and a
+    /// warning is logged so the missing assignment is easy to spot.
+    void SetErrorShader(const ShaderProgram* shader);
+
 private:
-    std::vector<RenderItem> m_items;
+    std::vector<RenderItem>  m_items;
+    const ShaderProgram*     m_errorShader = nullptr;
 };
