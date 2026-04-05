@@ -11,7 +11,7 @@ bool Renderer::Initialize() {
         return false;
 
     m_errorShader = std::make_unique<ShaderProgram>(
-        "assets/shaders/basic.vert", "assets/shaders/basic.frag");
+        "assets/shaders/error.vert", "assets/shaders/error.frag");
     if (m_errorShader->IsValid())
         m_queue.SetErrorShader(m_errorShader.get());
     else
