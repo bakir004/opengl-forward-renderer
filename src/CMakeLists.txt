@@ -29,6 +29,7 @@ add_library(${PROJECT_NAME} STATIC
         opengl/core/Texture2D.cpp
         opengl/core/Material.cpp
         opengl/assets/AssetImporter.cpp
+        opengl/core/Mesh.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC include)

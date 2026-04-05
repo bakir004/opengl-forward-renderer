@@ -2,6 +2,7 @@
 #include "core/SubmissionContext.h"
 #include "core/ShaderProgram.h"
 #include "core/MeshBuffer.h"
+#include "core/Mesh.h"
 #include "core/Material.h"
 #include "scene/RenderItem.h"
 #include <glad/glad.h>
@@ -81,7 +82,11 @@ void RenderQueue::Flush(SubmissionContext& /*current*/) {
             activeShader->SetUniform("u_NormalMatrix", normalMat);
         }
 
-        item.mesh->Draw(ToGLPrimitive(item.topology));
+    if (item.meshMulti) {
+        item.meshMulti->DrawSubMesh(item.subMeshIndex);
+    } else if (item.mesh) {
+        item.mesh->Draw();
+}
     }
 
     // Restore fill mode so the next frame starts clean.
