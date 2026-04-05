@@ -13,6 +13,9 @@
 #include <fstream>
 #include <unordered_set>
 
+// Defined in MeshImporter.cpp
+std::shared_ptr<MeshBuffer> ImportMeshFromFile(const std::string& path);
+
 namespace fs = std::filesystem;
 
 // ---------------------------------------------------------------------------
@@ -237,12 +240,16 @@ std::shared_ptr<MeshBuffer> AssetImporter::LoadMesh(const std::string& path) {
         return fallback;
     }
 
-    // Assimp import is implemented in MeshImporter.cpp (Task 3).
-    // For now, log and return a fallback.  Task 3 will replace this stub.
-    spdlog::warn("[AssetImporter] Mesh import not yet wired (Task 3): '{}'", path);
-    auto fallback = std::make_shared<MeshBuffer>(GenerateCube().CreateMeshBuffer());
-    s_meshes[resolved] = fallback;
-    return fallback;
+    auto mesh = ImportMeshFromFile(resolved);
+    if (!mesh)
+    {
+        spdlog::warn("[AssetImporter] Mesh import failed: '{}' — using fallback cube", path);
+        auto fallback = std::make_shared<MeshBuffer>(GenerateCube().CreateMeshBuffer());
+        s_meshes[resolved] = fallback;
+        return fallback;
+    }
+    s_meshes[resolved] = mesh;
+    return mesh;
 }
 
 // ---------------------------------------------------------------------------

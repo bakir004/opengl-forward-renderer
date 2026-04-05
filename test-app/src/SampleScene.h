@@ -3,6 +3,8 @@
 #include "scene/Scene.h"
 #include "core/MeshBuffer.h"
 #include "core/ShaderProgram.h"
+#include "core/Material.h"
+#include "assets/AssetImporter.h"
 #include <memory>
 
 /// Demo scene: triangle, quad, several cubes, a pyramid, and a sphere.
@@ -19,6 +21,19 @@ public:
 private:
     std::unique_ptr<ShaderProgram> m_shader;
 
+    // Imported models
+    std::shared_ptr<MeshBuffer>       m_avocado;
+    std::shared_ptr<Material>         m_avocadoMaterial;
+    std::unique_ptr<MaterialInstance> m_avocadoMatInst;
+
+    std::shared_ptr<MeshBuffer>       m_duck;
+    std::shared_ptr<Material>         m_duckMaterial;
+    std::unique_ptr<MaterialInstance> m_duckMatInst;
+
+    std::shared_ptr<MeshBuffer>       m_lantern;
+    std::shared_ptr<Material>         m_lanternMaterial;
+    std::unique_ptr<MaterialInstance> m_lanternMatInst;
+
     // Geometry (uploaded to GPU once, shared across multiple RenderItems)
     std::unique_ptr<MeshBuffer> m_triangle;
     std::unique_ptr<MeshBuffer> m_quad;
@@ -31,5 +46,5 @@ private:
     size_t    m_playerCubeIdx  = 0;
     size_t    m_pyramidIdx     = 0;
     float     m_pyramidRotY    = 0.0f;
-    glm::vec3 m_playerPosition = {-2.0f, 0.0f, 2.0f};
+    glm::vec3 m_playerPosition = {-2.0f, -0.6f, 2.0f};
 };

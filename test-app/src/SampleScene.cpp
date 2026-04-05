@@ -17,6 +17,34 @@ bool SampleScene::Setup() {
         return false;
     }
 
+    // ── Imported models ───────────────────────────────────────────────────────
+    auto meshShader = AssetImporter::LoadShader("assets/shaders/mesh.vert", "assets/shaders/mesh.frag");
+    if (!meshShader || !meshShader->IsValid()) {
+        spdlog::error("[SampleScene] Mesh shader failed to compile/link — aborting setup");
+        return false;
+    }
+
+    m_avocado = AssetImporter::Import<MeshBuffer>("assets/models/avocado/Avocado.gltf");
+    m_avocadoMaterial = std::make_shared<Material>(meshShader);
+    m_avocadoMaterial->SetTexture(TextureSlot::Albedo,
+        AssetImporter::LoadTexture("assets/models/avocado/Avocado_baseColor.png", TextureColorSpace::sRGB));
+    m_avocadoMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
+    m_avocadoMatInst = std::make_unique<MaterialInstance>(m_avocadoMaterial);
+
+    m_duck = AssetImporter::Import<MeshBuffer>("assets/models/duck/Duck.gltf");
+    m_duckMaterial = std::make_shared<Material>(meshShader);
+    m_duckMaterial->SetTexture(TextureSlot::Albedo,
+        AssetImporter::LoadTexture("assets/models/duck/DuckCM.png", TextureColorSpace::sRGB));
+    m_duckMaterial->SetVec4("u_TintColor", {1.0f, 0.0f, 1.0f, 1.0f});
+    m_duckMatInst = std::make_unique<MaterialInstance>(m_duckMaterial);
+
+    m_lantern = AssetImporter::Import<MeshBuffer>("assets/models/lantern/Lantern.gltf");
+    m_lanternMaterial = std::make_shared<Material>(meshShader);
+    m_lanternMaterial->SetTexture(TextureSlot::Albedo,
+        AssetImporter::LoadTexture("assets/models/lantern/Lantern_baseColor.png", TextureColorSpace::sRGB));
+    m_lanternMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
+    m_lanternMatInst = std::make_unique<MaterialInstance>(m_lanternMaterial);
+
     // ── Geometry ─────────────────────────────────────────────────────────────
 
     // Rainbow primitives — default ColorMode::Rainbow
@@ -69,7 +97,7 @@ bool SampleScene::Setup() {
         cubeItem.shader = m_shader.get();
         
         float xPath = -4.0f + (i * 2.0f);
-        cubeItem.transform.SetTranslation({xPath, 0.0f, -2.0f});
+        cubeItem.transform.SetTranslation({xPath, -0.5f, -2.0f});
         
         float s = 0.5f + (i * 0.15f);
         cubeItem.transform.SetScale({s, s, s});
@@ -87,7 +115,7 @@ bool SampleScene::Setup() {
         quadItem.shader = m_shader.get();
         
         float xPath = -4.0f + (i * 2.0f);
-        quadItem.transform.SetTranslation({xPath, 0.5f, -5.0f});
+        quadItem.transform.SetTranslation({xPath, 0.0f, -5.0f});
         
         float sx = 0.6f + (i * 0.2f);
         float sy = 0.6f + ((4 - i) * 0.1f);
@@ -102,24 +130,48 @@ bool SampleScene::Setup() {
     RenderItem pyItem;
     pyItem.mesh   = m_pyramid.get();
     pyItem.shader = m_shader.get();
-    pyItem.transform.SetTranslation({-2.0f, 1.5f, -8.0f});
+    pyItem.transform.SetTranslation({-2.0f, 1.0f, -8.0f});
     pyItem.transform.SetScale({1.5f, 2.0f, 1.5f});
     m_pyramidIdx = AddObject(pyItem);
 
     RenderItem sphItem;
     sphItem.mesh     = m_sphere.get();
     sphItem.shader   = m_shader.get();
-    sphItem.transform.SetTranslation({2.0f, 1.5f, -8.0f});
+    sphItem.transform.SetTranslation({2.0f, 1.0f, -8.0f});
     sphItem.transform.SetScale({2.0f, 3.0f, 2.0f});
     AddObject(sphItem);
 
-    // Player Cube (so OnUpdate has a valid index)
-    RenderItem playerCube;
-    playerCube.mesh   = m_rainbowCube.get();
-    playerCube.shader = m_shader.get();
-    playerCube.transform.SetTranslation(m_playerPosition);
-    playerCube.transform.SetScale({0.7f, 0.7f, 0.7f});
-    m_playerCubeIdx = AddObject(playerCube);
+    // Player Duck
+    if (m_duck) {
+        RenderItem playerDuck;
+        playerDuck.mesh               = m_duck.get();
+        playerDuck.material           = m_duckMatInst.get();
+        playerDuck.rotationOffsetDeg  = {0.0f, -90.0f, 0.0f};
+        playerDuck.translationOffset  = {0.0f, -0.9f, 0.0f};
+        playerDuck.transform.SetTranslation(m_playerPosition);
+        playerDuck.transform.SetScale({0.6f, 0.6f, 0.6f}); // glTF units are meters; duck is ~0.5 m long
+        m_playerCubeIdx = AddObject(playerDuck);
+    }
+
+    // ── Lantern (imported glTF) ───────────────────────────────────────────────
+    if (m_lantern) {
+        RenderItem lanternItem;
+        lanternItem.mesh      = m_lantern.get();
+        lanternItem.material  = m_lanternMatInst.get();
+        lanternItem.transform.SetTranslation({-3.0f, -1.0f, 0.0f});
+        lanternItem.transform.SetScale({0.1f, 0.1f, 0.1f}); // raw positions ~25 units tall; scale to ~2.5
+        AddObject(lanternItem);
+    }
+
+    // ── Avocado (imported glTF) ───────────────────────────────────────────────
+    if (m_avocado) {
+        RenderItem avocadoItem;
+        avocadoItem.mesh      = m_avocado.get();
+        avocadoItem.material  = m_avocadoMatInst.get();
+        avocadoItem.transform.SetTranslation({0.0f, -1.0f, 0.0f});
+        avocadoItem.transform.SetScale({20.0f, 20.0f, 20.0f}); // glTF units are meters; avocado is ~5 cm
+        AddObject(avocadoItem);
+    }
 
     spdlog::info("[SampleScene] Ready — detailed test scene with ground, rows of cubes/quads loaded");
     return true;
@@ -136,6 +188,10 @@ void SampleScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mo
     pyTransform.SetRotationEulerDegrees({0.0f, m_pyramidRotY, 0.0f});
 
     Camera& cam = GetCamera();
+
+    // Hide player mesh in first-person so it doesn't clip into the camera
+    if (m_duck)
+        GetObject(m_playerCubeIdx).flags.visible = (cam.GetMode() != CameraMode::FirstPerson);
 
     // Camera mode switching
     if (input.IsKeyPressed(GLFW_KEY_F1)) {
@@ -188,7 +244,7 @@ void SampleScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mo
         const glm::vec3 rightXZ = glm::normalize(glm::vec3(cam.GetRight().x,   0.0f, cam.GetRight().z));
         moveDirXZ = fwdXZ * fwd + rightXZ * right;
         m_playerPosition += moveDirXZ * (kSpeed * deltaTime);
-        cam.SetOrbitTarget(m_playerPosition);
+        cam.SetOrbitTarget(m_playerPosition + glm::vec3(0.0f, 0.7f, 0.0f)); // orbit target is above player position
     }
 
     // Keep player cube in sync
