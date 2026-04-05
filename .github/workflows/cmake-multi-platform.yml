@@ -35,9 +35,7 @@ jobs:
           libxrandr-dev \
           libxinerama-dev \
           libxcursor-dev \
-          libxi-dev \
-          zlib1g-dev \
-          libassimp-dev
+          libxi-dev 
 
     - name: Configure CMake
       run: |
