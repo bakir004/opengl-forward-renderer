@@ -24,24 +24,24 @@ bool SampleScene::Setup() {
         return false;
     }
 
-    m_avocado = AssetImporter::Import<MeshBuffer>("assets/models/avocado/Avocado.gltf");
+    m_avocado = AssetImporter::Import<MeshBuffer>("assets/models/gltf/avocado/Avocado.gltf");
     m_avocadoMaterial = std::make_shared<Material>(meshShader);
     m_avocadoMaterial->SetTexture(TextureSlot::Albedo,
-        AssetImporter::LoadTexture("assets/models/avocado/Avocado_baseColor.png", TextureColorSpace::sRGB));
+        AssetImporter::LoadTexture("assets/models/gltf/avocado/Avocado_baseColor.png", TextureColorSpace::sRGB));
     m_avocadoMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
     m_avocadoMatInst = std::make_unique<MaterialInstance>(m_avocadoMaterial);
 
-    m_duck = AssetImporter::Import<MeshBuffer>("assets/models/duck/Duck.gltf");
+    m_duck = AssetImporter::Import<MeshBuffer>("assets/models/gltf/duck/Duck.gltf");
     m_duckMaterial = std::make_shared<Material>(meshShader);
     m_duckMaterial->SetTexture(TextureSlot::Albedo,
-       AssetImporter::LoadTexture("assets/models/duck/DuckCM.png", TextureColorSpace::sRGB));
+       AssetImporter::LoadTexture("assets/models/gltf/duck/DuckCM.png", TextureColorSpace::sRGB));
     m_duckMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
     m_duckMatInst = std::make_unique<MaterialInstance>(m_duckMaterial);
 
-    m_lantern = AssetImporter::Import<MeshBuffer>("assets/models/lantern/Lantern.gltf");
+    m_lantern = AssetImporter::Import<MeshBuffer>("assets/models/gltf/lantern/Lantern.gltf");
     m_lanternMaterial = std::make_shared<Material>(meshShader);
     m_lanternMaterial->SetTexture(TextureSlot::Albedo,
-        AssetImporter::LoadTexture("assets/models/lantern/Lantern_baseColor.png", TextureColorSpace::sRGB));
+        AssetImporter::LoadTexture("assets/models/gltf/lantern/Lantern_baseColor.png", TextureColorSpace::sRGB));
     m_lanternMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
     m_lanternMatInst = std::make_unique<MaterialInstance>(m_lanternMaterial);
 

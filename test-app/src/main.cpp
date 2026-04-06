@@ -3,6 +3,7 @@
 #include <spdlog/spdlog.h>
 
 #include "SolarSystemScene.h"
+#include "DioramaScene.h"
 
 int main() {
     spdlog::info("[TestApp] Starting");
@@ -21,10 +22,14 @@ int main() {
     if (!solarSystemScene.Setup())
         spdlog::warn("[TestApp] SolarSystemScene::Setup() failed — no geometry will be rendered");
 
-    spdlog::info("[TestApp] Tab = toggle mouse look | WASD/Space/LCtrl = move | F1/F2/F3 = camera mode");
-    spdlog::info("[TestApp] Press 1 for SampleScene | Press 2 for SolarSystemScene");
+    DioramaScene dioramaScene;
+    if (!dioramaScene.Setup())
+        spdlog::warn("[TestApp] DioramaScene::Setup() failed");
 
-    app.Run({&sampleScene, &solarSystemScene}, 0);
+    spdlog::info("[TestApp] Tab = toggle mouse look | WASD/Space/LCtrl = move | F1/F2/F3 = camera mode");
+    spdlog::info("[TestApp] Press 1 for SampleScene | Press 2 for SolarSystemScene | Press 3 for DioramaScene");
+
+    app.Run({&sampleScene, &solarSystemScene, &dioramaScene}, 0);
 
     spdlog::info("[TestApp] Shutting down");
     return 0;
