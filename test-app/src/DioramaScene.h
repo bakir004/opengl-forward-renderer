@@ -59,4 +59,5 @@ private:
 
     size_t m_playerCubeIdx = 0;
     glm::vec3 m_playerPosition = {-2.0f, -0.6f, 2.0f};
+    float m_cameraSpeed = 3.0f;
 };

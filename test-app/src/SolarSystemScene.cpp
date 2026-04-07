@@ -266,6 +266,11 @@ bool SolarSystemScene::Setup()
     }
 
     // ── Camera ────────────────────────────────────────────────────────────────
+    m_cameraFreeFlySpeed = 20.0f;
+    m_cameraFirstPersonSpeed = 20.0f;
+    m_cameraThirdPersonSpeed = 20.0f;
+    m_cameraOrbitRadius = 1.5f;
+
     Camera cam;
     cam.SetPosition({0.0f, 200.0f, 0.0f});
     cam.SetOrientation(0.0f, -90.0f);
@@ -351,85 +356,19 @@ void SolarSystemScene::AddMoon(int parentIdx, float orbitRadius,
     });
 }
 
-// ── Helper: HorizontalMoveDir ─────────────────────────────────────────────────
-
-/*static*/ glm::vec3 SolarSystemScene::HorizontalMoveDir(
-    const glm::vec3& camForward, const glm::vec3& camRight,
-    float fwd, float right)
-{
-    const glm::vec3 fwdXZ   = glm::normalize(glm::vec3(camForward.x,  0.0f, camForward.z));
-    const glm::vec3 rightXZ = glm::normalize(glm::vec3(camRight.x,    0.0f, camRight.z));
-    return fwdXZ * fwd + rightXZ * right;
-}
 
 // ── OnUpdate ──────────────────────────────────────────────────────────────────
 
 void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mouse)
 {
-    // TAB — toggle mouse capture
-    if (input.IsKeyPressed(GLFW_KEY_TAB))
-        mouse.SetCaptured(!mouse.IsCaptured());
-
     // M — toggle pause
     if (input.IsKeyPressed(GLFW_KEY_M)) {
         m_isPaused = !m_isPaused;
         spdlog::info("[SolarSystemScene] {}", m_isPaused ? "PAUSED" : "UNPAUSED");
     }
 
-    Camera& cam = GetCamera();
-
-    // Camera mode switching
-    if (input.IsKeyPressed(GLFW_KEY_F1)) {
-        cam.SetMode(CameraMode::FreeFly);
-        spdlog::info("[Camera] FreeFly");
-    }
-    if (input.IsKeyPressed(GLFW_KEY_F2)) {
-        cam.SetMode(CameraMode::FirstPerson);
-        spdlog::info("[Camera] FirstPerson");
-    }
-    if (input.IsKeyPressed(GLFW_KEY_F3)) {
-        cam.SetMode(CameraMode::ThirdPerson);
-        cam.SetOrbitTarget(m_playerPos);
-        cam.SetOrbitRadius(1.5f);
-        spdlog::info("[Camera] ThirdPerson — orbiting ship");
-    }
-
-    // Mouse look
-    if (mouse.IsCaptured())
-        cam.Rotate(mouse.GetDeltaX() * 0.1f, -mouse.GetDeltaY() * 0.1f);
-
-    // ── Movement input ────────────────────────────────────────────────────────
-    constexpr float kFlySpeed  = 20.0f;
-    constexpr float kShipSpeed = 20.0f;
-
-    const float fwd   = (input.IsKeyDown(GLFW_KEY_W) ? 1.0f : 0.0f)
-                      - (input.IsKeyDown(GLFW_KEY_S) ? 1.0f : 0.0f);
-    const float right = (input.IsKeyDown(GLFW_KEY_D) ? 1.0f : 0.0f)
-                      - (input.IsKeyDown(GLFW_KEY_A) ? 1.0f : 0.0f);
-    const float up    = (input.IsKeyDown(GLFW_KEY_SPACE)        ? 1.0f : 0.0f)
-                      - (input.IsKeyDown(GLFW_KEY_LEFT_CONTROL) ? 1.0f : 0.0f);
-
-    glm::vec3 moveDirXZ(0.0f);
-    const CameraMode mode = cam.GetMode();
-
-    if (mode == CameraMode::FreeFly) {
-        if (fwd   > 0.0f) cam.Move(CameraDirection::Forward,  kFlySpeed, deltaTime);
-        if (fwd   < 0.0f) cam.Move(CameraDirection::Backward, kFlySpeed, deltaTime);
-        if (right > 0.0f) cam.Move(CameraDirection::Right,    kFlySpeed, deltaTime);
-        if (right < 0.0f) cam.Move(CameraDirection::Left,     kFlySpeed, deltaTime);
-        if (up    > 0.0f) cam.Move(CameraDirection::Up,       kFlySpeed, deltaTime);
-        if (up    < 0.0f) cam.Move(CameraDirection::Down,     kFlySpeed, deltaTime);
-    } else {
-        // FirstPerson and ThirdPerson share XZ movement logic.
-        moveDirXZ = HorizontalMoveDir(cam.GetForward(), cam.GetRight(), fwd, right);
-        m_playerPos += moveDirXZ * (kShipSpeed * deltaTime);
-        m_playerPos.y += up * kShipSpeed * deltaTime;
-
-        if (mode == CameraMode::FirstPerson)
-            cam.SetPosition(m_playerPos);
-        else // ThirdPerson
-            cam.SetOrbitTarget(m_playerPos);
-    }
+    glm::vec3 moveDirXZ;
+    UpdateStandardCameraAndPlayer(deltaTime, input, mouse, m_playerPos, moveDirXZ, 0.0f);
 
     // Sync ship transform
     {
@@ -502,13 +441,4 @@ void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInpu
         }
     }
 
-    // ── Debug camera log ──────────────────────────────────────────────────────
-    const bool moving   = fwd != 0.0f || right != 0.0f || up != 0.0f;
-    const bool rotating = mouse.IsCaptured() &&
-                          (mouse.GetDeltaX() != 0.0f || mouse.GetDeltaY() != 0.0f);
-    if (moving || rotating) {
-        const glm::vec3 pos = cam.GetPosition();
-        spdlog::info("[Camera] pos=({:.2f},{:.2f},{:.2f})  yaw={:.1f}°  pitch={:.1f}°",
-                     pos.x, pos.y, pos.z, cam.GetYaw(), cam.GetPitch());
-    }
 }

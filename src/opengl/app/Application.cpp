@@ -21,6 +21,14 @@ static void framebuffer_size_callback(GLFWwindow* window, int width, int height)
     if (app) app->GetRenderer()->Resize(width, height);
 }
 
+/// GLFW callback fired when the mouse scroll wheel is moved.
+static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
+    auto app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+    if (app && app->GetMouseInput()) {
+        app->GetMouseInput()->OnScroll(static_cast<float>(yoffset));
+    }
+}
+
 Application::Application() : m_renderer(std::make_unique<Renderer>()) {}
 Application::~Application() {
     if (m_imguiInitialized) {
@@ -87,6 +95,7 @@ bool Application::Initialize() {
     glfwMakeContextCurrent(m_window);
     glfwSetWindowUserPointer(m_window, this);
     glfwSetFramebufferSizeCallback(m_window, framebuffer_size_callback);
+    glfwSetScrollCallback(m_window, scroll_callback);
 
     int vsyncInterval = options.window.vsync ? 1 : 0;
     glfwSwapInterval(vsyncInterval);
@@ -176,6 +185,9 @@ void Application::Update(Scene& scene) {
                 ImGui::Text("Camera yaw/pitch: %.1f / %.1f",
                             submission.camera->GetYaw(),
                             submission.camera->GetPitch());
+                ImGui::Text("Camera speed: %.1f (m/s)  mode: %d", 
+                            scene.GetCurrentCameraSpeed(), 
+                            static_cast<int>(submission.camera->GetMode()));
             } else {
                 ImGui::TextUnformatted("Camera: none");
             }

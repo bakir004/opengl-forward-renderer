@@ -178,10 +178,6 @@ bool SampleScene::Setup() {
 }
 
 void SampleScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mouse) {
-    // TAB — toggle mouse capture
-    if (input.IsKeyPressed(GLFW_KEY_TAB))
-        mouse.SetCaptured(!mouse.IsCaptured());
-
     // Animate pyramid continuously
     m_pyramidRotY += 60.0f * deltaTime; // 60 degrees per sec
     auto& pyTransform = GetObject(m_pyramidIdx).transform;
@@ -193,59 +189,8 @@ void SampleScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mo
     if (m_duck)
         GetObject(m_playerCubeIdx).flags.visible = (cam.GetMode() != CameraMode::FirstPerson);
 
-    // Camera mode switching
-    if (input.IsKeyPressed(GLFW_KEY_F1)) {
-        cam.SetMode(CameraMode::FreeFly);
-        spdlog::debug("[Camera] mode: FreeFly");
-    }
-    if (input.IsKeyPressed(GLFW_KEY_F2)) {
-        cam.SetMode(CameraMode::FirstPerson);
-        spdlog::debug("[Camera] mode: FirstPerson");
-    }
-    if (input.IsKeyPressed(GLFW_KEY_F3)) {
-        cam.SetMode(CameraMode::ThirdPerson);
-        cam.SetOrbitTarget(m_playerPosition);
-        cam.SetOrbitRadius(5.0f);
-        spdlog::debug("[Camera] mode: ThirdPerson");
-    }
-
-    // Mouse look
-    if (mouse.IsCaptured())
-        cam.Rotate(mouse.GetDeltaX() * 0.1f, -mouse.GetDeltaY() * 0.1f);
-
-    // Axis inputs
-    constexpr float freeFlySpeed = 4.0f;
-    constexpr float kSpeed = 3.0f;
-    float fwd = 0.0f, right = 0.0f, up = 0.0f;
-    if (input.IsKeyDown(GLFW_KEY_W))            fwd   += 1.0f;
-    if (input.IsKeyDown(GLFW_KEY_S))            fwd   -= 1.0f;
-    if (input.IsKeyDown(GLFW_KEY_D))            right += 1.0f;
-    if (input.IsKeyDown(GLFW_KEY_A))            right -= 1.0f;
-    if (input.IsKeyDown(GLFW_KEY_SPACE))        up    += 1.0f;
-    if (input.IsKeyDown(GLFW_KEY_LEFT_CONTROL)) up    -= 1.0f;
-
-    glm::vec3 moveDirXZ(0.0f);  // horizontal movement direction this frame
-
-    if (cam.GetMode() == CameraMode::FreeFly) {
-        if (fwd   > 0.0f) cam.Move(CameraDirection::Forward,  freeFlySpeed, deltaTime);
-        if (fwd   < 0.0f) cam.Move(CameraDirection::Backward, freeFlySpeed, deltaTime);
-        if (right > 0.0f) cam.Move(CameraDirection::Right,    freeFlySpeed, deltaTime);
-        if (right < 0.0f) cam.Move(CameraDirection::Left,     freeFlySpeed, deltaTime);
-        if (up    > 0.0f) cam.Move(CameraDirection::Up,       freeFlySpeed, deltaTime);
-        if (up    < 0.0f) cam.Move(CameraDirection::Down,     freeFlySpeed, deltaTime);
-    } else if (cam.GetMode() == CameraMode::FirstPerson) {
-        const glm::vec3 fwdXZ   = glm::normalize(glm::vec3(cam.GetForward().x, 0.0f, cam.GetForward().z));
-        const glm::vec3 rightXZ = glm::normalize(glm::vec3(cam.GetRight().x,   0.0f, cam.GetRight().z));
-        moveDirXZ = fwdXZ * fwd + rightXZ * right;
-        m_playerPosition += moveDirXZ * (kSpeed * deltaTime);
-        cam.SetPosition(m_playerPosition);
-    } else if (cam.GetMode() == CameraMode::ThirdPerson) {
-        const glm::vec3 fwdXZ   = glm::normalize(glm::vec3(cam.GetForward().x, 0.0f, cam.GetForward().z));
-        const glm::vec3 rightXZ = glm::normalize(glm::vec3(cam.GetRight().x,   0.0f, cam.GetRight().z));
-        moveDirXZ = fwdXZ * fwd + rightXZ * right;
-        m_playerPosition += moveDirXZ * (kSpeed * deltaTime);
-        cam.SetOrbitTarget(m_playerPosition + glm::vec3(0.0f, 0.7f, 0.0f)); // orbit target is above player position
-    }
+    glm::vec3 moveDirXZ;
+    UpdateStandardCameraAndPlayer(deltaTime, input, mouse, m_playerPosition, moveDirXZ, 0.7f);
 
     // Keep player cube in sync
     auto& playerTransform = GetObject(m_playerCubeIdx).transform;
@@ -254,16 +199,7 @@ void SampleScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mo
     // Rotate to face the direction of movement (XZ plane only)
     if (glm::length(moveDirXZ) > 0.001f) {
         const glm::vec3 d = glm::normalize(moveDirXZ);
-        const float yaw = glm::degrees(std::atan2(d.x, d.z));
-        playerTransform.SetRotationEulerDegrees({0.0f, yaw, 0.0f});
-    }
-
-    // Debug log when moving or looking
-    const bool moving   = fwd != 0.0f || right != 0.0f || up != 0.0f;
-    const bool rotating = mouse.IsCaptured() && (mouse.GetDeltaX() != 0.0f || mouse.GetDeltaY() != 0.0f);
-    if (moving || rotating) {
-        const glm::vec3 pos = cam.GetPosition();
-        spdlog::debug("[Camera] pos=({:.2f}, {:.2f}, {:.2f})  yaw={:.1f}°  pitch={:.1f}°",
-                     pos.x, pos.y, pos.z, cam.GetYaw(), cam.GetPitch());
+        const float playerYaw = glm::degrees(std::atan2(d.x, d.z));
+        playerTransform.SetRotationEulerDegrees({0.0f, playerYaw, 0.0f});
     }
 }

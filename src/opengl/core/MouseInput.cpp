@@ -8,6 +8,8 @@ void MouseInput::Update() {
     if (!m_captured) {
         m_deltaX = 0.0f;
         m_deltaY = 0.0f;
+        m_deltaScrollY = m_accumScrollY;
+        m_accumScrollY = 0.0f;
         return;
     }
 
@@ -22,14 +24,22 @@ void MouseInput::Update() {
         m_lastY    = y;
         m_deltaX   = 0.0f;
         m_deltaY   = 0.0f;
+        m_deltaScrollY = m_accumScrollY;
+        m_accumScrollY = 0.0f;
         m_skipNext = false;
         return;
     }
 
     m_deltaX = static_cast<float>(x - m_lastX);
     m_deltaY = static_cast<float>(y - m_lastY);
+    m_deltaScrollY = m_accumScrollY;
+    m_accumScrollY = 0.0f;
     m_lastX  = x;
     m_lastY  = y;
+}
+
+void MouseInput::OnScroll(float yoffset) {
+    m_accumScrollY += yoffset;
 }
 
 void MouseInput::SetCaptured(bool captured) {
