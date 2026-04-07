@@ -41,6 +41,9 @@ class Application {
         /// Used by the framebuffer resize callback to forward resize events.
         Renderer* GetRenderer() const { return m_renderer.get(); }
 
+        /// Returns a non-owning pointer to the MouseInput.
+        MouseInput* GetMouseInput() const { return m_mouse.get(); }
+
         /// Returns the current framebuffer dimensions in pixels.
         void GetFramebufferSize(int& width, int& height) const;
 

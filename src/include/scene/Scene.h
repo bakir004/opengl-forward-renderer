@@ -38,6 +38,22 @@ protected:
     /// Returns a mutable reference to the scene camera.
     Camera& GetCamera();
 
+    /// Returns the base movement speed configured for the current camera mode (in meters/sec).
+    float GetCurrentCameraSpeed() const;
+
+    // -- Movement properties --
+    float m_cameraFreeFlySpeed     = 4.0f;
+    float m_cameraFirstPersonSpeed = 3.0f;
+    float m_cameraThirdPersonSpeed = 3.0f;
+    float m_cameraOrbitRadius      = 5.0f;
+    float m_lastEffectiveSpeed     = 0.0f; // Tracks exact speed including sprint
+
+    /// Shared standard camera logic (WASD, TAB, F1-F3, mouselook, sprint/zoom).
+    /// Safe to call each frame in OnUpdate by subclasses.
+    void UpdateStandardCameraAndPlayer(float deltaTime, KeyboardInput& input, MouseInput& mouse, 
+                                       glm::vec3& playerPos, glm::vec3& outMoveDirXZ, 
+                                       float orbitTargetYOffset = 0.0f);
+
 private:
     /// Called by Application each frame before rendering.
     /// Updates camera aspect ratio from the current framebuffer, then calls OnUpdate.

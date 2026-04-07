@@ -47,12 +47,20 @@ public:
     /// Callers typically negate this when driving camera pitch (screen-down = pitch-down).
     [[nodiscard]] float GetDeltaY() const { return m_deltaY; }
 
+    /// Returns the vertical scroll delta for this frame.
+    [[nodiscard]] float GetScrollDeltaY() const { return m_deltaScrollY; }
+
+    /// Called internally by the GLFW scroll callback.
+    void OnScroll(float yoffset);
+
 private:
     GLFWwindow* m_window   = nullptr;
     double      m_lastX    = 0.0;
     double      m_lastY    = 0.0;
     float       m_deltaX   = 0.0f;
     float       m_deltaY   = 0.0f;
+    float       m_accumScrollY = 0.0f;
+    float       m_deltaScrollY = 0.0f;
     bool        m_captured = false;
     bool        m_skipNext = false;  ///< Suppresses the first delta after capture.
 };

@@ -96,10 +96,4 @@ private:
 
     void AddMoon(int parentIdx, float orbitRadius, float orbitSpeed,
                  float startAngle, float scale, const glm::vec3& color);
-
-    // Returns the flattened XZ movement direction from forward/right axes
-    // projected onto the horizontal plane — shared by FP and TP camera modes.
-    static glm::vec3 HorizontalMoveDir(const glm::vec3& camForward,
-                                       const glm::vec3& camRight,
-                                       float fwd, float right);
 };
