@@ -23,6 +23,11 @@ IF EXIST .git (
 set BUILD_DIR=build
 set CONFIG=%1
 
+if not exist "imgui.ini" (
+    type nul > "imgui.ini"
+    echo Created local imgui.ini
+)
+
 if "%CONFIG%"=="" set CONFIG=Debug
 
 set "GENERATOR="
@@ -81,8 +86,39 @@ if exist "%BUILD_DIR%\compile_commands.json" (
 )
 
 echo Build successful. Running...
-if exist "%BUILD_DIR%\%CONFIG%\ForwardRenderer.exe" (
-    "%BUILD_DIR%\%CONFIG%\ForwardRenderer.exe"
+set "RUN_EXE="
+
+if exist "%BUILD_DIR%\test-app\%CONFIG%\TestApp.exe" set "RUN_EXE=%BUILD_DIR%\test-app\%CONFIG%\TestApp.exe"
+if not defined RUN_EXE if exist "%BUILD_DIR%\test-app\TestApp.exe" set "RUN_EXE=%BUILD_DIR%\test-app\TestApp.exe"
+if not defined RUN_EXE if exist "%BUILD_DIR%\%CONFIG%\TestApp.exe" set "RUN_EXE=%BUILD_DIR%\%CONFIG%\TestApp.exe"
+if not defined RUN_EXE if exist "%BUILD_DIR%\TestApp.exe" set "RUN_EXE=%BUILD_DIR%\TestApp.exe"
+
+if not defined RUN_EXE (
+    for /R "%BUILD_DIR%" %%F in (TestApp.exe) do (
+        set "RUN_EXE=%%~fF"
+        goto :run_app
+    )
+)
+
+:run_app
+
+if defined RUN_EXE (
+    for %%I in ("%RUN_EXE%") do set "RUN_DIR=%%~dpI"
+
+    if /I "%GENERATOR%"=="MinGW Makefiles" (
+        for %%I in (g++.exe) do set "GXX_PATH=%%~$PATH:I"
+        if defined GXX_PATH (
+            for %%I in ("%GXX_PATH%") do set "MINGW_BIN=%%~dpI"
+            for %%D in (libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll) do (
+                if exist "%MINGW_BIN%%%D" (
+                    copy /Y "%MINGW_BIN%%%D" "%RUN_DIR%" >nul
+                )
+            )
+        )
+    )
+
+    "%RUN_EXE%"
 ) else (
-    "%BUILD_DIR%\ForwardRenderer.exe"
+    echo Error: Built executable not found. Expected TestApp.exe in %BUILD_DIR% output directories.
+    exit /b 1
 )

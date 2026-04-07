@@ -1,0 +1,35 @@
+{
+	"backtrace" : 1,
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"ADD_CUSTOM_TARGET"
+		],
+		"files" : 
+		[
+			"external/assimp-src/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 874,
+				"parent" : 0
+			}
+		]
+	},
+	"id" : "UpdateAssimpLibsDebugSymbolsAndDLLs::@2a093267cdefce859211",
+	"name" : "UpdateAssimpLibsDebugSymbolsAndDLLs",
+	"paths" : 
+	{
+		"build" : "C:/Users/dsedad/Documents/Naila Fakultet ETF/SESTI_SEMESTAR/SI/PROJEKAT/external/assimp-build",
+		"source" : "external/assimp-src"
+	},
+	"sources" : [],
+	"type" : "UTILITY"
+}
