@@ -2,6 +2,7 @@
 
 #include "scene/Light.h"
 #include "scene/LightEnvironment.h"
+#include <spdlog/spdlog.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -71,5 +72,55 @@ inline glm::mat4 SpotLightViewProjection(const SpotLight& light) {
                                             light.shadow.farPlane);
     return proj * view;
 }
-
+// These functions validate a LightBlock after Pack() and before Upload(),
+// catching data errors (zero-radius, zero-direction, NaN) at the CPU boundary
+// rather than producing silent visual corruption on the GPU.
+ 
+/// Returns true if the packed block is safe to upload.
+/// Logs a spdlog::warn for each field that would produce incorrect GPU output.
+/// Non-fatal: callers may choose to upload anyway and accept degraded output.
+inline bool ValidatePackedBlock(const LightBlock& block) {
+    bool ok = true;
+ 
+    if (block.hasDirectional) {
+        const GpuDirectionalLight& d = block.directional;
+        const float dirLen = glm::length(d.direction);
+        if (dirLen < 0.99f || dirLen > 1.01f) {
+            spdlog::warn("[LightBlock] Directional direction not normalized (len={:.4f})", dirLen);
+            ok = false;
+        }
+        if (d.intensity < 0.0f) {
+            spdlog::warn("[LightBlock] Directional intensity is negative ({:.3f})", d.intensity);
+            ok = false;
+        }
+    }
+ 
+    for (int i = 0; i < block.numPointLights; ++i) {
+        const GpuPointLight& p = block.pointLights[i];
+        if (p.radius <= 0.0f) {
+            spdlog::warn("[LightBlock] PointLight[{}] radius <= 0 ({:.3f})", i, p.radius);
+            ok = false;
+        }
+        if (p.intensity < 0.0f) {
+            spdlog::warn("[LightBlock] PointLight[{}] intensity < 0 ({:.3f})", i, p.intensity);
+            ok = false;
+        }
+    }
+ 
+    for (int i = 0; i < block.numSpotLights; ++i) {
+        const GpuSpotLight& s = block.spotLights[i];
+        if (s.innerCos <= s.outerCos) {
+            spdlog::warn("[LightBlock] SpotLight[{}] innerCos ({:.4f}) <= outerCos ({:.4f}) — cone inverted",
+                         i, s.innerCos, s.outerCos);
+            ok = false;
+        }
+        const float dirLen = glm::length(s.direction);
+        if (dirLen < 0.99f || dirLen > 1.01f) {
+            spdlog::warn("[LightBlock] SpotLight[{}] direction not normalized (len={:.4f})", i, dirLen);
+            ok = false;
+        }
+    }
+ 
+    return ok;
+}
 } // namespace LightUtils
