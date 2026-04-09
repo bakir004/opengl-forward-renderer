@@ -1,4 +1,5 @@
 #include "app/Application.h"
+#include "core/MeshBuffer.h"
 #include "scene/Scene.h"
 #include "scene/FrameSubmission.h"
 #include "scene/RenderItem.h"
@@ -14,19 +15,30 @@
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
-/// GLFW callback fired when the framebuffer is resized (e.g. window resize or DPI change).
-/// Forwards the new dimensions to the Renderer so the GL viewport stays in sync.
 static void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     auto app = static_cast<Application*>(glfwGetWindowUserPointer(window));
     if (app) app->GetRenderer()->Resize(width, height);
 }
 
-/// GLFW callback fired when the mouse scroll wheel is moved.
 static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
     auto app = static_cast<Application*>(glfwGetWindowUserPointer(window));
     if (app && app->GetMouseInput()) {
         app->GetMouseInput()->OnScroll(static_cast<float>(yoffset));
     }
+}
+
+static int CountSceneTriangles(const std::vector<RenderItem>& objects) {
+    int total = 0;
+    for (const auto& item : objects) {
+        if (!item.flags.visible) continue;
+        if (item.mesh) {
+            if (item.mesh->IsIndexed())
+                total += item.mesh->GetIndexCount() / 3;
+            else
+                total += item.mesh->GetVertexCount() / 3;
+        }
+    }
+    return total;
 }
 
 Application::Application() : m_renderer(std::make_unique<Renderer>()) {}
@@ -59,7 +71,6 @@ bool Application::Initialize() {
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 #endif
 
-    // Try creating the highest GL context we support, falling back to older versions if needed.
     struct GLVersion { int major; int minor; };
     std::vector<GLVersion> versions = {
         {4, 6}, {4, 5}, {4, 4}, {4, 3}, {4, 2}, {4, 1}, {4, 0}, {3, 3}
@@ -72,7 +83,6 @@ bool Application::Initialize() {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, v.minor);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-
         glfwWindowHint(GLFW_DEPTH_BITS, 24);
         m_window = glfwCreateWindow(options.window.width, options.window.height, options.window.title.c_str(), nullptr, nullptr);
         if (m_window) {
@@ -128,6 +138,7 @@ bool Application::Initialize() {
 
     return true;
 }
+
 void Application::GetFramebufferSize(int& width, int& height) const {
     glfwGetFramebufferSize(m_window, &width, &height);
 }
@@ -152,6 +163,8 @@ void Application::Update(Scene& scene) {
     submission.time      = currTime;
     submission.deltaTime = dt;
 
+    const int totalSceneTriangles = CountSceneTriangles(submission.objects);
+
     m_renderer->BeginFrame(submission);
     m_lastSubmittedItems = 0;
     for (const auto& item : submission.objects) {
@@ -170,35 +183,61 @@ void Application::Update(Scene& scene) {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        ImGui::SetNextWindowBgAlpha(0.85f);
+        ImGui::SetNextWindowSize(ImVec2(340, 0), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowBgAlpha(0.87f);
+
         if (ImGui::Begin("Renderer Debug")) {
+            // ── Performance ───────────────────────────────────────────────
+            ImGui::SeparatorText("Performance");
             const float frameMs = dt * 1000.0f;
-            const float fps = (dt > 0.0f) ? (1.0f / dt) : 0.0f;
+            const float fps     = (dt > 0.0f) ? (1.0f / dt) : 0.0f;
+            ImGui::Text("Frame time : %.2f ms", frameMs);
+            ImGui::Text("FPS        : %.1f", fps);
 
-            ImGui::Text("Frame time: %.2f ms", frameMs);
-            ImGui::Text("FPS: %.1f", fps);
-            ImGui::Separator();
-
+            // ── Camera ────────────────────────────────────────────────────
+            ImGui::SeparatorText("Camera");
             if (submission.camera) {
-                const glm::vec3 cameraPos = submission.camera->GetPosition();
-                ImGui::Text("Camera pos: %.2f, %.2f, %.2f", cameraPos.x, cameraPos.y, cameraPos.z);
-                ImGui::Text("Camera yaw/pitch: %.1f / %.1f",
+                const glm::vec3 pos = submission.camera->GetPosition();
+                ImGui::Text("Position   : %.2f, %.2f, %.2f", pos.x, pos.y, pos.z);
+                ImGui::Text("Yaw / Pitch: %.1f / %.1f",
                             submission.camera->GetYaw(),
                             submission.camera->GetPitch());
-                ImGui::Text("Camera speed: %.1f (m/s)  mode: %d", 
-                            scene.GetCurrentCameraSpeed(), 
-                            static_cast<int>(submission.camera->GetMode()));
+
+                const char* modeStr = "FreeFly";
+                switch (submission.camera->GetMode()) {
+                    case CameraMode::FirstPerson:  modeStr = "FirstPerson";  break;
+                    case CameraMode::ThirdPerson:  modeStr = "ThirdPerson";  break;
+                    default: break;
+                }
+                ImGui::Text("Mode       : %s", modeStr);
+                ImGui::Text("Speed      : %.1f m/s", scene.GetCurrentCameraSpeed());
             } else {
-                ImGui::TextUnformatted("Camera: none");
+                ImGui::TextDisabled("No camera");
             }
 
-            ImGui::Separator();
+            // ── Scene ─────────────────────────────────────────────────────
+            ImGui::SeparatorText("Scene");
             ImGui::Text("Framebuffer: %d x %d", w, h);
-            ImGui::Checkbox("Wireframe override", &m_wireframeOverride);
-            ImGui::Text("Submitted render items: %d", static_cast<int>(m_lastSubmittedItems));
+            ImGui::Text("Draw calls : %d", static_cast<int>(m_lastSubmittedItems));
+            ImGui::Text("Triangles  : %s (world total)",
+                        totalSceneTriangles >= 1000000
+                            ? (std::to_string(totalSceneTriangles / 1000000) + "." +
+                               std::to_string((totalSceneTriangles % 1000000) / 100000) + "M").c_str()
+                            : totalSceneTriangles >= 1000
+                            ? (std::to_string(totalSceneTriangles / 1000) + "." +
+                               std::to_string((totalSceneTriangles % 1000) / 100) + "k").c_str()
+                            : std::to_string(totalSceneTriangles).c_str());
 
-            if (m_mouse && m_mouse->IsCaptured())
-                ImGui::TextUnformatted("Hint: Press TAB to release mouse for UI interaction");
+            // ── Renderer ──────────────────────────────────────────────────
+            ImGui::SeparatorText("Renderer");
+            ImGui::Checkbox("Wireframe override", &m_wireframeOverride);
+
+            // ── Controls hint ─────────────────────────────────────────────
+            if (m_mouse && m_mouse->IsCaptured()) {
+                ImGui::Spacing();
+                ImGui::TextDisabled("TAB — release mouse for UI");
+            }
         }
         ImGui::End();
 
@@ -236,12 +275,9 @@ void Application::Run(const std::vector<Scene*>& scenes, std::size_t initialScen
     while (!glfwWindowShouldClose(m_window)) {
         Update(*scenes[activeSceneIndex]);
 
-        // Edge-triggered key checks: press 1..9 to switch to scene indices 0..8.
         const std::size_t maxSwitchableScenes = std::min<std::size_t>(9, scenes.size());
         for (std::size_t i = 0; i < maxSwitchableScenes; ++i) {
-            if (scenes[i] == nullptr)
-                continue;
-
+            if (scenes[i] == nullptr) continue;
             const int key = GLFW_KEY_1 + static_cast<int>(i);
             if (m_input->IsKeyPressed(key) && activeSceneIndex != i) {
                 activeSceneIndex = i;

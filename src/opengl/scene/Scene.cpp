@@ -135,7 +135,7 @@ void Scene::UpdateStandardCameraAndPlayer(float deltaTime, KeyboardInput& input,
     const bool rotating = mouse.IsCaptured() && (mouse.GetDeltaX() != 0.0f || mouse.GetDeltaY() != 0.0f);
     if (moving || rotating) {
         const glm::vec3 pos = cam.GetPosition();
-        spdlog::debug("[Camera] pos=({:.2f}, {:.2f}, {:.2f})  yaw={:.1f}°  pitch={:.1f}°",
+        spdlog::debug("[Camera] pos=({:.2f}, {:.2f}, {:.2f})  yaw={:.1f}deg  pitch={:.1f}deg",
                      pos.x, pos.y, pos.z, cam.GetYaw(), cam.GetPitch());
     }
 }
