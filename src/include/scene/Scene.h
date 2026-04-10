@@ -76,6 +76,7 @@ private:
     LightEnvironment     m_lights;
     std::vector<RenderItem> m_objects;
     glm::vec4            m_clearColor = {0.08f, 0.09f, 0.12f, 1.0f};
+    mutable bool         m_reportedInvalidLights = false;
 
     friend class Application;
 };

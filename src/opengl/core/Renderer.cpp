@@ -34,8 +34,12 @@ void Renderer::BeginFrame(const FrameSubmission& submission) {
         m_lightUBO = std::make_unique<UniformBuffer>(sizeof(LightBlock), GL_DYNAMIC_DRAW);
 
     LightBlock packedLights = LightBlock::Pack(submission.lights);
-    if (!LightUtils::ValidatePackedBlock(packedLights)) {
+    const bool packedValid = LightUtils::ValidatePackedBlock(packedLights);
+    if (!packedValid && !m_reportedInvalidPackedLights) {
         spdlog::warn("[Renderer] BeginFrame: packed light block has validation warnings");
+        m_reportedInvalidPackedLights = true;
+    } else if (packedValid && m_reportedInvalidPackedLights) {
+        m_reportedInvalidPackedLights = false;
     }
     m_lightUBO->Upload(&packedLights, sizeof(LightBlock));
     m_lightUBO->BindToSlot(1);

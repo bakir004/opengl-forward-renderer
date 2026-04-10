@@ -25,6 +25,7 @@ class Renderer {
     std::unique_ptr<UniformBuffer> m_cameraUBO;
     std::unique_ptr<UniformBuffer> m_lightUBO;
     std::unique_ptr<ShaderProgram> m_errorShader;
+    bool m_reportedInvalidPackedLights = false;
     bool m_inFrame = false;
 
 public:

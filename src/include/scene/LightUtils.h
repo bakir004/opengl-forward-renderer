@@ -7,7 +7,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
 #include <cmath>
-#include "LightBlock.h"
+#include "scene/LightBlock.h"
 
 namespace LightUtils {
 
@@ -19,13 +19,14 @@ inline glm::vec3 Irradiance(const SpotLight& l)        { return l.color * l.inte
 /// Evaluates the attenuation factor at distance d.
 /// Returns a value in [0, 1]. Reaches exactly 0 at light.radius.
 inline float EvaluateAttenuation(const Attenuation& a, float d, float radius) {
+    if (radius <= 0.0001f) return 0.0f;
     const float rawAtten = 1.0f / (a.constant + a.linear * d + a.quadratic * d * d);
     // Smooth window function to guarantee zero at radius.
     const float window = std::max(0.0f, 1.0f - (d / radius) * (d / radius));
     return rawAtten * window * window;
 }
 
-/// Returns the inner and outer half-angles in radians for a SpotLight.
+/// Returns cosine(innerDeg) / cosine(outerDeg) for a SpotLight.
 inline float SpotInnerCosine(const SpotLight& l) {
     return std::cos(glm::radians(l.cone.innerDeg));
 }

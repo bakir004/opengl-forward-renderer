@@ -1,5 +1,6 @@
 #include "scene/LightEnvironment.h"
 #include <spdlog/spdlog.h>
+#include <cassert>
 
 void LightEnvironment::SetDirectionalLight(const DirectionalLight& light) {
     m_directional = light;
@@ -14,10 +15,12 @@ bool LightEnvironment::HasDirectionalLight() const {
 }
 
 const DirectionalLight& LightEnvironment::GetDirectionalLight() const {
+    assert(m_directional.has_value() && "GetDirectionalLight() called without directional light");
     return m_directional.value();
 }
 
 DirectionalLight& LightEnvironment::GetDirectionalLight() {
+    assert(m_directional.has_value() && "GetDirectionalLight() called without directional light");
     return m_directional.value();
 }
 
