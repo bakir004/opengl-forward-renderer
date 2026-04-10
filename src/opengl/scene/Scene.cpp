@@ -1,5 +1,6 @@
 #include "scene/Scene.h"
 #include "scene/FrameSubmission.h"
+#include "scene/LightUtils.h"
 #include "core/KeyboardInput.h"
 #include "core/MouseInput.h"
 #include <GLFW/glfw3.h>
@@ -28,6 +29,19 @@ Camera& Scene::GetCamera() {
     return m_camera;
 }
 
+LightEnvironment& Scene::GetLights() {
+    return m_lights;
+}
+
+const LightEnvironment& Scene::GetLights() const {
+    return m_lights;
+}
+
+void Scene::SetAmbientLight(const glm::vec3& color, float intensity) {
+    m_lights.ambientColor = color;
+    m_lights.ambientIntensity = intensity;
+}
+
 float Scene::GetCurrentCameraSpeed() const {
     return m_lastEffectiveSpeed;
 }
@@ -41,7 +55,12 @@ void Scene::BuildSubmission(FrameSubmission& out) const {
     out.camera                   = &m_camera;
     out.clearInfo.clearColor     = m_clearColor;
     out.clearInfo.clearFlags     = ClearFlags::ColorDepth;
+    out.lights                   = m_lights;
     out.objects                  = m_objects;
+
+    if (!LightUtils::Validate(out.lights)) {
+        spdlog::warn("[Scene] BuildSubmission: light setup has validation warnings");
+    }
 }
 
 void Scene::UpdateStandardCameraAndPlayer(float deltaTime, KeyboardInput& input, MouseInput& mouse, 

@@ -4,6 +4,7 @@
 #include "core/MouseInput.h"
 #include "core/Primitives.h"
 #include "core/Texture2D.h"
+#include "scene/LightBuilder.h"
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <spdlog/spdlog.h>
@@ -79,6 +80,33 @@ bool DioramaScene::Setup() {
     cam.SetOrientation(-90.0f, -15.0f);
     SetCamera(cam);
     SetClearColor({0.3f, 0.5f, 0.8f, 1.0f}); // Sky blueish
+
+    // ── Lights (Dev3: scene-side setup) ───────────────────────────────────
+    SetAmbientLight({0.18f, 0.20f, 0.24f}, 0.45f);
+    auto& lights = GetLights();
+    lights.SetDirectionalLight(
+        DirectionalLightBuilder()
+            .Direction({-0.35f, -1.0f, -0.25f})
+            .Color({1.0f, 0.98f, 0.92f})
+            .Intensity(0.95f)
+            .Name("DioramaSun")
+            .Build());
+    lights.AddPointLight(
+        PointLightBuilder()
+            .Position({-11.0f, 1.8f, -4.7f})
+            .Color({1.0f, 0.72f, 0.35f})
+            .Intensity(2.6f)
+            .Radius(13.0f)
+            .Name("LanternLight")
+            .Build());
+    lights.AddPointLight(
+        PointLightBuilder()
+            .Position({8.5f, 1.1f, -6.0f})
+            .Color({0.35f, 0.55f, 1.0f})
+            .Intensity(1.4f)
+            .Radius(10.0f)
+            .Name("PoolLight")
+            .Build());
 
     // Outside Ground (Grass Patch)
     if (m_grass) {

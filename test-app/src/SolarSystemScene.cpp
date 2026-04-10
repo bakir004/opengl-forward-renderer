@@ -3,6 +3,7 @@
 #include "core/KeyboardInput.h"
 #include "core/MouseInput.h"
 #include "core/Primitives.h"
+#include "scene/LightBuilder.h"
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
@@ -276,6 +277,25 @@ bool SolarSystemScene::Setup()
     cam.SetOrientation(0.0f, -90.0f);
     SetCamera(cam);
     SetClearColor({0.01f, 0.01f, 0.05f, 1.0f}); // deep space black
+
+    // ── Lights (Dev3: scene-side setup) ───────────────────────────────────
+    SetAmbientLight({0.02f, 0.02f, 0.03f}, 0.25f);
+    auto& lights = GetLights();
+    lights.SetDirectionalLight(
+        DirectionalLightBuilder()
+            .Direction({-0.2f, -1.0f, -0.15f})
+            .Color({1.0f, 0.94f, 0.80f})
+            .Intensity(1.3f)
+            .Name("SolarDirectional")
+            .Build());
+    lights.AddPointLight(
+        PointLightBuilder()
+            .Position({0.0f, 0.0f, 0.0f})
+            .Color({1.0f, 0.90f, 0.65f})
+            .Intensity(6.0f)
+            .Radius(320.0f)
+            .Name("SolarCore")
+            .Build());
 
     spdlog::info("[SolarSystemScene] Ready — {} planets, {} moons, {} asteroids, {} stars",
                  m_planets.size(), m_moons.size(), m_asteroids.size(), kStarCount);

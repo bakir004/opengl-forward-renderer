@@ -4,6 +4,7 @@
 #include "core/KeyboardInput.h"
 #include "core/MouseInput.h"
 #include "core/Primitives.h"
+#include "scene/LightBuilder.h"
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <spdlog/spdlog.h>
@@ -77,6 +78,33 @@ bool SampleScene::Setup() {
     cam.SetOrientation(-90.0f, -15.0f); // Look down slightly
     SetCamera(cam);
     SetClearColor({0.08f, 0.09f, 0.12f, 1.0f});
+
+    // ── Lights (Dev3: scene-side setup) ───────────────────────────────────
+    SetAmbientLight({0.08f, 0.09f, 0.11f}, 0.35f);
+    auto& lights = GetLights();
+    lights.SetDirectionalLight(
+        DirectionalLightBuilder()
+            .Direction({-0.45f, -1.0f, -0.25f})
+            .Color({1.0f, 0.96f, 0.90f})
+            .Intensity(1.1f)
+            .Name("SampleSun")
+            .Build());
+    lights.AddPointLight(
+        PointLightBuilder()
+            .Position({-2.0f, 2.2f, 1.5f})
+            .Color({1.0f, 0.72f, 0.48f})
+            .Intensity(2.0f)
+            .Radius(14.0f)
+            .Name("WarmFill")
+            .Build());
+    lights.AddPointLight(
+        PointLightBuilder()
+            .Position({3.0f, 1.8f, -4.0f})
+            .Color({0.45f, 0.70f, 1.0f})
+            .Intensity(1.6f)
+            .Radius(16.0f)
+            .Name("CoolRim")
+            .Build());
 
     // ── Objects ───────────────────────────────────────────────────────────────
     
