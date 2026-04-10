@@ -2,6 +2,7 @@
 
 #include "core/Camera.h"
 #include "scene/RenderItem.h"
+#include "scene/LightEnvironment.h"
 #include <glm/glm.hpp>
 #include <vector>
 
@@ -38,6 +39,15 @@ protected:
     /// Returns a mutable reference to the scene camera.
     Camera& GetCamera();
 
+    /// Returns mutable per-scene lights that will be copied into FrameSubmission.
+    LightEnvironment& GetLights();
+
+    /// Returns read-only per-scene lights.
+    const LightEnvironment& GetLights() const;
+
+    /// Convenience helper for ambient lighting setup.
+    void SetAmbientLight(const glm::vec3& color, float intensity);
+
     /// Returns the base movement speed configured for the current camera mode (in meters/sec).
     float GetCurrentCameraSpeed() const;
 
@@ -63,6 +73,7 @@ private:
     void BuildSubmission(FrameSubmission& out) const;
 
     Camera               m_camera;
+    LightEnvironment     m_lights;
     std::vector<RenderItem> m_objects;
     glm::vec4            m_clearColor = {0.08f, 0.09f, 0.12f, 1.0f};
 

@@ -1,6 +1,8 @@
 #include "core/Renderer.h"
 #include "core/Camera.h"
 #include "scene/FrameSubmission.h"
+#include "scene/LightBlock.h"
+#include "scene/LightUtils.h"
 #include "scene/RenderItem.h"
 #include <glad/glad.h>
 #include <spdlog/spdlog.h>
@@ -27,6 +29,16 @@ void Renderer::Shutdown() {
 void Renderer::BeginFrame(const FrameSubmission& submission) {
     assert(!m_inFrame && "BeginFrame() called without a matching EndFrame()");
     m_inFrame = true;
+
+    if (!m_lightUBO)
+        m_lightUBO = std::make_unique<UniformBuffer>(sizeof(LightBlock), GL_DYNAMIC_DRAW);
+
+    LightBlock packedLights = LightBlock::Pack(submission.lights);
+    if (!LightUtils::ValidatePackedBlock(packedLights)) {
+        spdlog::warn("[Renderer] BeginFrame: packed light block has validation warnings");
+    }
+    m_lightUBO->Upload(&packedLights, sizeof(LightBlock));
+    m_lightUBO->BindToSlot(1);
 
     if (submission.camera) {
         if (!m_cameraUBO)
