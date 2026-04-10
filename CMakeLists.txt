@@ -57,7 +57,7 @@ set(ASSIMP_NO_EXPORT          ON  CACHE BOOL "" FORCE)
 set(ASSIMP_INSTALL            OFF CACHE BOOL "" FORCE)
 set(ASSIMP_INJECT_DEBUG_POSTFIX OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS         OFF CACHE BOOL "" FORCE)
-
+set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE) 
 FetchContent_MakeAvailable(glfw spdlog json glm stb assimp)
 
 FetchContent_GetProperties(imgui)

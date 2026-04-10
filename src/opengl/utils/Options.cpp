@@ -42,9 +42,11 @@ Options::Options(const std::string& config_path) {
 
         if (cfg.contains("window"))
             window = cfg.at("window").get<WindowOpts>();
+        if (cfg.contains("shadow_map"))
+            shadowMap = cfg.at("shadow_map").get<ShadowMapOpts>();
 
-        spdlog::info("[Options] Loaded '{}' (window: {}x{}, vsync={})",
-            resolved_path, window.width, window.height, window.vsync);
+        spdlog::info("[Options] Loaded '{}' (window: {}x{}, vsync={}, shadow_map: {}x{})",
+            resolved_path, window.width, window.height, window.vsync, shadowMap.width, shadowMap.height);
     } catch (const std::exception& e) {
         spdlog::error("[Options] Failed to parse '{}': {} — using defaults", resolved_path, e.what());
     }

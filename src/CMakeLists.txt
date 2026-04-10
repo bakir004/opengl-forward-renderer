@@ -27,6 +27,7 @@ add_library(${PROJECT_NAME} STATIC
         opengl/scene/Scene.cpp
         opengl/scene/RenderItem.cpp
         opengl/core/Texture2D.cpp
+        opengl/core/shadows/ShadowMap.cpp
         opengl/core/Material.cpp
         opengl/assets/AssetImporter.cpp
         opengl/assets/MeshImporter.cpp
