@@ -2,11 +2,13 @@
 #include "core/Camera.h"
 #include "scene/FrameSubmission.h"
 #include "scene/RenderItem.h"
+#include "scene/LightBlock.h"
 #include <glad/glad.h>
 #include <spdlog/spdlog.h>
 #include <cassert>
 
-bool Renderer::Initialize() {
+bool Renderer::Initialize()
+{
     if (!m_initCtx.Initialize(m_currentContext))
         return false;
 
@@ -20,15 +22,18 @@ bool Renderer::Initialize() {
     return true;
 }
 
-void Renderer::Shutdown() {
+void Renderer::Shutdown()
+{
     m_initCtx.Shutdown();
 }
 
-void Renderer::BeginFrame(const FrameSubmission& submission) {
+void Renderer::BeginFrame(const FrameSubmission &submission)
+{
     assert(!m_inFrame && "BeginFrame() called without a matching EndFrame()");
     m_inFrame = true;
 
-    if (submission.camera) {
+    if (submission.camera)
+    {
         if (!m_cameraUBO)
             m_cameraUBO = std::make_unique<UniformBuffer>(sizeof(CameraData), GL_DYNAMIC_DRAW);
 
@@ -37,11 +42,20 @@ void Renderer::BeginFrame(const FrameSubmission& submission) {
         m_cameraUBO->BindToSlot(0);
     }
 
+    // Upload light UBO (binding = 1)
+    if (!m_lightUBO)
+        m_lightUBO = std::make_unique<UniformBuffer>(sizeof(LightBlock), GL_DYNAMIC_DRAW);
+
+    LightBlock lightBlock = LightBlock::Pack(submission.lights);
+    m_lightUBO->Upload(&lightBlock, sizeof(LightBlock));
+    m_lightUBO->BindToSlot(1);
+
     submission.clearInfo.Apply();
     submission.context.Apply(m_currentContext);
 }
 
-void Renderer::EndFrame() {
+void Renderer::EndFrame()
+{
     assert(m_inFrame && "EndFrame() called without a matching BeginFrame()");
     m_queue.Sort();
     m_queue.Flush(m_currentContext);
@@ -49,12 +63,14 @@ void Renderer::EndFrame() {
     m_inFrame = false;
 }
 
-void Renderer::SubmitDraw(const RenderItem& item) {
+void Renderer::SubmitDraw(const RenderItem &item)
+{
     assert(m_inFrame && "SubmitDraw() must be called between BeginFrame() and EndFrame()");
     m_queue.Add(item);
 }
 
-void Renderer::Resize(int width, int height) {
+void Renderer::Resize(int width, int height)
+{
     spdlog::debug("[Renderer] Resize: {}x{} (viewport applied via FrameSubmission each frame)",
                   width, height);
 }
