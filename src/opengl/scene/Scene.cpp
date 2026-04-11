@@ -101,21 +101,37 @@ void Scene::UpdateStandardCameraAndPlayer(float deltaTime, KeyboardInput& input,
     float currentFirstPerson = m_cameraFirstPersonSpeed;
     float currentThirdPerson = m_cameraThirdPersonSpeed;
 
-    // Scroll wheel speed adjustment ONLY for ThirdPerson camera
-    if (cam.GetMode() == CameraMode::ThirdPerson) {
-        float scrollDelta = mouse.GetScrollDeltaY();
-        if (scrollDelta != 0.0f) {
-            m_cameraThirdPersonSpeed += scrollDelta * 0.5f; // sensitivity
-            if (m_cameraThirdPersonSpeed < 0.1f) m_cameraThirdPersonSpeed = 0.1f;
-            if (m_cameraThirdPersonSpeed > 100.0f) m_cameraThirdPersonSpeed = 100.0f;
-            spdlog::debug("[Camera] ThirdPerson Speed updated to: {:.2f}", m_cameraThirdPersonSpeed);
-        }
-        
-        currentThirdPerson = m_cameraThirdPersonSpeed;
-        if (input.IsKeyDown(GLFW_KEY_LEFT_SHIFT) || input.IsKeyDown(GLFW_KEY_RIGHT_SHIFT)) {
-            currentThirdPerson *= 3.0f; // Sprint multiplier
+    // Scroll wheel zoom:
+    // - ThirdPerson: adjust orbit radius toward/away from orbit target.
+    // - FreeFly / FirstPerson: adjust FOV (optical zoom) along the current view center.
+    const float scrollDelta = mouse.GetScrollDeltaY();
+    if (scrollDelta != 0.0f) {
+        if (cam.GetMode() == CameraMode::ThirdPerson) {
+            constexpr float kOrbitZoomStep = 0.75f;
+            constexpr float kOrbitZoomMin = 1.0f;
+            constexpr float kOrbitZoomMax = 30.0f;
+
+            m_cameraOrbitRadius -= scrollDelta * kOrbitZoomStep;
+            if (m_cameraOrbitRadius < kOrbitZoomMin) m_cameraOrbitRadius = kOrbitZoomMin;
+            if (m_cameraOrbitRadius > kOrbitZoomMax) m_cameraOrbitRadius = kOrbitZoomMax;
+
+            cam.SetOrbitRadius(m_cameraOrbitRadius);
+            spdlog::debug("[Camera] ThirdPerson zoom radius: {:.2f}", m_cameraOrbitRadius);
+        } else if (cam.GetMode() == CameraMode::FreeFly || cam.GetMode() == CameraMode::FirstPerson) {
+            constexpr float kFreeFlyZoomStep = 2.0f;
+            const float newFov = cam.GetFOV() - scrollDelta * kFreeFlyZoomStep;
+            cam.SetFOV(newFov);
+            spdlog::debug("[Camera] {} zoom FOV: {:.1f}",
+                         cam.GetMode() == CameraMode::FirstPerson ? "FirstPerson" : "FreeFly",
+                         cam.GetFOV());
         }
     }
+
+    const float sprintMultiplier =
+        (input.IsKeyDown(GLFW_KEY_LEFT_SHIFT) || input.IsKeyDown(GLFW_KEY_RIGHT_SHIFT)) ? 3.0f : 1.0f;
+    currentFreeFly *= sprintMultiplier;
+    currentFirstPerson *= sprintMultiplier;
+    currentThirdPerson *= sprintMultiplier;
 
     // Axis inputs
     float fwd = 0.0f, right = 0.0f, up = 0.0f;
