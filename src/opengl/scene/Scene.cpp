@@ -3,7 +3,6 @@
 #include "scene/LightUtils.h"
 #include "core/KeyboardInput.h"
 #include "core/MouseInput.h"
-#include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
 
 void Scene::SetCamera(Camera camera) {
@@ -71,94 +70,15 @@ void Scene::UpdateStandardCameraAndPlayer(float deltaTime, KeyboardInput& input,
                                           glm::vec3& playerPos, glm::vec3& outMoveDirXZ, 
                                           float orbitTargetYOffset) 
 {
-    // TAB — toggle mouse capture
-    if (input.IsKeyPressed(GLFW_KEY_TAB))
-        mouse.SetCaptured(!mouse.IsCaptured());
-
-    Camera& cam = GetCamera();
-
-    // Camera mode switching
-    if (input.IsKeyPressed(GLFW_KEY_F1)) {
-        cam.SetMode(CameraMode::FreeFly);
-        spdlog::debug("[Camera] mode: FreeFly");
-    }
-    if (input.IsKeyPressed(GLFW_KEY_F2)) {
-        cam.SetMode(CameraMode::FirstPerson);
-        spdlog::debug("[Camera] mode: FirstPerson");
-    }
-    if (input.IsKeyPressed(GLFW_KEY_F3)) {
-        cam.SetMode(CameraMode::ThirdPerson);
-        cam.SetOrbitTarget(playerPos);
-        cam.SetOrbitRadius(m_cameraOrbitRadius);
-        spdlog::debug("[Camera] mode: ThirdPerson");
-    }
-
-    // Mouse look
-    if (mouse.IsCaptured())
-        cam.Rotate(mouse.GetDeltaX() * 0.1f, -mouse.GetDeltaY() * 0.1f);
-
-    float currentFreeFly = m_cameraFreeFlySpeed;
-    float currentFirstPerson = m_cameraFirstPersonSpeed;
-    float currentThirdPerson = m_cameraThirdPersonSpeed;
-
-    // Scroll wheel speed adjustment ONLY for ThirdPerson camera
-    if (cam.GetMode() == CameraMode::ThirdPerson) {
-        float scrollDelta = mouse.GetScrollDeltaY();
-        if (scrollDelta != 0.0f) {
-            m_cameraThirdPersonSpeed += scrollDelta * 0.5f; // sensitivity
-            if (m_cameraThirdPersonSpeed < 0.1f) m_cameraThirdPersonSpeed = 0.1f;
-            if (m_cameraThirdPersonSpeed > 100.0f) m_cameraThirdPersonSpeed = 100.0f;
-            spdlog::debug("[Camera] ThirdPerson Speed updated to: {:.2f}", m_cameraThirdPersonSpeed);
-        }
-        
-        currentThirdPerson = m_cameraThirdPersonSpeed;
-        if (input.IsKeyDown(GLFW_KEY_LEFT_SHIFT) || input.IsKeyDown(GLFW_KEY_RIGHT_SHIFT)) {
-            currentThirdPerson *= 3.0f; // Sprint multiplier
-        }
-    }
-
-    // Axis inputs
-    float fwd = 0.0f, right = 0.0f, up = 0.0f;
-    if (input.IsKeyDown(GLFW_KEY_W))            fwd   += 1.0f;
-    if (input.IsKeyDown(GLFW_KEY_S))            fwd   -= 1.0f;
-    if (input.IsKeyDown(GLFW_KEY_D))            right += 1.0f;
-    if (input.IsKeyDown(GLFW_KEY_A))            right -= 1.0f;
-    if (input.IsKeyDown(GLFW_KEY_SPACE))        up    += 1.0f;
-    if (input.IsKeyDown(GLFW_KEY_LEFT_CONTROL)) up    -= 1.0f;
-
-    outMoveDirXZ = glm::vec3(0.0f);
-
-    if (cam.GetMode() == CameraMode::FreeFly) {
-        m_lastEffectiveSpeed = currentFreeFly;
-        if (fwd   > 0.0f) cam.Move(CameraDirection::Forward,  currentFreeFly, deltaTime);
-        if (fwd   < 0.0f) cam.Move(CameraDirection::Backward, currentFreeFly, deltaTime);
-        if (right > 0.0f) cam.Move(CameraDirection::Right,    currentFreeFly, deltaTime);
-        if (right < 0.0f) cam.Move(CameraDirection::Left,     currentFreeFly, deltaTime);
-        if (up    > 0.0f) cam.Move(CameraDirection::Up,       currentFreeFly, deltaTime);
-        if (up    < 0.0f) cam.Move(CameraDirection::Down,     currentFreeFly, deltaTime);
-    } else {
-        const glm::vec3 fwdXZ   = glm::normalize(glm::vec3(cam.GetForward().x, 0.0f, cam.GetForward().z));
-        const glm::vec3 rightXZ = glm::normalize(glm::vec3(cam.GetRight().x,   0.0f, cam.GetRight().z));
-        outMoveDirXZ = fwdXZ * fwd + rightXZ * right;
-        
-        if (cam.GetMode() == CameraMode::FirstPerson) {
-            m_lastEffectiveSpeed = currentFirstPerson;
-            playerPos += outMoveDirXZ * (currentFirstPerson * deltaTime);
-            playerPos.y += up * currentFirstPerson * deltaTime;
-            cam.SetPosition(playerPos);
-        } else if (cam.GetMode() == CameraMode::ThirdPerson) {
-            m_lastEffectiveSpeed = currentThirdPerson;
-            playerPos += outMoveDirXZ * (currentThirdPerson * deltaTime);
-            cam.SetOrbitTarget(playerPos + glm::vec3(0.0f, orbitTargetYOffset, 0.0f));
-        }
-    }
-
-    // Debug log when moving or looking
-    const bool moving   = fwd != 0.0f || right != 0.0f || up != 0.0f;
-    const bool rotating = mouse.IsCaptured() && (mouse.GetDeltaX() != 0.0f || mouse.GetDeltaY() != 0.0f);
-    if (moving || rotating) {
-        const glm::vec3 pos = cam.GetPosition();
-        spdlog::debug("[Camera] pos=({:.2f}, {:.2f}, {:.2f})  yaw={:.1f}deg  pitch={:.1f}deg",
-                     pos.x, pos.y, pos.z, cam.GetYaw(), cam.GetPitch());
-    }
+    m_standardCameraController.Update(deltaTime,
+                                      input,
+                                      mouse,
+                                      playerPos,
+                                      outMoveDirXZ,
+                                      orbitTargetYOffset,
+                                      m_cameraFreeFlySpeed,
+                                      m_cameraFirstPersonSpeed,
+                                      m_cameraThirdPersonSpeed,
+                                      m_cameraOrbitRadius,
+                                      m_lastEffectiveSpeed);
 }
