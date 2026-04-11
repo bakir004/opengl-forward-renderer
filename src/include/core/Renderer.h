@@ -12,18 +12,21 @@ struct FrameSubmission;
 
 /// Small per-frame debug snapshot used by the runtime stats UI.
 struct RendererDebugStats {
-    uint32_t drawCallCount              = 0;
-    uint32_t visibleObjectCount         = 0;
-    uint64_t approxVisibleTriangleCount = 0;
-    uint32_t directionalLightCount      = 0;
-    uint32_t pointLightCount            = 0;
-    uint32_t shadowCasterCount          = 0;
-    float    frameTimeMs                = 0.0f;
-    float    fps                        = 0.0f;
+    uint32_t submittedRenderItemCount = 0;
+    uint32_t queuedRenderItemCount    = 0;
+    uint32_t processedRenderItemCount = 0;
+    uint32_t drawCallCount            = 0;
+    uint64_t approxTriangleCount      = 0;
+    uint32_t directionalLightCount    = 0;
+    uint32_t pointLightCount          = 0;
+    uint32_t shadowCasterCount        = 0;
+    float    frameTimeMs              = 0.0f;
+    float    fps                      = 0.0f;
 
-    // The count currently comes from RenderItem flags, not from a dedicated shadow pass.
+    // The count currently comes from queued RenderItem flags, not from a dedicated shadow pass.
     bool shadowCasterCountApproximate = true;
     bool shadowPassDataAvailable      = false;  // Placeholder until the shadow pass is integrated.
+    bool approxTriangleCountApproximate = true; // Triangle estimates are pragmatic and treat non-triangle topologies as 0.
 };
 
 /// Manages the OpenGL rendering pipeline.

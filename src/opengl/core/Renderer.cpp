@@ -12,30 +12,12 @@
 
 namespace {
 
-bool HasDrawableGeometry(const RenderItem& item) {
-    return item.mesh != nullptr || item.meshMulti != nullptr;
-}
-
-uint64_t ApproxTriangleCount(const RenderItem& item) {
-    if (item.meshMulti) {
-        if (item.subMeshIndex >= item.meshMulti->SubMeshCount())
-            return 0;
-        return static_cast<uint64_t>(item.meshMulti->GetSubMesh(item.subMeshIndex).indexCount) / 3ull;
-    }
-
-    if (!item.mesh)
-        return 0;
-
-    if (item.mesh->IsIndexed())
-        return static_cast<uint64_t>(item.mesh->GetIndexCount()) / 3ull;
-
-    return static_cast<uint64_t>(item.mesh->GetVertexCount()) / 3ull;
-}
-
 void PopulateDebugStatsFromSubmission(const FrameSubmission& submission, RendererDebugStats& stats) {
+    stats.submittedRenderItemCount = static_cast<uint32_t>(submission.objects.size());
+    stats.queuedRenderItemCount = 0;
+    stats.processedRenderItemCount = 0;
     stats.drawCallCount = 0;
-    stats.visibleObjectCount = 0;
-    stats.approxVisibleTriangleCount = 0;
+    stats.approxTriangleCount = 0;
     stats.directionalLightCount = submission.lights.HasDirectionalLight() ? 1u : 0u;
     stats.pointLightCount = static_cast<uint32_t>(submission.lights.GetPointLights().size());
     stats.shadowCasterCount = 0;
@@ -43,17 +25,7 @@ void PopulateDebugStatsFromSubmission(const FrameSubmission& submission, Rendere
     stats.fps = submission.deltaTime > 0.0f ? (1.0f / submission.deltaTime) : 0.0f;
     stats.shadowCasterCountApproximate = true;
     stats.shadowPassDataAvailable = false;
-
-    for (const RenderItem& item : submission.objects) {
-        if (!item.flags.visible || !HasDrawableGeometry(item))
-            continue;
-
-        ++stats.visibleObjectCount;
-        stats.approxVisibleTriangleCount += ApproxTriangleCount(item);
-
-        if (item.flags.castShadow)
-            ++stats.shadowCasterCount;
-    }
+    stats.approxTriangleCountApproximate = true;
 }
 
 } // namespace
@@ -111,15 +83,21 @@ void Renderer::BeginFrame(const FrameSubmission& submission) {
 void Renderer::EndFrame() {
     assert(m_inFrame && "EndFrame() called without a matching BeginFrame()");
     m_queue.Sort();
-    m_queue.Flush(m_currentContext);
+    const RenderQueueFrameStats queueStats = m_queue.Flush(m_currentContext);
+    m_debugStats.processedRenderItemCount = queueStats.processedItemCount;
+    m_debugStats.drawCallCount = queueStats.drawCallCount;
+    m_debugStats.approxTriangleCount = queueStats.approxTriangleCount;
     m_queue.Clear();
     m_inFrame = false;
 }
 
 void Renderer::SubmitDraw(const RenderItem& item) {
     assert(m_inFrame && "SubmitDraw() must be called between BeginFrame() and EndFrame()");
-    if (m_queue.Add(item))
-        ++m_debugStats.drawCallCount;
+    if (m_queue.Add(item)) {
+        ++m_debugStats.queuedRenderItemCount;
+        if (item.flags.castShadow)
+            ++m_debugStats.shadowCasterCount;
+    }
 }
 
 void Renderer::Resize(int width, int height) {

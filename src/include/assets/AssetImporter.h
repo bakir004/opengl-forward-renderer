@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Texture2D.h"
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -13,6 +14,17 @@ class MeshBuffer;
 
 enum class TextureColorSpace;
 struct SamplerDesc;
+
+struct AssetCacheStats {
+    std::size_t shaderCount   = 0;
+    std::size_t textureCount  = 0;
+    std::size_t meshCount     = 0;
+    std::size_t materialCount = 0;
+
+    [[nodiscard]] std::size_t TotalCount() const {
+        return shaderCount + textureCount + meshCount + materialCount;
+    }
+};
 
 /// Centralised asset loading and caching hub.
 ///
@@ -96,6 +108,9 @@ public:
 
     /// Returns the number of currently cached entries across all resource types.
     [[nodiscard]] static std::size_t CachedCount();
+
+    /// Returns current per-cache entry counts for debug UI.
+    [[nodiscard]] static AssetCacheStats GetCacheStats();
 
 private:
     // Caches keyed by canonical path.

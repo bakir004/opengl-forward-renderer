@@ -22,6 +22,36 @@ static GLenum ToGLPrimitive(PrimitiveTopology topology) {
     return GL_TRIANGLES;
 }
 
+static uint64_t ApproxTriangleCount(const RenderItem& item) {
+    if (item.meshMulti) {
+        if (item.subMeshIndex >= item.meshMulti->SubMeshCount())
+            return 0;
+        return static_cast<uint64_t>(item.meshMulti->GetSubMesh(item.subMeshIndex).indexCount) / 3ull;
+    }
+
+    if (!item.mesh)
+        return 0;
+
+    const uint64_t primitiveCount = item.mesh->IsIndexed()
+        ? static_cast<uint64_t>(item.mesh->GetIndexCount())
+        : static_cast<uint64_t>(item.mesh->GetVertexCount());
+
+    // We only estimate triangle-like primitives here. Non-triangle topologies intentionally
+    // contribute 0 so the UI stays honest instead of inventing a fake triangle equivalence.
+    switch (item.topology) {
+        case PrimitiveTopology::Triangles:
+            return primitiveCount / 3ull;
+        case PrimitiveTopology::TriangleStrip:
+            return primitiveCount >= 3ull ? (primitiveCount - 2ull) : 0ull;
+        case PrimitiveTopology::Lines:
+        case PrimitiveTopology::LineStrip:
+        case PrimitiveTopology::Points:
+            return 0ull;
+    }
+
+    return 0ull;
+}
+
 bool RenderQueue::Add(const RenderItem& item) {
     if (!item.flags.visible || (!item.mesh && !item.meshMulti)) return false;
     if (!item.material && !item.shader) {
@@ -55,10 +85,11 @@ void RenderQueue::Sort() {
             });
 }
 
-void RenderQueue::Flush(SubmissionContext& /*current*/) {
+RenderQueueFrameStats RenderQueue::Flush(SubmissionContext& /*current*/) {
     const ShaderProgram*    lastShader   = nullptr;
     const MaterialInstance* lastMaterial = nullptr;
     DrawMode                lastMode     = DrawMode::Fill;
+    RenderQueueFrameStats   stats{};
 
     for (const RenderItem& item : m_items) {
         // ── Draw mode (only on change) ────────────────────────────────────
@@ -109,15 +140,25 @@ void RenderQueue::Flush(SubmissionContext& /*current*/) {
         }
 
         if (item.meshMulti) {
+            if (item.subMeshIndex >= item.meshMulti->SubMeshCount())
+                continue;
             item.meshMulti->DrawSubMesh(item.subMeshIndex);
+            ++stats.processedItemCount;
+            ++stats.drawCallCount;
+            stats.approxTriangleCount += ApproxTriangleCount(item);
         } else if (item.mesh) {
-            item.mesh->Draw();
+            item.mesh->Draw(ToGLPrimitive(item.topology));
+            ++stats.processedItemCount;
+            ++stats.drawCallCount;
+            stats.approxTriangleCount += ApproxTriangleCount(item);
         }
     }
 
     // Restore fill mode so the next frame starts clean.
     if (lastMode != DrawMode::Fill)
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+    return stats;
 }
 
 void RenderQueue::Clear() {

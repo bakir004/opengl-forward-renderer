@@ -1,4 +1,5 @@
 #include "app/Application.h"
+#include "assets/AssetImporter.h"
 #include "core/MeshBuffer.h"
 #include "scene/Scene.h"
 #include "scene/FrameSubmission.h"
@@ -184,6 +185,7 @@ void Application::Update(Scene& scene) {
 
         if (ImGui::Begin("Renderer Debug")) {
             const RendererDebugStats& stats = m_renderer->GetDebugStats();
+            const AssetCacheStats cacheStats = AssetImporter::GetCacheStats();
             // ── Performance ───────────────────────────────────────────────
             ImGui::SeparatorText("Performance");
             ImGui::Text("Frame time : %.2f ms", stats.frameTimeMs);
@@ -213,18 +215,29 @@ void Application::Update(Scene& scene) {
             // ── Scene ─────────────────────────────────────────────────────
             ImGui::SeparatorText("Renderer Stats");
             ImGui::Text("Framebuffer: %d x %d", w, h);
+            ImGui::Text("Submitted  : %u", stats.submittedRenderItemCount);
+            ImGui::Text("Queued     : %u", stats.queuedRenderItemCount);
+            ImGui::Text("Processed  : %u", stats.processedRenderItemCount);
             ImGui::Text("Draw calls : %u", stats.drawCallCount);
-            ImGui::Text("Visible obj: %u", stats.visibleObjectCount);
-            ImGui::Text("Approx tris: %s", FormatCompactCount(stats.approxVisibleTriangleCount).c_str());
+            ImGui::Text("Approx tris: %s", FormatCompactCount(stats.approxTriangleCount).c_str());
+            if (stats.approxTriangleCountApproximate)
+                ImGui::TextDisabled("Triangle estimate uses index/vertex counts and treats non-triangle topologies as 0.");
 
             ImGui::SeparatorText("Lighting Debug");
             ImGui::Text("Directional : %u", stats.directionalLightCount);
             ImGui::Text("Point lights: %u", stats.pointLightCount);
             ImGui::Text("Shadow cast : %u", stats.shadowCasterCount);
             if (stats.shadowCasterCountApproximate)
-                ImGui::TextDisabled("Shadow caster count is derived from RenderItem flags.");
+                ImGui::TextDisabled("Shadow caster count is derived from queued RenderItem flags.");
             if (!stats.shadowPassDataAvailable)
                 ImGui::TextDisabled("Shadow pass debug data is not wired in this phase.");
+
+            ImGui::SeparatorText("Resource Cache");
+            ImGui::Text("Cached total: %zu", cacheStats.TotalCount());
+            ImGui::Text("Shaders     : %zu", cacheStats.shaderCount);
+            ImGui::Text("Textures    : %zu", cacheStats.textureCount);
+            ImGui::Text("Meshes      : %zu", cacheStats.meshCount);
+            ImGui::Text("Materials   : %zu", cacheStats.materialCount);
 
             // ── Renderer ──────────────────────────────────────────────────
             ImGui::SeparatorText("Renderer");
