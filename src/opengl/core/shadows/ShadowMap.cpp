@@ -1,7 +1,6 @@
 #include "core/shadows/ShadowMap.h"
 
 #include <spdlog/spdlog.h>
-#include <utility>
 
 ShadowMap::ShadowMap(uint32_t width, uint32_t height)
     : m_width(width)

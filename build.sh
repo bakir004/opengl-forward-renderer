@@ -31,7 +31,7 @@ fi
 
 # --- Build Logic ---
 BUILD_DIR="build"
-CONFIG="${1:-Debug}"
+CONFIG="${1:-Release}"
 
 if [ ! -f "imgui.ini" ]; then
     touch "imgui.ini"
