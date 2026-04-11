@@ -62,9 +62,30 @@ void StandardSceneCameraController::Update(float deltaTime,
                                            float& cameraThirdPersonSpeed,
                                            float& cameraOrbitRadius,
                                            float& outLastEffectiveSpeed) {
-    // TAB toggles mouse capture for look controls.
-    if (input.IsKeyPressed(GLFW_KEY_TAB))
-        mouse.SetCaptured(!mouse.IsCaptured());
+    // TAB is a persistent toggle; RMB is temporary hold-to-look.
+    const bool rmbDown = mouse.IsButtonDown(GLFW_MOUSE_BUTTON_RIGHT);
+
+    if (input.IsKeyPressed(GLFW_KEY_TAB)) {
+        if (m_rmbHoldActive) {
+            // While RMB-holding, toggle the baseline state restored on release.
+            m_capturedBeforeRmbHold = !m_capturedBeforeRmbHold;
+        } else {
+            mouse.SetCaptured(!mouse.IsCaptured());
+        }
+    }
+
+    if (rmbDown && !m_rmbHoldActive) {
+        m_rmbHoldActive = true;
+        m_capturedBeforeRmbHold = mouse.IsCaptured();
+        if (!mouse.IsCaptured()) {
+            mouse.SetCaptured(true);
+        }
+    } else if (!rmbDown && m_rmbHoldActive) {
+        m_rmbHoldActive = false;
+        if (!m_capturedBeforeRmbHold) {
+            mouse.SetCaptured(false);
+        }
+    }
 
     // Camera mode switching.
     if (input.IsKeyPressed(GLFW_KEY_F1)) {

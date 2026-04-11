@@ -63,4 +63,6 @@ private:
     Camera& m_camera;
     float   m_mouseSensitivity = 0.1f;
     float   m_sprintMultiplier = 3.0f;
+    bool    m_rmbHoldActive = false;
+    bool    m_capturedBeforeRmbHold = false;
 };

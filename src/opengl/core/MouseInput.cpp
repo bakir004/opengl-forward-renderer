@@ -42,6 +42,10 @@ void MouseInput::OnScroll(float yoffset) {
     m_accumScrollY += yoffset;
 }
 
+bool MouseInput::IsButtonDown(int glfwButton) const {
+    return glfwGetMouseButton(m_window, glfwButton) == GLFW_PRESS;
+}
+
 void MouseInput::SetCaptured(bool captured) {
     if (m_captured == captured) return;
 
