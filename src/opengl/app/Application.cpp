@@ -14,6 +14,7 @@
 #include <backends/imgui_impl_opengl3.h>
 #include <GLFW/glfw3.h>
 #include <glm/geometric.hpp>
+#include <cstdint>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 #include <string_view>
@@ -350,14 +351,30 @@ void Application::Update(Scene& scene) {
             ImGui::Text("Point shadow lights      : %d", pointShadowLights);
             ImGui::Text("Spot shadow lights       : %d", spotShadowLights);
             ImGui::TextDisabled("Interactive: edits write back to per-light shadow config and apply on the next frame.");
-            ImGui::TextDisabled("This branch still has no live shadow preview/pass state in the debug UI.");
+            if (stats.shadowMapPreviewAvailable) {
+                ImGui::Text("Preview source           : live directional shadow depth texture");
+                ImGui::Text("Preview resolution       : %u x %u", stats.shadowMapWidth, stats.shadowMapHeight);
+
+                const float previewWidth  = 220.0f;
+                const float previewHeight = stats.shadowMapWidth > 0
+                    ? (previewWidth * static_cast<float>(stats.shadowMapHeight) / static_cast<float>(stats.shadowMapWidth))
+                    : previewWidth;
+                ImGui::Image(
+                    reinterpret_cast<ImTextureID>(static_cast<intptr_t>(stats.shadowMapTextureId)),
+                    ImVec2(previewWidth, previewHeight),
+                    ImVec2(0.0f, 1.0f),
+                    ImVec2(1.0f, 0.0f));
+                ImGui::TextDisabled("Preview uses the live shadow map texture handle exposed by Renderer.");
+            } else {
+                ImGui::TextDisabled("Directional shadow map preview is unavailable for the current frame.");
+            }
 
             if (liveLights.HasDirectionalLight()) {
                 if (ImGui::TreeNode("Directional Shadow")) {
                     DrawShadowParamsDebug(
                         liveLights.GetDirectionalLight().shadow,
                         "Far / extent",
-                        "Resolution, near/far and PCF radius are stored for shadow-pass hookup.",
+                        "Resolution is live for directional shadow-map generation; near/far and PCF radius remain debug config hooks.",
                         true);
                     ImGui::TreePop();
                 }

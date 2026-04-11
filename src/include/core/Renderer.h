@@ -6,6 +6,7 @@
 #include "core/RenderQueue.h"
 #include "core/UniformBuffer.h"
 #include "core/ShaderProgram.h"
+#include "core/shadows/ShadowMap.h"
 
 struct RenderItem;
 struct FrameSubmission;
@@ -22,11 +23,15 @@ struct RendererDebugStats {
     uint32_t shadowCasterCount        = 0;
     float    frameTimeMs              = 0.0f;
     float    fps                      = 0.0f;
+    uint32_t shadowMapTextureId       = 0;
+    uint32_t shadowMapWidth           = 0;
+    uint32_t shadowMapHeight          = 0;
 
     // The count currently comes from queued RenderItem flags, not from a dedicated shadow pass.
     bool shadowCasterCountApproximate = true;
     bool shadowPassDataAvailable      = false;  // Placeholder until the shadow pass is integrated.
     bool approxTriangleCountApproximate = true; // Triangle estimates are pragmatic and treat non-triangle topologies as 0.
+    bool shadowMapPreviewAvailable    = false;
 };
 
 /// Manages the OpenGL rendering pipeline.
@@ -45,9 +50,13 @@ class Renderer {
     std::unique_ptr<UniformBuffer> m_cameraUBO;
     std::unique_ptr<UniformBuffer> m_lightUBO;
     std::unique_ptr<ShaderProgram> m_errorShader;
+    std::unique_ptr<ShaderProgram> m_shadowDepthShader;
+    std::unique_ptr<ShadowMap>     m_directionalShadowMap;
     RendererDebugStats             m_debugStats;
     bool m_reportedInvalidPackedLights = false;
     bool m_inFrame = false;
+
+    void RenderDirectionalShadowPass(const FrameSubmission& submission);
 
 public:
     /// Loads GL function pointers, enables debug output, and applies the default pipeline state.
