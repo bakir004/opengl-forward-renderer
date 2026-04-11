@@ -49,6 +49,10 @@ FetchContent_Declare(assimp
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_DOCS     OFF CACHE BOOL "" FORCE)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        # CI optimization: avoid building Wayland backend/protocol generation when X11 is enough.
+        set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "" FORCE)
+endif()
 
 # Trim the Assimp build down to what we actually need.
 set(ASSIMP_BUILD_TESTS        OFF CACHE BOOL "" FORCE)
@@ -58,6 +62,10 @@ set(ASSIMP_INSTALL            OFF CACHE BOOL "" FORCE)
 set(ASSIMP_INJECT_DEBUG_POSTFIX OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS         OFF CACHE BOOL "" FORCE)
 set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE) 
+# CI optimization: build only importers used by this project (OBJ + glTF).
+set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_OBJ_IMPORTER  ON CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(glfw spdlog json glm stb assimp)
 
 FetchContent_GetProperties(imgui)
