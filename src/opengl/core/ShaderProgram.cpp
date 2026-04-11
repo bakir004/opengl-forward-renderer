@@ -10,15 +10,19 @@
 using std::string;
 
 namespace {
+    // Trim leading whitespace so directives like "   #include ..." are still recognized.
     std::string LTrim(std::string s) {
         const size_t first = s.find_first_not_of(" \t\r\n");
         if (first == std::string::npos) return "";
         return s.substr(first);
     }
 
+    // Loads one shader file and recursively expands local #include "..." directives.
+    // includeStack tracks the active recursion chain to catch include cycles.
     std::optional<std::string> ReadFileWithIncludes(const std::filesystem::path& path,
                                                     std::unordered_set<std::string>& includeStack) {
         std::error_code ec;
+        // Canonicalize for stable cycle detection keys and relative include resolution.
         std::filesystem::path resolvedPath = std::filesystem::weakly_canonical(path, ec);
         if (ec) {
             resolvedPath = std::filesystem::absolute(path, ec);
@@ -55,6 +59,7 @@ namespace {
                 }
 
                 const std::string includeName = trimmed.substr(quoteStart + 1, quoteEnd - quoteStart - 1);
+                // Includes are resolved relative to the current file's directory.
                 const std::filesystem::path includePath = resolvedPath.parent_path() / includeName;
 
                 auto included = ReadFileWithIncludes(includePath, includeStack);
@@ -170,6 +175,7 @@ void ShaderProgram::SetUniform(const string &name, const glm::mat4 &value) const
 }
 
 std::optional<string> ShaderProgram::ReadFile(const string& path){
+    // Entry point used by ShaderProgram constructor: load source + resolve includes.
     std::unordered_set<std::string> includeStack;
     return ReadFileWithIncludes(std::filesystem::path(path), includeStack);
 }
