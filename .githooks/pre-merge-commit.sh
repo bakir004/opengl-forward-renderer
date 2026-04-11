@@ -26,5 +26,5 @@ fi
 
 error "Merge commits are forbidden in this repository workflow."
 info "Use a feature branch + pull request instead of running ${YELLOW}git merge${RESET} locally."
-info "If you need updates from develop, use ${YELLOW}git rebase develop${RESET} on your feature branch."
+info "If you need updates from dev, use ${YELLOW}git rebase dev${RESET} on your feature branch."
 exit 1

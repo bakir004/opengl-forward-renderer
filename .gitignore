@@ -1,5 +1,9 @@
 .cache
 /external/*
-!/external/glad/
+!/external/glad
 /build/*
 compile_commands.json
+.vscode
+.vs/
+/imgui.ini
+/test-app/imgui.ini

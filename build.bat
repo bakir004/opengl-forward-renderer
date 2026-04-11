@@ -22,9 +22,60 @@ IF EXIST .git (
 
 set BUILD_DIR=build
 set CONFIG=%1
+
+if not exist "imgui.ini" (
+    type nul > "imgui.ini"
+    echo Created local imgui.ini
+)
+
 if "%CONFIG%"=="" set CONFIG=Debug
 
-cmake -B %BUILD_DIR% -DCMAKE_BUILD_TYPE=%CONFIG% -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+set "GENERATOR="
+if defined CMAKE_GENERATOR (
+    set "GENERATOR=%CMAKE_GENERATOR%"
+) else (
+    where ninja >nul 2>&1
+    if not errorlevel 1 set "GENERATOR=Ninja"
+
+    if not defined GENERATOR (
+        where g++ >nul 2>&1
+        if not errorlevel 1 (
+            where mingw32-make >nul 2>&1
+            if not errorlevel 1 set "GENERATOR=MinGW Makefiles"
+        )
+    )
+
+    if not defined GENERATOR (
+        where cl >nul 2>&1
+        if not errorlevel 1 (
+            where nmake >nul 2>&1
+            if not errorlevel 1 set "GENERATOR=NMake Makefiles"
+        )
+    )
+)
+
+if not defined GENERATOR (
+    echo Error: No supported C/C++ toolchain detected.
+    echo Install one of the following options and re-run build.bat:
+    echo   1^) Visual Studio Build Tools ^(C++ workload^) + CMake/Ninja
+    echo   2^) MSYS2/MinGW-w64 with g++ and mingw32-make
+    exit /b 1
+)
+
+if exist "%BUILD_DIR%\CMakeCache.txt" (
+    findstr /B /C:"CMAKE_GENERATOR:INTERNAL=" "%BUILD_DIR%\CMakeCache.txt" >nul 2>&1
+    if not errorlevel 1 (
+        findstr /B /C:"CMAKE_GENERATOR:INTERNAL=%GENERATOR%" "%BUILD_DIR%\CMakeCache.txt" >nul 2>&1
+        if errorlevel 1 (
+            echo Existing CMake cache uses a different generator. Recreating %BUILD_DIR%...
+            rmdir /S /Q "%BUILD_DIR%"
+        )
+    )
+)
+
+echo Configuring with generator: %GENERATOR%
+
+cmake -S . -B %BUILD_DIR% -G "%GENERATOR%" -DCMAKE_BUILD_TYPE=%CONFIG% -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
 
 cmake --build %BUILD_DIR% --config %CONFIG% --parallel %NUMBER_OF_PROCESSORS%
@@ -35,4 +86,39 @@ if exist "%BUILD_DIR%\compile_commands.json" (
 )
 
 echo Build successful. Running...
-"%BUILD_DIR%\%CONFIG%\ForwardRenderer.exe"
+set "RUN_EXE="
+
+if exist "%BUILD_DIR%\test-app\%CONFIG%\TestApp.exe" set "RUN_EXE=%BUILD_DIR%\test-app\%CONFIG%\TestApp.exe"
+if not defined RUN_EXE if exist "%BUILD_DIR%\test-app\TestApp.exe" set "RUN_EXE=%BUILD_DIR%\test-app\TestApp.exe"
+if not defined RUN_EXE if exist "%BUILD_DIR%\%CONFIG%\TestApp.exe" set "RUN_EXE=%BUILD_DIR%\%CONFIG%\TestApp.exe"
+if not defined RUN_EXE if exist "%BUILD_DIR%\TestApp.exe" set "RUN_EXE=%BUILD_DIR%\TestApp.exe"
+
+if not defined RUN_EXE (
+    for /R "%BUILD_DIR%" %%F in (TestApp.exe) do (
+        set "RUN_EXE=%%~fF"
+        goto :run_app
+    )
+)
+
+:run_app
+
+if defined RUN_EXE (
+    for %%I in ("%RUN_EXE%") do set "RUN_DIR=%%~dpI"
+
+    if /I "%GENERATOR%"=="MinGW Makefiles" (
+        for %%I in (g++.exe) do set "GXX_PATH=%%~$PATH:I"
+        if defined GXX_PATH (
+            for %%I in ("%GXX_PATH%") do set "MINGW_BIN=%%~dpI"
+            for %%D in (libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll) do (
+                if exist "%MINGW_BIN%%%D" (
+                    copy /Y "%MINGW_BIN%%%D" "%RUN_DIR%" >nul
+                )
+            )
+        )
+    )
+
+    "%RUN_EXE%"
+) else (
+    echo Error: Built executable not found. Expected TestApp.exe in %BUILD_DIR% output directories.
+    exit /b 1
+)
