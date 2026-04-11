@@ -4,8 +4,76 @@
 #include <spdlog/spdlog.h>
 #include <fstream>
 #include <sstream>
+#include <filesystem>
+#include <unordered_set>
 
 using std::string;
+
+namespace {
+    std::string LTrim(std::string s) {
+        const size_t first = s.find_first_not_of(" \t\r\n");
+        if (first == std::string::npos) return "";
+        return s.substr(first);
+    }
+
+    std::optional<std::string> ReadFileWithIncludes(const std::filesystem::path& path,
+                                                    std::unordered_set<std::string>& includeStack) {
+        std::error_code ec;
+        std::filesystem::path resolvedPath = std::filesystem::weakly_canonical(path, ec);
+        if (ec) {
+            resolvedPath = std::filesystem::absolute(path, ec);
+            if (ec)
+                resolvedPath = path;
+        }
+
+        const std::string key = resolvedPath.generic_string();
+        if (includeStack.contains(key)) {
+            spdlog::error("[Shader] Include cycle detected while loading '{}'", key);
+            return std::nullopt;
+        }
+
+        std::ifstream file(resolvedPath);
+        if (!file.is_open())
+            return std::nullopt;
+
+        includeStack.insert(key);
+
+        std::ostringstream output;
+        std::string line;
+        while (std::getline(file, line)) {
+            const std::string trimmed = LTrim(line);
+            if (trimmed.rfind("#include", 0) == 0) {
+                const size_t quoteStart = trimmed.find('"');
+                const size_t quoteEnd = (quoteStart == std::string::npos)
+                    ? std::string::npos
+                    : trimmed.find('"', quoteStart + 1);
+
+                if (quoteStart == std::string::npos || quoteEnd == std::string::npos || quoteEnd <= quoteStart + 1) {
+                    spdlog::error("[Shader] Invalid include directive in '{}': {}", key, line);
+                    includeStack.erase(key);
+                    return std::nullopt;
+                }
+
+                const std::string includeName = trimmed.substr(quoteStart + 1, quoteEnd - quoteStart - 1);
+                const std::filesystem::path includePath = resolvedPath.parent_path() / includeName;
+
+                auto included = ReadFileWithIncludes(includePath, includeStack);
+                if (!included) {
+                    spdlog::error("[Shader] Failed to resolve include '{}' from '{}'", includeName, key);
+                    includeStack.erase(key);
+                    return std::nullopt;
+                }
+
+                output << *included << '\n';
+            } else {
+                output << line << '\n';
+            }
+        }
+
+        includeStack.erase(key);
+        return output.str();
+    }
+}
 
 // === Hardcoded Fallback Strings ===
 static const char* FALLBACK_VERT = R"(
@@ -102,11 +170,8 @@ void ShaderProgram::SetUniform(const string &name, const glm::mat4 &value) const
 }
 
 std::optional<string> ShaderProgram::ReadFile(const string& path){
-    std::ifstream file(path);
-    if (!file.is_open()) return std::nullopt;
-    std::ostringstream buffer;
-    buffer << file.rdbuf();
-    return buffer.str();
+    std::unordered_set<std::string> includeStack;
+    return ReadFileWithIncludes(std::filesystem::path(path), includeStack);
 }
 
 GLuint ShaderProgram::CompileStage(const string& source, GLenum stageType, const string& sourcePath){
