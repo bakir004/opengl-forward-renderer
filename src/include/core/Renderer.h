@@ -12,6 +12,19 @@ struct RenderItem;
 struct FrameSubmission;
 
 /// Small per-frame debug snapshot used by the runtime stats UI.
+struct ShadowFrustumDebugInfo {
+    float focusCenterX = 0.0f;
+    float focusCenterY = 0.0f;
+    float focusCenterZ = 0.0f;
+    float lightDirectionX = 0.0f;
+    float lightDirectionY = 0.0f;
+    float lightDirectionZ = 0.0f;
+    float orthoRadius = 0.0f;
+    float nearPlane   = 0.0f;
+    float farPlane    = 0.0f;
+    bool  available   = false;
+};
+
 struct RendererDebugStats {
     uint32_t submittedRenderItemCount = 0;
     uint32_t queuedRenderItemCount    = 0;
@@ -21,15 +34,19 @@ struct RendererDebugStats {
     uint32_t directionalLightCount    = 0;
     uint32_t pointLightCount          = 0;
     uint32_t shadowCasterCount        = 0;
+    uint32_t shadowReceiverCount      = 0;
+    uint32_t shadowPassObjectCount    = 0;
+    uint32_t shadowPassExcludedObjectCount = 0;
     float    frameTimeMs              = 0.0f;
     float    fps                      = 0.0f;
     uint32_t shadowMapTextureId       = 0;
     uint32_t shadowMapWidth           = 0;
     uint32_t shadowMapHeight          = 0;
+    ShadowFrustumDebugInfo directionalShadowFrustum;
 
-    // The count currently comes from queued RenderItem flags, not from a dedicated shadow pass.
+    // The count currently comes from accepted RenderItem flags in SubmitDraw().
     bool shadowCasterCountApproximate = true;
-    bool shadowPassDataAvailable      = false;  // Placeholder until the shadow pass is integrated.
+    bool shadowPassDataAvailable      = false;
     bool approxTriangleCountApproximate = true; // Triangle estimates are pragmatic and treat non-triangle topologies as 0.
     bool shadowMapPreviewAvailable    = false;
 };

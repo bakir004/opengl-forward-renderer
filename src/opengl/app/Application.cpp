@@ -80,6 +80,8 @@ static void DrawShadowParamsDebug(LightShadowParams& shadow,
                                   std::string_view   farPlaneLabel,
                                   std::string_view   connectionNote,
                                   bool               showDirectionalGpuNote) {
+    // Keep the debug UI bound directly to LightShadowParams so later shadow-resource
+    // and sampling work can continue from the same runtime state.
     ImGui::Checkbox("Cast shadow", &shadow.castShadow);
     ImGui::DragFloat("Depth bias", &shadow.depthBias, 0.0001f, 0.0f, 1.0f, "%.5f");
     ImGui::DragFloat("Normal bias", &shadow.normalBias, 0.0005f, 0.0f, 10.0f, "%.4f");
@@ -108,7 +110,6 @@ static void DrawShadowParamsDebug(LightShadowParams& shadow,
     if (showDirectionalGpuNote)
         ImGui::TextDisabled("Directional cast/depth/normal bias are already packed into the light UBO.");
 
-    // TODO(Dev9): replace these placeholders once shadow pass runtime state owns them explicitly.
     ImGui::TextDisabled("Slope bias is not modelled in LightShadowParams yet.");
     ImGui::TextDisabled("PCF enable/sample count are not separate engine fields; kernel is derived from radius only.");
 }
@@ -299,11 +300,9 @@ void Application::Update(Scene& scene) {
             ImGui::SeparatorText("Lighting Debug");
             ImGui::Text("Directional : %u", stats.directionalLightCount);
             ImGui::Text("Point lights: %u", stats.pointLightCount);
-            ImGui::Text("Shadow cast : %u", stats.shadowCasterCount);
+            ImGui::Text("Queued casters: %u", stats.shadowCasterCount);
             if (stats.shadowCasterCountApproximate)
-                ImGui::TextDisabled("Shadow caster count is derived from queued RenderItem flags.");
-            if (!stats.shadowPassDataAvailable)
-                ImGui::TextDisabled("Shadow pass debug data is not wired in this phase.");
+                ImGui::TextDisabled("Queued caster count comes from accepted RenderItem castShadow flags.");
 
             ImGui::SeparatorText("Active Lights");
             ImGui::Text("Directional lights: %d", liveLights.HasDirectionalLight() ? 1 : 0);
@@ -351,6 +350,39 @@ void Application::Update(Scene& scene) {
             ImGui::Text("Point shadow lights      : %d", pointShadowLights);
             ImGui::Text("Spot shadow lights       : %d", spotShadowLights);
             ImGui::TextDisabled("Interactive: edits write back to per-light shadow config and apply on the next frame.");
+            ImGui::Spacing();
+            ImGui::TextDisabled("Shadow Pass Stats");
+            ImGui::Text("Shadow pass draws        : %u", stats.shadowPassObjectCount);
+            ImGui::Text("Excluded (castShadow=no): %u", stats.shadowPassExcludedObjectCount);
+            ImGui::Text("Receivers (receiveShadow): %u", stats.shadowReceiverCount);
+            ImGui::Text("Queued casters           : %u", stats.shadowCasterCount);
+            if (stats.shadowPassDataAvailable && stats.shadowPassObjectCount == 0)
+                ImGui::TextDisabled("Live directional shadow pass ran, but no submitted object reached the depth draw path.");
+            if (!stats.shadowPassDataAvailable)
+                ImGui::TextDisabled("Directional shadow pass is inactive for this frame, so pass-only counters stay at 0.");
+
+            ImGui::Spacing();
+            ImGui::TextDisabled("Directional Frustum");
+            if (stats.directionalShadowFrustum.available) {
+                ImGui::Text("Focus center (world)     : %.2f, %.2f, %.2f",
+                            stats.directionalShadowFrustum.focusCenterX,
+                            stats.directionalShadowFrustum.focusCenterY,
+                            stats.directionalShadowFrustum.focusCenterZ);
+                ImGui::Text("Light direction          : %.2f, %.2f, %.2f",
+                            stats.directionalShadowFrustum.lightDirectionX,
+                            stats.directionalShadowFrustum.lightDirectionY,
+                            stats.directionalShadowFrustum.lightDirectionZ);
+                ImGui::Text("Ortho radius             : %.2f", stats.directionalShadowFrustum.orthoRadius);
+                ImGui::Text("Near / far clip          : %.2f / %.2f",
+                            stats.directionalShadowFrustum.nearPlane,
+                            stats.directionalShadowFrustum.farPlane);
+                ImGui::TextDisabled("Bounds come from the current coarse caster-fit helper.");
+            } else {
+                ImGui::TextDisabled("Directional frustum info is unavailable for the current frame.");
+            }
+
+            ImGui::Spacing();
+            ImGui::TextDisabled("Shadow Map Preview");
             if (stats.shadowMapPreviewAvailable) {
                 ImGui::Text("Preview source           : live directional shadow depth texture");
                 ImGui::Text("Preview resolution       : %u x %u", stats.shadowMapWidth, stats.shadowMapHeight);
@@ -369,12 +401,14 @@ void Application::Update(Scene& scene) {
                 ImGui::TextDisabled("Directional shadow map preview is unavailable for the current frame.");
             }
 
+            ImGui::Spacing();
+            ImGui::TextDisabled("Shadow Controls");
             if (liveLights.HasDirectionalLight()) {
                 if (ImGui::TreeNode("Directional Shadow")) {
                     DrawShadowParamsDebug(
                         liveLights.GetDirectionalLight().shadow,
                         "Far / extent",
-                        "Resolution is live for directional shadow-map generation; near/far and PCF radius remain debug config hooks.",
+                        "Resolution is live for directional shadow-map generation; near/far and PCF radius stay on LightShadowParams for future shadow integration.",
                         true);
                     ImGui::TreePop();
                 }
@@ -393,7 +427,7 @@ void Application::Update(Scene& scene) {
                         DrawShadowParamsDebug(
                             pointLights[i].shadow,
                             "Far plane",
-                            "Point-light shadow params are stored in scene state only until point shadow pass hooks exist.",
+                            "Point-light shadow params stay in scene state until Person 7/8 land the point shadow pass and sampling hooks.",
                             false);
                         ImGui::TreePop();
                     }

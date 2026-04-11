@@ -63,6 +63,8 @@ ShadowSceneBounds ComputeDirectionalShadowBounds(const std::vector<RenderItem>& 
     glm::vec3 maxPoint(-std::numeric_limits<float>::max());
     bool hasAnyCaster = false;
 
+    // Dev9 keeps this intentionally coarse for runtime inspection. Person 7/8 can
+    // swap in tighter caster bounds or cascades once the production shadow path grows.
     for (const RenderItem& item : items) {
         if (!CanRenderInDirectionalShadowPass(item))
             continue;
@@ -95,6 +97,9 @@ void PopulateDebugStatsFromSubmission(const FrameSubmission& submission, Rendere
     stats.directionalLightCount = submission.lights.HasDirectionalLight() ? 1u : 0u;
     stats.pointLightCount = static_cast<uint32_t>(submission.lights.GetPointLights().size());
     stats.shadowCasterCount = 0;
+    stats.shadowReceiverCount = 0;
+    stats.shadowPassObjectCount = 0;
+    stats.shadowPassExcludedObjectCount = 0;
     stats.frameTimeMs = submission.deltaTime * 1000.0f;
     stats.fps = submission.deltaTime > 0.0f ? (1.0f / submission.deltaTime) : 0.0f;
     stats.shadowCasterCountApproximate = true;
@@ -104,6 +109,17 @@ void PopulateDebugStatsFromSubmission(const FrameSubmission& submission, Rendere
     stats.shadowMapWidth = 0;
     stats.shadowMapHeight = 0;
     stats.shadowMapPreviewAvailable = false;
+    stats.directionalShadowFrustum = {};
+
+    for (const RenderItem& item : submission.objects) {
+        if (!item.flags.visible || !HasDrawableGeometry(item))
+            continue;
+
+        if (item.flags.receiveShadow)
+            ++stats.shadowReceiverCount;
+        if (!item.flags.castShadow)
+            ++stats.shadowPassExcludedObjectCount;
+    }
 }
 
 } // namespace
@@ -195,6 +211,25 @@ void Renderer::RenderDirectionalShadowPass(const FrameSubmission& submission) {
     if (!light.enabled || !light.shadow.castShadow)
         return;
 
+    const ShadowSceneBounds bounds = ComputeDirectionalShadowBounds(submission.objects);
+    glm::vec3 lightDirection = light.direction;
+    if (glm::length(lightDirection) <= 0.0001f)
+        lightDirection = glm::vec3(0.0f, -1.0f, 0.0f);
+    else
+        lightDirection = glm::normalize(lightDirection);
+
+    const float shadowFarClip = light.shadow.nearPlane + bounds.radius * 2.0f + light.shadow.farPlane;
+    m_debugStats.directionalShadowFrustum.focusCenterX  = bounds.center.x;
+    m_debugStats.directionalShadowFrustum.focusCenterY  = bounds.center.y;
+    m_debugStats.directionalShadowFrustum.focusCenterZ  = bounds.center.z;
+    m_debugStats.directionalShadowFrustum.lightDirectionX = lightDirection.x;
+    m_debugStats.directionalShadowFrustum.lightDirectionY = lightDirection.y;
+    m_debugStats.directionalShadowFrustum.lightDirectionZ = lightDirection.z;
+    m_debugStats.directionalShadowFrustum.orthoRadius   = bounds.radius;
+    m_debugStats.directionalShadowFrustum.nearPlane     = light.shadow.nearPlane;
+    m_debugStats.directionalShadowFrustum.farPlane      = shadowFarClip;
+    m_debugStats.directionalShadowFrustum.available     = true;
+
     if (!m_shadowDepthShader || !m_shadowDepthShader->IsValid()) {
         spdlog::warn("[Renderer] Directional shadow pass unavailable: depth shader failed to initialize");
         return;
@@ -212,7 +247,6 @@ void Renderer::RenderDirectionalShadowPass(const FrameSubmission& submission) {
     if (!m_directionalShadowMap || !m_directionalShadowMap->IsValid())
         return;
 
-    const ShadowSceneBounds bounds = ComputeDirectionalShadowBounds(submission.objects);
     const glm::mat4 lightViewProj = LightUtils::DirectionalLightViewProjection(
         light, bounds.center, bounds.radius);
 
@@ -230,6 +264,7 @@ void Renderer::RenderDirectionalShadowPass(const FrameSubmission& submission) {
     m_shadowDepthShader->Bind();
     m_shadowDepthShader->SetUniform("u_LightViewProj", lightViewProj);
 
+    uint32_t shadowPassObjectCount = 0;
     for (const RenderItem& item : submission.objects) {
         if (!CanRenderInDirectionalShadowPass(item))
             continue;
@@ -240,8 +275,10 @@ void Renderer::RenderDirectionalShadowPass(const FrameSubmission& submission) {
             if (item.subMeshIndex >= item.meshMulti->SubMeshCount())
                 continue;
             item.meshMulti->DrawSubMesh(item.subMeshIndex);
+            ++shadowPassObjectCount;
         } else if (item.mesh) {
             item.mesh->Draw(ToGLPrimitive(item.topology));
+            ++shadowPassObjectCount;
         }
     }
 
@@ -250,6 +287,7 @@ void Renderer::RenderDirectionalShadowPass(const FrameSubmission& submission) {
 
     m_debugStats.shadowPassDataAvailable   = true;
     m_debugStats.shadowMapPreviewAvailable = true;
+    m_debugStats.shadowPassObjectCount     = shadowPassObjectCount;
     m_debugStats.shadowMapTextureId        = m_directionalShadowMap->GetDepthTexture();
     m_debugStats.shadowMapWidth            = m_directionalShadowMap->GetWidth();
     m_debugStats.shadowMapHeight           = m_directionalShadowMap->GetHeight();
