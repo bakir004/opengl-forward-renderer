@@ -16,6 +16,7 @@
 #include <glm/geometric.hpp>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
+#include <string_view>
 #include <string>
 
 static void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
@@ -72,6 +73,43 @@ static void DrawPointLightDebug(PointLight& light, int index) {
     ImGui::DragFloat3("Position", &light.position.x, 0.05f);
 
     ImGui::TreePop();
+}
+
+static void DrawShadowParamsDebug(LightShadowParams& shadow,
+                                  std::string_view   farPlaneLabel,
+                                  std::string_view   connectionNote,
+                                  bool               showDirectionalGpuNote) {
+    ImGui::Checkbox("Cast shadow", &shadow.castShadow);
+    ImGui::DragFloat("Depth bias", &shadow.depthBias, 0.0001f, 0.0f, 1.0f, "%.5f");
+    ImGui::DragFloat("Normal bias", &shadow.normalBias, 0.0005f, 0.0f, 10.0f, "%.4f");
+
+    int resolution[2] = {shadow.shadowMapWidth, shadow.shadowMapHeight};
+    if (ImGui::DragInt2("Resolution", resolution, 4.0f, 16, 8192)) {
+        shadow.shadowMapWidth  = resolution[0] < 16 ? 16 : resolution[0];
+        shadow.shadowMapHeight = resolution[1] < 16 ? 16 : resolution[1];
+    }
+
+    ImGui::DragFloat("Near plane", &shadow.nearPlane, 0.01f, 0.001f, 1000.0f, "%.3f");
+    ImGui::DragFloat(farPlaneLabel.data(), &shadow.farPlane, 0.05f, 0.01f, 10000.0f, "%.3f");
+    if (shadow.nearPlane < 0.001f)
+        shadow.nearPlane = 0.001f;
+    if (shadow.farPlane <= shadow.nearPlane)
+        shadow.farPlane = shadow.nearPlane + 0.01f;
+
+    ImGui::SliderInt("PCF radius", &shadow.pcfRadius, 0, 4);
+    if (shadow.pcfRadius < 0)
+        shadow.pcfRadius = 0;
+
+    const int kernelSize  = shadow.pcfRadius * 2 + 1;
+    const int sampleCount = kernelSize * kernelSize;
+    ImGui::Text("Derived PCF kernel: %dx%d (%d taps)", kernelSize, kernelSize, sampleCount);
+    ImGui::TextDisabled("%s", connectionNote.data());
+    if (showDirectionalGpuNote)
+        ImGui::TextDisabled("Directional cast/depth/normal bias are already packed into the light UBO.");
+
+    // TODO(Dev9): replace these placeholders once shadow pass runtime state owns them explicitly.
+    ImGui::TextDisabled("Slope bias is not modelled in LightShadowParams yet.");
+    ImGui::TextDisabled("PCF enable/sample count are not separate engine fields; kernel is derived from radius only.");
 }
 
 Application::Application() : m_renderer(std::make_unique<Renderer>()) {}
@@ -290,6 +328,64 @@ void Application::Update(Scene& scene) {
                     ImGui::PopID();
                 }
             }
+
+            int directionalShadowLights = 0;
+            if (liveLights.HasDirectionalLight() && liveLights.GetDirectionalLight().shadow.castShadow)
+                directionalShadowLights = 1;
+
+            int pointShadowLights = 0;
+            for (const auto& point : liveLights.GetPointLights()) {
+                if (point.shadow.castShadow)
+                    ++pointShadowLights;
+            }
+
+            int spotShadowLights = 0;
+            for (const auto& spot : liveLights.GetSpotLights()) {
+                if (spot.shadow.castShadow)
+                    ++spotShadowLights;
+            }
+
+            ImGui::SeparatorText("Shadow Debug");
+            ImGui::Text("Directional shadow lights: %d", directionalShadowLights);
+            ImGui::Text("Point shadow lights      : %d", pointShadowLights);
+            ImGui::Text("Spot shadow lights       : %d", spotShadowLights);
+            ImGui::TextDisabled("Interactive: edits write back to per-light shadow config and apply on the next frame.");
+            ImGui::TextDisabled("This branch still has no live shadow preview/pass state in the debug UI.");
+
+            if (liveLights.HasDirectionalLight()) {
+                if (ImGui::TreeNode("Directional Shadow")) {
+                    DrawShadowParamsDebug(
+                        liveLights.GetDirectionalLight().shadow,
+                        "Far / extent",
+                        "Resolution, near/far and PCF radius are stored for shadow-pass hookup.",
+                        true);
+                    ImGui::TreePop();
+                }
+            } else {
+                ImGui::TextDisabled("No directional shadow config in the active scene.");
+            }
+
+            if (pointLights.empty()) {
+                ImGui::TextDisabled("No point-light shadow config in the active scene.");
+            } else {
+                for (std::size_t i = 0; i < pointLights.size(); ++i) {
+                    const std::string label = "Point Shadow " + std::to_string(i + 1);
+                    ImGui::PushID(static_cast<int>(i));
+                    if (ImGui::TreeNode(label.c_str())) {
+                        ImGui::Text("Name      : %s", pointLights[i].name.empty() ? "(unnamed)" : pointLights[i].name.c_str());
+                        DrawShadowParamsDebug(
+                            pointLights[i].shadow,
+                            "Far plane",
+                            "Point-light shadow params are stored in scene state only until point shadow pass hooks exist.",
+                            false);
+                        ImGui::TreePop();
+                    }
+                    ImGui::PopID();
+                }
+            }
+
+            if (!liveLights.GetSpotLights().empty())
+                ImGui::TextDisabled("Spot-light shadow UI is not added in this phase; shadow-enabled count is shown above.");
 
             ImGui::SeparatorText("Resource Cache");
             ImGui::Text("Cached total: %zu", cacheStats.TotalCount());
