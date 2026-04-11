@@ -58,8 +58,12 @@ void Scene::BuildSubmission(FrameSubmission& out) const {
     out.lights                   = m_lights;
     out.objects                  = m_objects;
 
-    if (!LightUtils::Validate(out.lights)) {
+    const bool lightsValid = LightUtils::Validate(out.lights);
+    if (!lightsValid && !m_reportedInvalidLights) {
         spdlog::warn("[Scene] BuildSubmission: light setup has validation warnings");
+        m_reportedInvalidLights = true;
+    } else if (lightsValid && m_reportedInvalidLights) {
+        m_reportedInvalidLights = false;
     }
 }
 
