@@ -13,6 +13,7 @@
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl3.h>
 #include <GLFW/glfw3.h>
+#include <glm/geometric.hpp>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 #include <string>
@@ -39,6 +40,38 @@ static std::string FormatCompactCount(uint64_t value) {
                std::to_string((value % 1000ull) / 100ull) + "k";
     }
     return std::to_string(value);
+}
+
+static void DrawDirectionalLightDebug(DirectionalLight& light) {
+    ImGui::Text("Name      : %s", light.name.empty() ? "(unnamed)" : light.name.c_str());
+    ImGui::Text("Enabled   : %s", light.enabled ? "yes" : "no");
+
+    ImGui::DragFloat("Intensity", &light.intensity, 0.05f, 0.0f, 1000.0f, "%.3f");
+    ImGui::ColorEdit3("Color", &light.color.x);
+
+    float direction[3] = {light.direction.x, light.direction.y, light.direction.z};
+    if (ImGui::DragFloat3("Direction", direction, 0.02f, -1.0f, 1.0f, "%.3f")) {
+        const glm::vec3 candidate(direction[0], direction[1], direction[2]);
+        if (glm::length(candidate) > 0.0001f)
+            light.direction = glm::normalize(candidate);
+    }
+
+    ImGui::TextDisabled("Direction is normalized after edits.");
+}
+
+static void DrawPointLightDebug(PointLight& light, int index) {
+    const std::string label = "Point Light " + std::to_string(index + 1);
+    if (!ImGui::TreeNode(label.c_str()))
+        return;
+
+    ImGui::Text("Name      : %s", light.name.empty() ? "(unnamed)" : light.name.c_str());
+    ImGui::Text("Enabled   : %s", light.enabled ? "yes" : "no");
+
+    ImGui::DragFloat("Intensity", &light.intensity, 0.05f, 0.0f, 1000.0f, "%.3f");
+    ImGui::ColorEdit3("Color", &light.color.x);
+    ImGui::DragFloat3("Position", &light.position.x, 0.05f);
+
+    ImGui::TreePop();
 }
 
 Application::Application() : m_renderer(std::make_unique<Renderer>()) {}
@@ -186,6 +219,7 @@ void Application::Update(Scene& scene) {
         if (ImGui::Begin("Renderer Debug")) {
             const RendererDebugStats& stats = m_renderer->GetDebugStats();
             const AssetCacheStats cacheStats = AssetImporter::GetCacheStats();
+            LightEnvironment& liveLights = scene.GetLights();
             // ── Performance ───────────────────────────────────────────────
             ImGui::SeparatorText("Performance");
             ImGui::Text("Frame time : %.2f ms", stats.frameTimeMs);
@@ -231,6 +265,31 @@ void Application::Update(Scene& scene) {
                 ImGui::TextDisabled("Shadow caster count is derived from queued RenderItem flags.");
             if (!stats.shadowPassDataAvailable)
                 ImGui::TextDisabled("Shadow pass debug data is not wired in this phase.");
+
+            ImGui::SeparatorText("Active Lights");
+            ImGui::Text("Directional lights: %d", liveLights.HasDirectionalLight() ? 1 : 0);
+            ImGui::Text("Point lights      : %d", static_cast<int>(liveLights.GetPointLights().size()));
+            ImGui::TextDisabled("Interactive: edits write back to the current scene lights and apply on the next frame.");
+
+            if (liveLights.HasDirectionalLight()) {
+                if (ImGui::TreeNode("Directional Light")) {
+                    DrawDirectionalLightDebug(liveLights.GetDirectionalLight());
+                    ImGui::TreePop();
+                }
+            } else {
+                ImGui::TextDisabled("No directional light in the active scene.");
+            }
+
+            auto& pointLights = liveLights.GetPointLights();
+            if (pointLights.empty()) {
+                ImGui::TextDisabled("No point lights in the active scene.");
+            } else {
+                for (std::size_t i = 0; i < pointLights.size(); ++i) {
+                    ImGui::PushID(static_cast<int>(i));
+                    DrawPointLightDebug(pointLights[i], static_cast<int>(i));
+                    ImGui::PopID();
+                }
+            }
 
             ImGui::SeparatorText("Resource Cache");
             ImGui::Text("Cached total: %zu", cacheStats.TotalCount());
