@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Camera.h"
+#include "core/CameraController.h"
 #include "scene/RenderItem.h"
 #include "scene/LightEnvironment.h"
 #include <glm/glm.hpp>
@@ -17,6 +18,11 @@ struct FrameSubmission;
 /// OnUpdate for per-frame logic. Application::Run(Scene&) drives the loop.
 class Scene {
 public:
+    Scene()
+        : m_standardCameraController(m_camera)
+    {
+    }
+
     virtual ~Scene() = default;
 
     /// Called once per frame. Override to handle input and update scene state.
@@ -73,6 +79,7 @@ private:
     void BuildSubmission(FrameSubmission& out) const;
 
     Camera               m_camera;
+    StandardSceneCameraController m_standardCameraController;
     LightEnvironment     m_lights;
     std::vector<RenderItem> m_objects;
     glm::vec4            m_clearColor = {0.08f, 0.09f, 0.12f, 1.0f};

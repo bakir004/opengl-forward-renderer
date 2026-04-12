@@ -50,6 +50,10 @@ public:
     /// Returns the vertical scroll delta for this frame.
     [[nodiscard]] float GetScrollDeltaY() const { return m_deltaScrollY; }
 
+    /// Returns true while the given mouse button is held.
+    /// @param glfwButton A GLFW_MOUSE_BUTTON_* constant.
+    [[nodiscard]] bool IsButtonDown(int glfwButton) const;
+
     /// Called internally by the GLFW scroll callback.
     void OnScroll(float yoffset);
 
