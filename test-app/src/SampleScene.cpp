@@ -131,6 +131,17 @@ bool SampleScene::Setup()
             .Name("LanternLight")
             .Build());
 
+    // --- ADDED --- Additional toggleable light at specified position
+    m_posLightIdx = lights.GetPointLights().size();
+    lights.AddPointLight(
+        PointLightBuilder()
+            .Position({-1.40f, 2.50f, -1.99f})
+            .Color({0.50f, 0.90f, 1.0f}) // Cool cyan light
+            .Intensity(1.0f)
+            .Radius(15.0f)
+            .Name("PositionLight")
+            .Build());
+
     // ── Objects ───────────────────────────────────────────────────────────────
 
     // --- MODIFIED --- Ground plane now uses mesh shader+material for shadow receiving
@@ -265,6 +276,18 @@ void SampleScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInput &mo
         if (m_lanternLightIdx < pointLights.size())
         {
             pointLights[m_lanternLightIdx].intensity = m_lanternLightEnabled ? 0.8f : 0.0f;
+        }
+    }
+
+    // --- ADDED --- Toggle position light with 'P' key
+    if (input.IsKeyPressed(GLFW_KEY_P))
+    {
+        m_posLightEnabled = !m_posLightEnabled;
+        auto &lights = GetLights();
+        auto &pointLights = lights.GetPointLights();
+        if (m_posLightIdx < pointLights.size())
+        {
+            pointLights[m_posLightIdx].intensity = m_posLightEnabled ? 1.0f : 0.0f;
         }
     }
 

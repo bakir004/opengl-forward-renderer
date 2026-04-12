@@ -62,4 +62,8 @@ private:
     // --- ADDED --- Lantern light control
     size_t m_lanternLightIdx = 0;
     bool m_lanternLightEnabled = true;
+
+    // --- ADDED --- Additional toggleable light
+    size_t m_posLightIdx = 0;
+    bool m_posLightEnabled = true;
 };
