@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <glm/geometric.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <spdlog/spdlog.h>
 #include <cassert>
 #include <limits>
@@ -56,13 +57,12 @@ namespace
         if (tOff != glm::vec3(0.0f))
             model = model * glm::translate(glm::mat4(1.0f), tOff);
 
-        const glm::vec3 &rOff = item.rotationOffsetDeg;
-        if (rOff.x != 0.0f)
-            model = model * glm::rotate(glm::mat4(1.0f), glm::radians(rOff.x), {1, 0, 0});
-        if (rOff.y != 0.0f)
-            model = model * glm::rotate(glm::mat4(1.0f), glm::radians(rOff.y), {0, 1, 0});
-        if (rOff.z != 0.0f)
-            model = model * glm::rotate(glm::mat4(1.0f), glm::radians(rOff.z), {0, 0, 1});
+        // Apply the mesh-local orientation fix as a single quaternion->matrix conversion.
+        // One glm::mat4_cast replaces three separate glm::rotate matrix multiplications,
+        // and the quaternion stores the intent (axis + angle) without any order ambiguity.
+        static const glm::quat kIdentity(1.0f, 0.0f, 0.0f, 0.0f);
+        if (item.rotationOffset != kIdentity)
+            model = model * glm::mat4_cast(item.rotationOffset);
 
         return model;
     }

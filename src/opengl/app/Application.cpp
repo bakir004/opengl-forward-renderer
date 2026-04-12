@@ -14,6 +14,7 @@
 #include <backends/imgui_impl_opengl3.h>
 #include <GLFW/glfw3.h>
 #include <glm/geometric.hpp>
+#include <glm/gtc/constants.hpp>
 #include <cstdint>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
@@ -27,9 +28,15 @@ static void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 
 static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
     auto app = static_cast<Application*>(glfwGetWindowUserPointer(window));
-    if (app && app->GetMouseInput()) {
+    if (!app || !app->GetMouseInput())
+        return;
+
+    // Route wheel input to camera only when UI is not actively consuming mouse input.
+    // Exception: while cursor is captured for mouselook/game control, keep camera zoom active.
+    const bool uiWantsMouse = ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse;
+    const bool allowCameraScroll = app->GetMouseInput()->IsCaptured() || !uiWantsMouse;
+    if (allowCameraScroll)
         app->GetMouseInput()->OnScroll(static_cast<float>(yoffset));
-    }
 }
 
 static std::string FormatCompactCount(uint64_t value) {
@@ -51,14 +58,34 @@ static void DrawDirectionalLightDebug(DirectionalLight& light) {
     ImGui::DragFloat("Intensity", &light.intensity, 0.05f, 0.0f, 1000.0f, "%.3f");
     ImGui::ColorEdit3("Color", &light.color.x);
 
-    float direction[3] = {light.direction.x, light.direction.y, light.direction.z};
-    if (ImGui::DragFloat3("Direction", direction, 0.02f, -1.0f, 1.0f, "%.3f")) {
-        const glm::vec3 candidate(direction[0], direction[1], direction[2]);
-        if (glm::length(candidate) > 0.0001f)
-            light.direction = glm::normalize(candidate);
-    }
+    // Edit direction as azimuth + elevation rather than raw XYZ.
+    //
+    // WHY: the direction must stay a unit vector. Editing raw XYZ and then
+    // calling glm::normalize() couples all three components — dragging X
+    // silently rescales Y and Z to restore length 1, making it impossible
+    // to control one axis without the others jumping.
+    //
+    // Azimuth and elevation are orthogonal degrees of freedom: dragging one
+    // never affects the other. The XYZ direction is derived from them, so it
+    // is always unit length by construction (no normalize needed).
+    const glm::vec3& d = light.direction;
+    float elevation = glm::degrees(std::asin(glm::clamp(d.y, -1.0f, 1.0f)));
+    float azimuth   = glm::degrees(std::atan2(d.z, d.x));
 
-    ImGui::TextDisabled("Direction is normalized after edits.");
+    bool dirChanged = false;
+    dirChanged |= ImGui::DragFloat("Azimuth (°)",   &azimuth,   0.5f, -180.0f, 180.0f, "%.1f");
+    dirChanged |= ImGui::DragFloat("Elevation (°)", &elevation, 0.5f,  -90.0f,  90.0f, "%.1f");
+
+    if (dirChanged) {
+        const float pitchRad = glm::radians(elevation);
+        const float yawRad   = glm::radians(azimuth);
+        light.direction = {
+            std::cos(pitchRad) * std::cos(yawRad),
+            std::sin(pitchRad),
+            std::cos(pitchRad) * std::sin(yawRad)
+        };
+    }
+    ImGui::TextDisabled("XYZ: %.3f, %.3f, %.3f", d.x, d.y, d.z);
 }
 
 static void DrawPointLightDebug(PointLight& light, int index) {
@@ -256,7 +283,10 @@ void Application::Update(Scene& scene) {
         ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowBgAlpha(0.87f);
 
-        if (ImGui::Begin("Renderer Debug")) {
+        const bool lookModeActive = (m_mouse && m_mouse->IsCaptured());
+        const ImGuiWindowFlags debugWindowFlags = lookModeActive ? ImGuiWindowFlags_NoMouseInputs : 0;
+
+        if (ImGui::Begin("Renderer Debug", nullptr, debugWindowFlags)) {
             const RendererDebugStats& stats = m_renderer->GetDebugStats();
             const AssetCacheStats cacheStats = AssetImporter::GetCacheStats();
             LightEnvironment& liveLights = scene.GetLights();
