@@ -12,19 +12,28 @@
 #include <algorithm>
 #include <spdlog/spdlog.h>
 
-static GLenum ToGLPrimitive(PrimitiveTopology topology) {
-    switch (topology) {
-        case PrimitiveTopology::Triangles:     return GL_TRIANGLES;
-        case PrimitiveTopology::Lines:         return GL_LINES;
-        case PrimitiveTopology::Points:        return GL_POINTS;
-        case PrimitiveTopology::TriangleStrip: return GL_TRIANGLE_STRIP;
-        case PrimitiveTopology::LineStrip:     return GL_LINE_STRIP;
+static GLenum ToGLPrimitive(PrimitiveTopology topology)
+{
+    switch (topology)
+    {
+    case PrimitiveTopology::Triangles:
+        return GL_TRIANGLES;
+    case PrimitiveTopology::Lines:
+        return GL_LINES;
+    case PrimitiveTopology::Points:
+        return GL_POINTS;
+    case PrimitiveTopology::TriangleStrip:
+        return GL_TRIANGLE_STRIP;
+    case PrimitiveTopology::LineStrip:
+        return GL_LINE_STRIP;
     }
     return GL_TRIANGLES;
 }
 
-static uint64_t ApproxTriangleCount(const RenderItem& item) {
-    if (item.meshMulti) {
+static uint64_t ApproxTriangleCount(const RenderItem &item)
+{
+    if (item.meshMulti)
+    {
         if (item.subMeshIndex >= item.meshMulti->SubMeshCount())
             return 0;
         return static_cast<uint64_t>(item.meshMulti->GetSubMesh(item.subMeshIndex).indexCount) / 3ull;
@@ -34,32 +43,37 @@ static uint64_t ApproxTriangleCount(const RenderItem& item) {
         return 0;
 
     const uint64_t primitiveCount = item.mesh->IsIndexed()
-        ? static_cast<uint64_t>(item.mesh->GetIndexCount())
-        : static_cast<uint64_t>(item.mesh->GetVertexCount());
+                                        ? static_cast<uint64_t>(item.mesh->GetIndexCount())
+                                        : static_cast<uint64_t>(item.mesh->GetVertexCount());
 
     // We only estimate triangle-like primitives here. Non-triangle topologies intentionally
     // contribute 0 so the UI stays honest instead of inventing a fake triangle equivalence.
-    switch (item.topology) {
-        case PrimitiveTopology::Triangles:
-            return primitiveCount / 3ull;
-        case PrimitiveTopology::TriangleStrip:
-            return primitiveCount >= 3ull ? (primitiveCount - 2ull) : 0ull;
-        case PrimitiveTopology::Lines:
-        case PrimitiveTopology::LineStrip:
-        case PrimitiveTopology::Points:
-            return 0ull;
+    switch (item.topology)
+    {
+    case PrimitiveTopology::Triangles:
+        return primitiveCount / 3ull;
+    case PrimitiveTopology::TriangleStrip:
+        return primitiveCount >= 3ull ? (primitiveCount - 2ull) : 0ull;
+    case PrimitiveTopology::Lines:
+    case PrimitiveTopology::LineStrip:
+    case PrimitiveTopology::Points:
+        return 0ull;
     }
 
     return 0ull;
 }
 
-bool RenderQueue::Add(const RenderItem& item) {
-    if (!item.flags.visible || (!item.mesh && !item.meshMulti)) return false;
-    if (!item.material && !item.shader) {
-        if (m_errorShader) {
-            RenderItem fallback  = item;
-            fallback.shader      = m_errorShader;
-            fallback.material    = nullptr;
+bool RenderQueue::Add(const RenderItem &item)
+{
+    if (!item.flags.visible || (!item.mesh && !item.meshMulti))
+        return false;
+    if (!item.material && !item.shader)
+    {
+        if (m_errorShader)
+        {
+            RenderItem fallback = item;
+            fallback.shader = m_errorShader;
+            fallback.material = nullptr;
             m_items.push_back(fallback);
             return true;
         }
@@ -69,63 +83,85 @@ bool RenderQueue::Add(const RenderItem& item) {
     return true;
 }
 
-void RenderQueue::SetErrorShader(const ShaderProgram* shader) {
+void RenderQueue::SetErrorShader(const ShaderProgram *shader)
+{
     m_errorShader = shader;
 }
 
-void RenderQueue::Sort() {
+void RenderQueue::Sort()
+{
     // Sort by the resolved shader pointer to minimise program switches.
     std::sort(m_items.begin(), m_items.end(),
-            [](const RenderItem& a, const RenderItem& b) {
-            const ShaderProgram* sa = a.ResolvedShader();
-            const ShaderProgram* sb = b.ResolvedShader();
-            if (!sa && !sb) return false;
-            if (!sa)        return false;
-            if (!sb)        return true;
-            return sa < sb;
-            });
+              [](const RenderItem &a, const RenderItem &b)
+              {
+                  const ShaderProgram *sa = a.ResolvedShader();
+                  const ShaderProgram *sb = b.ResolvedShader();
+                  if (!sa && !sb)
+                      return false;
+                  if (!sa)
+                      return false;
+                  if (!sb)
+                      return true;
+                  return sa < sb;
+              });
 }
 
-RenderQueueFrameStats RenderQueue::Flush(SubmissionContext& /*current*/) {
-    const ShaderProgram*    lastShader   = nullptr;
-    const MaterialInstance* lastMaterial = nullptr;
-    DrawMode                lastMode     = DrawMode::Fill;
-    RenderQueueFrameStats   stats{};
+RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
+{
+    const ShaderProgram *lastShader = nullptr;
+    const MaterialInstance *lastMaterial = nullptr;
+    DrawMode lastMode = DrawMode::Fill;
+    RenderQueueFrameStats stats{};
 
-    for (const RenderItem& item : m_items) {
+    for (const RenderItem &item : m_items)
+    {
         // ── Draw mode (only on change) ────────────────────────────────────
-        if (item.drawMode != lastMode) {
-            switch (item.drawMode) {
-                case DrawMode::Fill:      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);  break;
-                case DrawMode::Wireframe: glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);  break;
-                case DrawMode::Points:    glPolygonMode(GL_FRONT_AND_BACK, GL_POINT); break;
+        if (item.drawMode != lastMode)
+        {
+            switch (item.drawMode)
+            {
+            case DrawMode::Fill:
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+                break;
+            case DrawMode::Wireframe:
+                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+                break;
+            case DrawMode::Points:
+                glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
+                break;
             }
             lastMode = item.drawMode;
         }
 
         // ── Material / shader binding ─────────────────────────────────────
-        if (item.material) {
+        if (item.material)
+        {
             // Material path: bind full material (shader + textures + params).
-            if (item.material != lastMaterial) {
+            if (item.material != lastMaterial)
+            {
                 item.material->Bind();
                 lastMaterial = item.material;
-                lastShader   = item.material->GetShader();
+                lastShader = item.material->GetShader();
             }
-        } else {
+        }
+        else
+        {
             // Legacy shader-only path.
-            if (item.shader != lastShader) {
+            if (item.shader != lastShader)
+            {
                 item.shader->Bind();
-                lastShader   = item.shader;
+                lastShader = item.shader;
                 lastMaterial = nullptr;
             }
         }
 
         // ── Per-object uniforms ───────────────────────────────────────────
-        const ShaderProgram* activeShader = item.ResolvedShader();
-        if (activeShader) {
+        const ShaderProgram *activeShader = item.ResolvedShader();
+        if (activeShader)
+        {
             glm::mat4 model = item.transform.GetModelMatrix();
 
-            const glm::vec3& tOff = item.translationOffset;
+            const glm::vec3 &tOff = item.translationOffset;
             if (tOff != glm::vec3(0.0f))
                 model = model * glm::translate(glm::mat4(1.0f), tOff);
 
@@ -140,16 +176,31 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext& /*current*/) {
 
             const glm::mat3 normalMat = glm::transpose(glm::inverse(glm::mat3(model)));
             activeShader->SetUniform("u_NormalMatrix", normalMat);
+
+            // ── Shadow data (directional light only) ──────────────────────
+            if (m_hasShadowData && item.flags.receiveShadow)
+            {
+                activeShader->SetUniform("u_DirectionalLightViewProj", m_shadowLightViewProj);
+
+                // Bind shadow map to texture unit 7
+                glActiveTexture(GL_TEXTURE0 + 7);
+                glBindTexture(GL_TEXTURE_2D, m_shadowMapTextureId);
+                activeShader->SetUniform("u_ShadowMap", 7);
+                glActiveTexture(GL_TEXTURE0); // Reset to default
+            }
         }
 
-        if (item.meshMulti) {
+        if (item.meshMulti)
+        {
             if (item.subMeshIndex >= item.meshMulti->SubMeshCount())
                 continue;
             item.meshMulti->DrawSubMesh(item.subMeshIndex);
             ++stats.processedItemCount;
             ++stats.drawCallCount;
             stats.approxTriangleCount += ApproxTriangleCount(item);
-        } else if (item.mesh) {
+        }
+        else if (item.mesh)
+        {
             item.mesh->Draw(ToGLPrimitive(item.topology));
             ++stats.processedItemCount;
             ++stats.drawCallCount;
@@ -164,10 +215,19 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext& /*current*/) {
     return stats;
 }
 
-void RenderQueue::Clear() {
+void RenderQueue::Clear()
+{
     m_items.clear();
 }
 
-bool RenderQueue::IsEmpty() const {
+bool RenderQueue::IsEmpty() const
+{
     return m_items.empty();
+}
+
+void RenderQueue::SetDirectionalShadowData(const glm::mat4 &lightViewProj, uint32_t shadowMapTextureId)
+{
+    m_shadowLightViewProj = lightViewProj;
+    m_shadowMapTextureId = shadowMapTextureId;
+    m_hasShadowData = (shadowMapTextureId != 0);
 }

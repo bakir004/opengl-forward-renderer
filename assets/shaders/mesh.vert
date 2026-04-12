@@ -11,10 +11,14 @@ layout(location = 1) in vec3 a_Normal;
 layout(location = 2) in vec2 a_UV;
 
 uniform mat4 u_Model;
+// --- ADDED --- Directional light view-projection for shadow mapping
+uniform mat4 u_DirectionalLightViewProj;
 
 out vec3 v_Normal;
 out vec3 v_WorldPos;
 out vec2 v_UV;
+// --- ADDED --- Fragment position in light space for shadow sampling
+out vec4 v_LightSpacePos;
 
 void main()
 {
@@ -22,5 +26,7 @@ void main()
     v_Normal = normalize(mat3(u_Model) * a_Normal);
     v_WorldPos = (u_Model * vec4(a_Position, 1.0)).xyz;
     v_UV     = a_UV;
+    // --- ADDED --- Transform position to light space for shadow map lookup
+    v_LightSpacePos = u_DirectionalLightViewProj * vec4(v_WorldPos, 1.0);
     gl_Position = projection * view * u_Model * vec4(a_Position, 1.0);
 }
