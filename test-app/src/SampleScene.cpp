@@ -120,11 +120,11 @@ bool SampleScene::Setup()
             .Name("CoolRim")
             .Build());
 
-    // --- ADDED --- Lantern light: warm glow from inside lantern
+    // --- ADDED --- Lantern light: warm glow from lantern
     m_lanternLightIdx = lights.GetPointLights().size();
     lights.AddPointLight(
         PointLightBuilder()
-            .Position({-2.5f, 0.8f, 2.0f}) // At lantern position
+            .Position({-2.5f, 2.2f, 3.5f}) // --- FIXED --- Moved away from lantern model to illuminate surroundings
             .Color({1.0f, 0.85f, 0.50f})   // Warm amber glow
             .Intensity(0.8f)               // Moderate intensity
             .Radius(12.0f)
@@ -174,7 +174,7 @@ bool SampleScene::Setup()
         playerDuck.material = m_duckMatInst.get();
         playerDuck.rotationOffsetDeg = {0.0f, -90.0f, 0.0f};
         playerDuck.translationOffset = {0.0f, 0.0f, 0.0f};
-        playerDuck.transform.SetTranslation({0.0f, 1.1f, 0.0f}); // --- FIXED --- Raised above ground to cast visible shadow
+        playerDuck.transform.SetTranslation({4.0f, 1.1f, -3.0f}); // --- FIXED --- Moved far left to avoid collisions
         playerDuck.transform.SetScale({0.8f, 0.8f, 0.8f});
         playerDuck.flags.castShadow = true;
         playerDuck.flags.receiveShadow = true;
@@ -187,7 +187,7 @@ bool SampleScene::Setup()
         RenderItem lanternItem;
         lanternItem.mesh = m_lantern.get();
         lanternItem.material = m_lanternMatInst.get();
-        lanternItem.transform.SetTranslation({-2.5f, 0.1f, 2.0f}); // --- FIXED --- Raised from 0.1 to 0.8
+        lanternItem.transform.SetTranslation({-2.5f, 0.1f, -2.0f}); // --- FIXED --- Raised from 0.1 to 0.8
         lanternItem.transform.SetScale({0.12f, 0.12f, 0.12f});
         lanternItem.flags.castShadow = true;
         lanternItem.flags.receiveShadow = true;
