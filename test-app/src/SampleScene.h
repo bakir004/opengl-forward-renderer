@@ -55,4 +55,11 @@ private:
 
     // --- ADDED --- Light animation tracking
     float m_lightAnimTime = 0.0f;
+
+    // --- ADDED --- Duck floating animation
+    float m_duckFloatTime = 0.0f;
+
+    // --- ADDED --- Lantern light control
+    size_t m_lanternLightIdx = 0;
+    bool m_lanternLightEnabled = true;
 };

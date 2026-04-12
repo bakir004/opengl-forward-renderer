@@ -120,6 +120,17 @@ bool SampleScene::Setup()
             .Name("CoolRim")
             .Build());
 
+    // --- ADDED --- Lantern light: warm glow from inside lantern
+    m_lanternLightIdx = lights.GetPointLights().size();
+    lights.AddPointLight(
+        PointLightBuilder()
+            .Position({-2.5f, 0.8f, 2.0f}) // At lantern position
+            .Color({1.0f, 0.85f, 0.50f})   // Warm amber glow
+            .Intensity(0.8f)               // Moderate intensity
+            .Radius(12.0f)
+            .Name("LanternLight")
+            .Build());
+
     // ── Objects ───────────────────────────────────────────────────────────────
 
     // --- MODIFIED --- Ground plane now uses mesh shader+material for shadow receiving
@@ -155,15 +166,15 @@ bool SampleScene::Setup()
     sphItem.flags.receiveShadow = true;
     AddObject(sphItem);
 
-    // --- FIXED --- Player Duck on ground
+    // --- FIXED --- Player Duck raised above ground to cast visible shadow
     if (m_duck)
     {
         RenderItem playerDuck;
         playerDuck.mesh = m_duck.get();
         playerDuck.material = m_duckMatInst.get();
         playerDuck.rotationOffsetDeg = {0.0f, -90.0f, 0.0f};
-        playerDuck.translationOffset = {0.0f, -0.9f, 0.0f};
-        playerDuck.transform.SetTranslation({0.0f, 0.9f, 0.0f}); // --- FIXED --- Now sits ON ground (0.9 - 0.9 offset = 0)
+        playerDuck.translationOffset = {0.0f, 0.0f, 0.0f};
+        playerDuck.transform.SetTranslation({0.0f, 1.1f, 0.0f}); // --- FIXED --- Raised above ground to cast visible shadow
         playerDuck.transform.SetScale({0.8f, 0.8f, 0.8f});
         playerDuck.flags.castShadow = true;
         playerDuck.flags.receiveShadow = true;
@@ -176,7 +187,7 @@ bool SampleScene::Setup()
         RenderItem lanternItem;
         lanternItem.mesh = m_lantern.get();
         lanternItem.material = m_lanternMatInst.get();
-        lanternItem.transform.SetTranslation({-2.5f, 0.8f, 2.0f}); // --- FIXED --- Raised from 0.1 to 0.8
+        lanternItem.transform.SetTranslation({-2.5f, 0.1f, 2.0f}); // --- FIXED --- Raised from 0.1 to 0.8
         lanternItem.transform.SetScale({0.12f, 0.12f, 0.12f});
         lanternItem.flags.castShadow = true;
         lanternItem.flags.receiveShadow = true;
@@ -204,6 +215,7 @@ void SampleScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInput &mo
 {
     // --- ADDED --- Track time for light animation
     m_lightAnimTime += deltaTime;
+    m_duckFloatTime += deltaTime;
 
     // Animate pyramid continuously
     m_pyramidRotY += 60.0f * deltaTime; // 60 degrees per sec
@@ -229,6 +241,31 @@ void SampleScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInput &mo
         const glm::vec3 d = glm::normalize(moveDirXZ);
         const float playerYaw = glm::degrees(std::atan2(d.x, d.z));
         playerTransform.SetRotationEulerDegrees({0.0f, playerYaw, 0.0f});
+    }
+
+    // --- ADDED --- Duck floating animation (bobs up and down)
+    // Applied AFTER position sync so it doesn't get overwritten
+    const float floatAmplitude = 0.3f; // How far up/down it floats
+    const float floatPeriod = 4.0f;    // Seconds for one complete cycle
+    const float duckFloatOffset = std::sin((m_duckFloatTime / floatPeriod) * glm::two_pi<float>()) * floatAmplitude;
+
+    if (m_duck && m_playerCubeIdx > 0)
+    {
+        auto &pTransform = GetObject(m_playerCubeIdx).transform;
+        const glm::vec3 pos = pTransform.GetTranslation();
+        pTransform.SetTranslation({pos.x, 1.1f + duckFloatOffset, pos.z});
+    }
+
+    // --- ADDED --- Toggle lantern light with 'L' key
+    if (input.IsKeyPressed(GLFW_KEY_L))
+    {
+        m_lanternLightEnabled = !m_lanternLightEnabled;
+        auto &lights = GetLights();
+        auto &pointLights = lights.GetPointLights();
+        if (m_lanternLightIdx < pointLights.size())
+        {
+            pointLights[m_lanternLightIdx].intensity = m_lanternLightEnabled ? 0.8f : 0.0f;
+        }
     }
 
     // --- MODIFIED --- Animate "CoolRim" point light for visual validation
