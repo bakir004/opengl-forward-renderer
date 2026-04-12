@@ -7,6 +7,7 @@
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <spdlog/spdlog.h>
 #include <cmath>
 
@@ -248,11 +249,13 @@ bool SolarSystemScene::Setup()
             std::sin(theta) * r * kStarRadius
         });
         // Vary orientation so pyramids don't all point the same way.
-        star.transform.SetRotationEulerDegrees({
-            static_cast<float>((i * 73)  % 360),
-            static_cast<float>((i * 137) % 360),
-            0.0f
-        });
+        // Compose a pitch quat and a yaw quat — explicit axis/angle avoids any
+        // Euler decomposition-order ambiguity for these pseudo-random orientations.
+        const glm::quat qPitch = glm::angleAxis(
+            glm::radians(static_cast<float>((i * 73)  % 360)), glm::vec3(1.0f, 0.0f, 0.0f));
+        const glm::quat qYaw   = glm::angleAxis(
+            glm::radians(static_cast<float>((i * 137) % 360)), glm::vec3(0.0f, 1.0f, 0.0f));
+        star.transform.SetRotation(qYaw * qPitch); // yaw applied last (outermost)
         AddObject(star);
     }
 
@@ -324,7 +327,10 @@ void SolarSystemScene::AddPlanet(float orbitRadius, float orbitSpeed,
     item.shader = m_shader.get();
     item.transform.SetScale({scale, scale, scale});
     item.transform.SetTranslation({x, 0.0f, z});
-    item.transform.SetRotationEulerDegrees({tiltDeg, 0.0f, 0.0f});
+    // Initial orientation: axial tilt only (no spin yet). Using angleAxis keeps
+    // the axis explicit — SetRotationEulerDegrees would work but hides which
+    // axis carries the tilt inside a vec3 whose Y and Z are meaningless here.
+    item.transform.SetRotation(glm::angleAxis(glm::radians(tiltDeg), glm::vec3(1.0f, 0.0f, 0.0f)));
 
     m_planets.push_back(Planet{
         .idx          = AddObject(item),
@@ -396,16 +402,18 @@ void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInpu
         t.SetTranslation(m_playerPos);
         if (glm::length(moveDirXZ) > 0.001f) {
             const glm::vec3 d = glm::normalize(moveDirXZ);
-            t.SetRotationEulerDegrees({0.0f, glm::degrees(std::atan2(d.x, d.z)), 0.0f});
+            // atan2 returns radians — feed directly to angleAxis, skip glm::degrees.
+            t.SetRotation(glm::angleAxis(std::atan2(d.x, d.z), glm::vec3(0.0f, 1.0f, 0.0f)));
         }
     }
 
     // ── Celestial body animations (pause-aware) ───────────────────────────────
     if (!m_isPaused) {
-        // Sun self-rotation (m_sunRotAngle is a proper member, not a static local).
+        // Sun self-rotation.
+        // Accumulate in radians — pass directly to angleAxis, no degrees conversion.
         m_sunRotAngle += 0.10f * deltaTime;
-        GetObject(m_sunIdx).transform.SetRotationEulerDegrees(
-            {0.0f, glm::degrees(m_sunRotAngle), 0.0f});
+        GetObject(m_sunIdx).transform.SetRotation(
+            glm::angleAxis(m_sunRotAngle, glm::vec3(0.0f, 1.0f, 0.0f)));
 
         // Planets
         for (auto& p : m_planets) {
@@ -416,10 +424,21 @@ void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInpu
             t.SetTranslation({std::cos(p.angle) * p.orbitRadius,
                               0.0f,
                               std::sin(p.angle) * p.orbitRadius});
-            t.SetRotationEulerDegrees({p.tiltDeg, glm::degrees(p.selfRotAngle), 0.0f});
+
+            // Compose axial tilt (fixed, around X) and self-spin (accumulating, around Y).
+            //
+            // WHY quaternion composition instead of SetRotationEulerDegrees:
+            //   The Euler form {tiltDeg, selfRotDeg, 0} is order-dependent — the
+            //   Y*X*Z convention means spin is applied in world space, then tilted.
+            //   Quaternion multiplication makes the intent explicit: tilt the pole
+            //   (qTilt), then spin around world-Y (qSpin). No decomposition order
+            //   to remember, and selfRotAngle stays in radians the whole time.
+            const glm::quat qTilt = glm::angleAxis(glm::radians(p.tiltDeg), glm::vec3(1.0f, 0.0f, 0.0f));
+            const glm::quat qSpin = glm::angleAxis(p.selfRotAngle,           glm::vec3(0.0f, 1.0f, 0.0f));
+            t.SetRotation(qSpin * qTilt); // spin outermost = applied first to vertices
         }
 
-        // Moons
+        // Moons (no self-rotation, just orbit their parent)
         for (auto& m : m_moons) {
             m.angle += m.orbitSpeed * deltaTime;
 
@@ -431,7 +450,7 @@ void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInpu
             });
         }
 
-        // Saturn ring layers — follow Saturn's position and axial tilt.
+        // Saturn ring layers — track Saturn's position and axial tilt.
         {
             const Planet& saturn = m_planets[kSaturnPlanetIdx];
             const glm::vec3 saturnPos = {
@@ -439,16 +458,19 @@ void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInpu
                 0.0f,
                 std::sin(saturn.angle) * saturn.orbitRadius
             };
+            // Same tilt+spin composition as planets — rings co-rotate with Saturn.
+            const glm::quat qTilt = glm::angleAxis(glm::radians(saturn.tiltDeg), glm::vec3(1.0f, 0.0f, 0.0f));
+            const glm::quat qSpin = glm::angleAxis(saturn.selfRotAngle,           glm::vec3(0.0f, 1.0f, 0.0f));
+            const glm::quat ringRot = qSpin * qTilt;
             for (const auto& sr : m_saturnRings) {
                 auto& t = GetObject(sr.idx).transform;
                 t.SetTranslation(saturnPos);
-                t.SetRotationEulerDegrees(
-                    {saturn.tiltDeg, glm::degrees(saturn.selfRotAngle), 0.0f});
+                t.SetRotation(ringRot);
                 t.SetScale({1.0f, 1.0f, 1.0f});
             }
         }
 
-        // Asteroid belt
+        // Asteroid belt — each asteroid spins around its own Y axis.
         m_beltRotAngle += 0.04f * deltaTime;
         for (auto& a : m_asteroids) {
             a.rotAngle += a.rotSpeed * deltaTime;
@@ -457,7 +479,8 @@ void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInpu
             t.SetTranslation({std::cos(angle) * a.orbitRadius,
                               0.0f,
                               std::sin(angle) * a.orbitRadius});
-            t.SetRotationEulerDegrees({0.0f, glm::degrees(a.rotAngle), 0.0f});
+            // rotAngle accumulates in radians — no glm::degrees needed.
+            t.SetRotation(glm::angleAxis(a.rotAngle, glm::vec3(0.0f, 1.0f, 0.0f)));
         }
     }
 

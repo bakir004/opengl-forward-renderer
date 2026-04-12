@@ -7,6 +7,7 @@
 #include "scene/LightBuilder.h"
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <spdlog/spdlog.h>
 
 bool SampleScene::Setup() {
@@ -174,8 +175,11 @@ bool SampleScene::Setup() {
         RenderItem playerDuck;
         playerDuck.mesh               = m_duck.get();
         playerDuck.material           = m_duckMatInst.get();
-        playerDuck.rotationOffsetDeg  = {0.0f, -90.0f, 0.0f};
-        playerDuck.translationOffset  = {0.0f, -0.9f, 0.0f};
+        // Correct the duck glTF asset's forward axis: it faces +X in model space,
+        // but the game convention is +Z. A -90° yaw around world Y aligns them.
+        // glm::angleAxis(angle, axis) is unambiguous — no composition order to remember.
+        playerDuck.rotationOffset    = glm::angleAxis(glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        playerDuck.translationOffset = {0.0f, -0.9f, 0.0f};
         playerDuck.transform.SetTranslation(m_playerPosition);
         playerDuck.transform.SetScale({0.6f, 0.6f, 0.6f}); // glTF units are meters; duck is ~0.5 m long
         m_playerCubeIdx = AddObject(playerDuck);
@@ -206,10 +210,15 @@ bool SampleScene::Setup() {
 }
 
 void SampleScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mouse) {
-    // Animate pyramid continuously
-    m_pyramidRotY += 60.0f * deltaTime; // 60 degrees per sec
+    // Animate pyramid continuously.
+    // Store the accumulated angle in radians so we can pass it directly to
+    // glm::angleAxis — no glm::degrees() round-trip needed.
+    m_pyramidRotY += glm::radians(60.0f) * deltaTime; // 60°/s in radians
     auto& pyTransform = GetObject(m_pyramidIdx).transform;
-    pyTransform.SetRotationEulerDegrees({0.0f, m_pyramidRotY, 0.0f});
+    // glm::angleAxis(angle_rad, axis) produces the rotation quaternion directly.
+    // SetRotation replaces the stored quat, which RebuildModelMatrix converts
+    // via glm::mat4_cast — one op instead of three chained glm::rotate calls.
+    pyTransform.SetRotation(glm::angleAxis(m_pyramidRotY, glm::vec3(0.0f, 1.0f, 0.0f)));
 
     Camera& cam = GetCamera();
 
@@ -224,10 +233,12 @@ void SampleScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mo
     auto& playerTransform = GetObject(m_playerCubeIdx).transform;
     playerTransform.SetTranslation(m_playerPosition);
 
-    // Rotate to face the direction of movement (XZ plane only)
+    // Rotate player to face the direction of movement (XZ plane only).
+    // atan2 gives us the yaw in radians — feed it straight to angleAxis
+    // without converting to degrees and back, saving one transcendental call.
     if (glm::length(moveDirXZ) > 0.001f) {
         const glm::vec3 d = glm::normalize(moveDirXZ);
-        const float playerYaw = glm::degrees(std::atan2(d.x, d.z));
-        playerTransform.SetRotationEulerDegrees({0.0f, playerYaw, 0.0f});
+        const float yawRad = std::atan2(d.x, d.z);
+        playerTransform.SetRotation(glm::angleAxis(yawRad, glm::vec3(0.0f, 1.0f, 0.0f)));
     }
 }
