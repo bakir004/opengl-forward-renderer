@@ -1,14 +1,16 @@
 #pragma once
 #include <cstdint>
 #include <vector>
+#include <glm/glm.hpp>
 #include "scene/RenderItem.h"
 
 struct SubmissionContext;
 
-struct RenderQueueFrameStats {
-    uint32_t processedItemCount   = 0;
-    uint32_t drawCallCount        = 0;
-    uint64_t approxTriangleCount  = 0;
+struct RenderQueueFrameStats
+{
+    uint32_t processedItemCount = 0;
+    uint32_t drawCallCount = 0;
+    uint64_t approxTriangleCount = 0;
 };
 
 /// Collects draw calls for a single frame, sorts them by shader to minimise
@@ -17,11 +19,12 @@ struct RenderQueueFrameStats {
 /// Typical per-frame usage:
 ///   1. Application calls SubmitDraw() for each visible object → Add()
 ///   2. Renderer::EndFrame() calls Sort() → Flush() → Clear()
-class RenderQueue {
+class RenderQueue
+{
 public:
     /// Enqueues one item and returns true if it made it into the queue.
     /// Items with visible=false, no geometry, or no usable shader path are silently dropped.
-    [[nodiscard]] bool Add(const RenderItem& item);
+    [[nodiscard]] bool Add(const RenderItem &item);
 
     /// Sorts the queue by shader pointer to minimise shader-program switches.
     /// Items without a shader (defensive; Add already filters them) sort to the end.
@@ -31,7 +34,7 @@ public:
     ///   - Tracks the last bound shader; rebinds only on change.
     ///   - Sets glPolygonMode per DrawMode; resets to GL_FILL after the last item.
     ///   - Writes u_Model and u_NormalMatrix uniforms per object.
-    [[nodiscard]] RenderQueueFrameStats Flush(SubmissionContext& current);
+    [[nodiscard]] RenderQueueFrameStats Flush(SubmissionContext &current);
 
     /// Clears all queued items (keeps reserved capacity for the next frame).
     void Clear();
@@ -41,9 +44,16 @@ public:
     /// Sets the fallback shader used when a RenderItem has neither a material
     /// nor a shader assigned.  The object is still drawn (visibly wrong) and a
     /// warning is logged so the missing assignment is easy to spot.
-    void SetErrorShader(const ShaderProgram* shader);
+    void SetErrorShader(const ShaderProgram *shader);
+
+    /// Sets shadow data for the current frame. Called by Renderer before Flush()
+    /// to provide directional light view-projection matrix and shadow map texture.
+    void SetDirectionalShadowData(const glm::mat4 &lightViewProj, uint32_t shadowMapTextureId);
 
 private:
-    std::vector<RenderItem>  m_items;
-    const ShaderProgram*     m_errorShader = nullptr;
+    std::vector<RenderItem> m_items;
+    const ShaderProgram *m_errorShader = nullptr;
+    glm::mat4 m_shadowLightViewProj = glm::mat4(1.0f);
+    uint32_t m_shadowMapTextureId = 0;
+    bool m_hasShadowData = false;
 };

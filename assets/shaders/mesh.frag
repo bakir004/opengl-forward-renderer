@@ -1,6 +1,8 @@
 in vec3 v_Normal;
 in vec3 v_WorldPos;
 in vec2 v_UV;
+// --- ADDED --- Fragment position in light space for shadow sampling
+in vec4 v_LightSpacePos;
 
 layout(std140, binding = 0) uniform Camera {
     mat4 view;
@@ -13,6 +15,8 @@ layout(std140, binding = 0) uniform Camera {
 #include "light_block.glsl"
 
 uniform sampler2D u_AlbedoMap;
+// --- ADDED --- Shadow map texture
+uniform sampler2D u_ShadowMap;
 uniform vec4      u_TintColor = vec4(1.0);
 uniform float     u_Shininess = 64.0;
 uniform float     u_SpecularStrength = 0.35;
@@ -30,6 +34,42 @@ float BlinnPhongSpecular(vec3 n, vec3 l, vec3 v, float shininess)
     // Blinn-Phong uses the half-vector for stable highlights.
     vec3 h = normalize(l + v);
     return pow(max(dot(n, h), 0.0), shininess);
+}
+
+// --- ADDED --- Calculate shadow factor with PCF (3x3 kernel)
+float CalculateShadow(vec4 lightSpacePos)
+{
+    // Perspective divide to get NDC
+    vec3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
+    
+    // Transform from [-1,1] to [0,1]
+    projCoords = projCoords * 0.5 + 0.5;
+    
+    // Clamp to shadow map bounds to avoid sampling outside
+    if (projCoords.z > 1.0 || projCoords.x < 0.0 || projCoords.x > 1.0 || 
+        projCoords.y < 0.0 || projCoords.y > 1.0)
+        return 0.0; // No shadow outside shadow map
+    
+    // Get closest depth from shadow map
+    float closestDepth = texture(u_ShadowMap, projCoords.xy).r;
+    float currentDepth = projCoords.z;
+    
+    // Bias to prevent shadow acne
+    float bias = 0.005;
+    
+    // PCF: 3x3 kernel for soft shadows
+    float shadow = 0.0;
+    vec2 texelSize = 1.0 / textureSize(u_ShadowMap, 0);
+    
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            float pcfDepth = texture(u_ShadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
+            shadow += (currentDepth - bias) > pcfDepth ? 0.5 : 0.0; // 0.5 for soft 3x3
+        }
+    }
+    shadow /= 9.0; // Average 9 samples
+    
+    return shadow;
 }
 
 float DistanceAttenuation(float radius,
@@ -65,7 +105,12 @@ vec3 DirectionalLighting(vec3 albedo, vec3 n, vec3 v)
 
     vec3 diffuseColor = albedo * irradiance * diffuse;
     vec3 specColor = irradiance * (u_SpecularStrength * spec);
-    return diffuseColor + specColor;
+    
+    // --- ADDED --- Apply directional shadow
+    float shadow = CalculateShadow(v_LightSpacePos);
+    vec3 result = (diffuseColor + specColor) * (1.0 - shadow);
+    
+    return result;
 }
 
 vec3 PointLighting(vec3 albedo, vec3 worldPos, vec3 n, vec3 v)

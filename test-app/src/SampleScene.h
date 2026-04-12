@@ -35,6 +35,10 @@ private:
     std::shared_ptr<Material> m_lanternMaterial;
     std::unique_ptr<MaterialInstance> m_lanternMatInst;
 
+    // --- ADDED --- Ground plane material (for shadow receiving)
+    std::shared_ptr<Material> m_groundMaterial;
+    std::unique_ptr<MaterialInstance> m_groundMatInst;
+
     // Geometry (uploaded to GPU once, shared across multiple RenderItems)
     std::unique_ptr<MeshBuffer> m_triangle;
     std::unique_ptr<MeshBuffer> m_quad;

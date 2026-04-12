@@ -49,6 +49,11 @@ bool SampleScene::Setup()
     m_lanternMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
     m_lanternMatInst = std::make_unique<MaterialInstance>(m_lanternMaterial);
 
+    // --- ADDED --- Ground plane material with mesh shader for shadow receiving
+    m_groundMaterial = std::make_shared<Material>(meshShader);
+    m_groundMaterial->SetVec4("u_TintColor", {0.65f, 0.65f, 0.65f, 1.0f}); // --- FIXED --- Lighter gray for shadow contrast
+    m_groundMatInst = std::make_unique<MaterialInstance>(m_groundMaterial);
+
     // ── Geometry ─────────────────────────────────────────────────────────────
 
     // Rainbow primitives — default ColorMode::Rainbow
@@ -86,115 +91,71 @@ bool SampleScene::Setup()
     SetClearColor({0.08f, 0.09f, 0.12f, 1.0f});
 
     // ── Lights (Dev3: scene-side setup) ───────────────────────────────────
-    SetAmbientLight({0.08f, 0.09f, 0.11f}, 0.35f);
+    SetAmbientLight({0.02f, 0.03f, 0.04f}, 0.15f); // --- FIXED --- Extreme reduction to show shadows clearly
     auto &lights = GetLights();
-    // --- MODIFIED --- Directional light now casts shadows for validation
+    // --- FIXED --- Very strong directional light to make shadows unmissable
     lights.SetDirectionalLight(
         DirectionalLightBuilder()
-            .Direction({-0.45f, -1.0f, -0.25f})
-            .Color({1.0f, 0.96f, 0.90f})
-            .Intensity(1.1f)
+            .Direction({-0.3f, -0.8f, -0.2f}) // Balanced angle for readable shadows
+            .Color({1.0f, 0.98f, 0.95f})
+            .Intensity(3.5f) // --- FIXED --- Dramatically increased from 2.5 to make shadows obvious
             .Name("SampleSun")
             .CastShadow(true)
             .Build());
+    // --- FIXED --- Drastically reduced point lights to prevent shadow wash-out
     lights.AddPointLight(
         PointLightBuilder()
-            .Position({-2.0f, 2.2f, 1.5f})
-            .Color({1.0f, 0.72f, 0.48f})
-            .Intensity(2.0f)
-            .Radius(14.0f)
+            .Position({-3.0f, 2.5f, 2.0f})
+            .Color({1.0f, 0.75f, 0.50f}) // Warm orange
+            .Intensity(0.6f)             // --- FIXED --- Reduced from 3.0 (was washing out shadows)
+            .Radius(18.0f)
             .Name("WarmFill")
             .Build());
     lights.AddPointLight(
         PointLightBuilder()
-            .Position({3.0f, 1.8f, -4.0f})
-            .Color({0.45f, 0.70f, 1.0f})
-            .Intensity(1.6f)
-            .Radius(16.0f)
+            .Position({3.5f, 2.2f, -2.5f})
+            .Color({0.40f, 0.70f, 1.0f}) // Cool blue
+            .Intensity(0.5f)             // --- FIXED --- Reduced from 2.5 (was washing out shadows)
+            .Radius(18.0f)
             .Name("CoolRim")
             .Build());
 
     // ── Objects ───────────────────────────────────────────────────────────────
 
-    // d) a ground plane
+    // --- MODIFIED --- Ground plane now uses mesh shader+material for shadow receiving
     RenderItem groundItem;
     groundItem.mesh = m_colorQuad.get();
-    groundItem.shader = m_shader.get();
-    groundItem.transform.SetTranslation({0.0f, -1.0f, 0.0f});
+    groundItem.material = m_groundMatInst.get(); // Use material with mesh shader
+    groundItem.transform.SetTranslation({0.0f, 0.0f, 0.0f});
     groundItem.transform.SetRotationEulerDegrees({-90.0f, 0.0f, 0.0f});
-    groundItem.transform.SetScale({20.0f, 20.0f, 20.0f});
-    // --- MODIFIED --- Ground receives shadows but does not cast
+    groundItem.transform.SetScale({25.0f, 25.0f, 25.0f});
     groundItem.flags.castShadow = false;
     groundItem.flags.receiveShadow = true;
     AddObject(groundItem);
 
-    // a), b), c) several cubes and quads placed at different positions, scales, and rotations
-    // Row 1: Cubes
-    for (int i = 0; i < 5; ++i)
-    {
-        RenderItem cubeItem;
-        cubeItem.mesh = (i % 2 == 0) ? m_rainbowCube.get() : m_solidCube.get();
-        cubeItem.shader = m_shader.get();
-
-        float xPath = -4.0f + (i * 2.0f);
-        cubeItem.transform.SetTranslation({xPath, -0.5f, -2.0f});
-
-        float s = 0.5f + (i * 0.15f);
-        cubeItem.transform.SetScale({s, s, s});
-
-        float rotY = i * 25.0f;
-        float rotX = i * 15.0f;
-        cubeItem.transform.SetRotationEulerDegrees({rotX, rotY, 0.0f});
-        // --- MODIFIED --- Primitive cubes cast and receive shadows
-        cubeItem.flags.castShadow = true;
-        cubeItem.flags.receiveShadow = true;
-        AddObject(cubeItem);
-    }
-
-    // Row 2: Quads (visualise transforms)
-    for (int i = 0; i < 5; ++i)
-    {
-        RenderItem quadItem;
-        quadItem.mesh = m_quad.get();
-        quadItem.shader = m_shader.get();
-
-        float xPath = -4.0f + (i * 2.0f);
-        quadItem.transform.SetTranslation({xPath, 0.0f, -5.0f});
-
-        float sx = 0.6f + (i * 0.2f);
-        float sy = 0.6f + ((4 - i) * 0.1f);
-        quadItem.transform.SetScale({sx, sy, 1.0f});
-
-        float rotZ = i * -15.0f;
-        quadItem.transform.SetRotationEulerDegrees({0.0f, 0.0f, rotZ});
-        // --- MODIFIED --- Primitive quads cast and receive shadows
-        quadItem.flags.castShadow = true;
-        quadItem.flags.receiveShadow = true;
-        AddObject(quadItem);
-    }
-
-    // Row 3: Mixed extra shapes
+    // --- REMOVED --- Simplified scene: removed primitive cube/quad rows to focus on shadow demo
+    // --- FIXED --- Raised objects to make shadows more visible (further from ground)
+    // Pyramid (note: uses basic shader, won't show shadows but still casts them)
     RenderItem pyItem;
     pyItem.mesh = m_pyramid.get();
     pyItem.shader = m_shader.get();
-    pyItem.transform.SetTranslation({-2.0f, 1.0f, -8.0f});
-    pyItem.transform.SetScale({1.5f, 2.0f, 1.5f});
-    // --- MODIFIED --- Pyramid casts and receives shadows
+    pyItem.transform.SetTranslation({-3.0f, 0.8f, -4.0f}); // --- FIXED --- Raised from 0.5 to 0.8
+    pyItem.transform.SetScale({1.8f, 2.2f, 1.8f});
     pyItem.flags.castShadow = true;
     pyItem.flags.receiveShadow = true;
     m_pyramidIdx = AddObject(pyItem);
 
+    // Sphere (note: uses basic shader, won't show shadows but still casts them)
     RenderItem sphItem;
     sphItem.mesh = m_sphere.get();
     sphItem.shader = m_shader.get();
-    sphItem.transform.SetTranslation({2.0f, 1.0f, -8.0f});
-    sphItem.transform.SetScale({2.0f, 3.0f, 2.0f});
-    // --- MODIFIED --- Sphere casts and receives shadows
+    sphItem.transform.SetTranslation({3.5f, 0.9f, -3.5f}); // --- FIXED --- Raised from 0.6 to 0.9
+    sphItem.transform.SetScale({2.2f, 3.2f, 2.2f});
     sphItem.flags.castShadow = true;
     sphItem.flags.receiveShadow = true;
     AddObject(sphItem);
 
-    // Player Duck
+    // --- FIXED --- Player Duck on ground
     if (m_duck)
     {
         RenderItem playerDuck;
@@ -202,37 +163,34 @@ bool SampleScene::Setup()
         playerDuck.material = m_duckMatInst.get();
         playerDuck.rotationOffsetDeg = {0.0f, -90.0f, 0.0f};
         playerDuck.translationOffset = {0.0f, -0.9f, 0.0f};
-        playerDuck.transform.SetTranslation(m_playerPosition);
-        playerDuck.transform.SetScale({0.6f, 0.6f, 0.6f}); // glTF units are meters; duck is ~0.5 m long
-        // --- MODIFIED --- Player duck casts and receives shadows
+        playerDuck.transform.SetTranslation({0.0f, 0.9f, 0.0f}); // --- FIXED --- Now sits ON ground (0.9 - 0.9 offset = 0)
+        playerDuck.transform.SetScale({0.8f, 0.8f, 0.8f});
         playerDuck.flags.castShadow = true;
         playerDuck.flags.receiveShadow = true;
         m_playerCubeIdx = AddObject(playerDuck);
     }
 
-    // ── Lantern (imported glTF) ───────────────────────────────────────────────
+    // --- FIXED --- Lantern raised much higher to create visible shadow
     if (m_lantern)
     {
         RenderItem lanternItem;
         lanternItem.mesh = m_lantern.get();
         lanternItem.material = m_lanternMatInst.get();
-        lanternItem.transform.SetTranslation({-3.0f, -1.0f, 0.0f});
-        lanternItem.transform.SetScale({0.1f, 0.1f, 0.1f}); // raw positions ~25 units tall; scale to ~2.5
-        // --- MODIFIED --- Lantern casts and receives shadows
+        lanternItem.transform.SetTranslation({-2.5f, 0.8f, 2.0f}); // --- FIXED --- Raised from 0.1 to 0.8
+        lanternItem.transform.SetScale({0.12f, 0.12f, 0.12f});
         lanternItem.flags.castShadow = true;
         lanternItem.flags.receiveShadow = true;
         AddObject(lanternItem);
     }
 
-    // ── Avocado (imported glTF) ───────────────────────────────────────────────
+    // --- FIXED --- Avocado raised much higher to create visible shadow
     if (m_avocado)
     {
         RenderItem avocadoItem;
         avocadoItem.mesh = m_avocado.get();
         avocadoItem.material = m_avocadoMatInst.get();
-        avocadoItem.transform.SetTranslation({0.0f, -1.0f, 0.0f});
-        avocadoItem.transform.SetScale({20.0f, 20.0f, 20.0f}); // glTF units are meters; avocado is ~5 cm
-        // --- MODIFIED --- Avocado casts and receives shadows
+        avocadoItem.transform.SetTranslation({2.0f, 0.7f, -1.5f}); // --- FIXED --- Raised from 0.3 to 0.7
+        avocadoItem.transform.SetScale({24.0f, 24.0f, 24.0f});
         avocadoItem.flags.castShadow = true;
         avocadoItem.flags.receiveShadow = true;
         AddObject(avocadoItem);
@@ -273,8 +231,8 @@ void SampleScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInput &mo
         playerTransform.SetRotationEulerDegrees({0.0f, playerYaw, 0.0f});
     }
 
-    // --- ADDED --- Animate one point light for visual validation
-    // The "CoolRim" light orbits around the center objects at a fixed height
+    // --- MODIFIED --- Animate "CoolRim" point light for visual validation
+    // Light orbits around center objects to demonstrate dynamic shadow changes
     {
         auto &lights = GetLights();
         auto &pointLights = lights.GetPointLights();
@@ -282,10 +240,10 @@ void SampleScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInput &mo
         {
             if (light.name == "CoolRim")
             {
-                // Orbit at radius ~5.5 units, height ~1.8, period ~8 seconds
-                const float orbitRadius = 5.5f;
-                const float orbitHeight = 1.8f;
-                const float orbitPeriod = 8.0f;
+                // Orbit at smaller radius ~3.5 units around center, height ~2.2, period ~10 seconds
+                const float orbitRadius = 3.5f;  // --- MODIFIED --- Reduced from 5.5 to focus on center
+                const float orbitHeight = 2.2f;  // --- MODIFIED --- Raised for better shadows
+                const float orbitPeriod = 10.0f; // --- MODIFIED --- Slower orbit for easier observation
                 const float angle = (m_lightAnimTime / orbitPeriod) * glm::two_pi<float>();
                 light.position = glm::vec3(
                     std::cos(angle) * orbitRadius,
