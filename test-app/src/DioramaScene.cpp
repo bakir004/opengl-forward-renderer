@@ -7,6 +7,7 @@
 #include "scene/LightBuilder.h"
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <spdlog/spdlog.h>
 
 bool DioramaScene::Setup() {
@@ -202,7 +203,8 @@ bool DioramaScene::Setup() {
         duckInside.mesh = m_duck.get();
         duckInside.material = m_duckMatInst.get();
         duckInside.transform.SetTranslation({4.0f, -0.1f, -3.5f}); // Inside pool
-        duckInside.transform.SetRotationEulerDegrees({0.0f, -45.0f, 0.0f});
+        // Face the duck toward the pool at -45° yaw (static, set once in Setup).
+        duckInside.transform.SetRotation(glm::angleAxis(glm::radians(-45.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
         duckInside.transform.SetScale({0.2f, 0.2f, 0.2f});
         m_duckInsideIdx = AddObject(duckInside);
     }
@@ -212,7 +214,9 @@ bool DioramaScene::Setup() {
         RenderItem playerDuck;
         playerDuck.mesh               = m_duck.get();
         playerDuck.material           = m_duckMatInst.get();
-        playerDuck.rotationOffsetDeg  = {0.0f, -90.0f, 0.0f};
+        // Correct the duck glTF asset's forward axis: it faces +X in model space,
+        // but the game convention is +Z. A -90° yaw around world Y aligns them.
+        playerDuck.rotationOffset = glm::angleAxis(glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         playerDuck.translationOffset  = {0.0f, -0.75f, 0.0f};
         playerDuck.transform.SetTranslation(m_playerPosition);
         playerDuck.transform.SetScale({0.6f, 0.6f, 0.6f});
@@ -235,8 +239,10 @@ void DioramaScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& m
 
     auto& duckTrans = GetObject(m_duckInsideIdx).transform;
     duckTrans.SetTranslation({px, 0.15f, pz});
-    float yaw = glm::degrees(-m_duckInsideAngle) - 90.0f;
-    duckTrans.SetRotationEulerDegrees({0.0f, yaw, 0.0f});
+    // The duck faces tangent to its circular path. -angle - π/2 gives the
+    // forward direction; stored as radians, so no degree conversion needed.
+    const float yawRad = -m_duckInsideAngle - glm::half_pi<float>();
+    duckTrans.SetRotation(glm::angleAxis(yawRad, glm::vec3(0.0f, 1.0f, 0.0f)));
 
     Camera& cam = GetCamera();
 
@@ -251,10 +257,11 @@ void DioramaScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& m
     auto& playerTransform = GetObject(m_playerCubeIdx).transform;
     playerTransform.SetTranslation(m_playerPosition);
 
-    // Rotate to face the direction of movement (XZ plane only)
+    // Rotate player to face the direction of movement (XZ plane only).
+    // atan2 returns radians — pass directly to angleAxis, no degree round-trip.
     if (glm::length(moveDirXZ) > 0.001f) {
         const glm::vec3 d = glm::normalize(moveDirXZ);
-        const float playerYaw = glm::degrees(std::atan2(d.x, d.z));
-        playerTransform.SetRotationEulerDegrees({0.0f, playerYaw, 0.0f});
+        const float yawRad = std::atan2(d.x, d.z);
+        playerTransform.SetRotation(glm::angleAxis(yawRad, glm::vec3(0.0f, 1.0f, 0.0f)));
     }
 }
