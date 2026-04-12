@@ -1,4 +1,5 @@
 #include "app/Application.h"
+#include "assets/AssetImporter.h"
 #include "core/MeshBuffer.h"
 #include "scene/Scene.h"
 #include "scene/FrameSubmission.h"
@@ -12,8 +13,12 @@
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl3.h>
 #include <GLFW/glfw3.h>
+#include <glm/geometric.hpp>
+#include <cstdint>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
+#include <string_view>
+#include <string>
 
 static void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     auto app = static_cast<Application*>(glfwGetWindowUserPointer(window));
@@ -27,18 +32,86 @@ static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) 
     }
 }
 
-static int CountSceneTriangles(const std::vector<RenderItem>& objects) {
-    int total = 0;
-    for (const auto& item : objects) {
-        if (!item.flags.visible) continue;
-        if (item.mesh) {
-            if (item.mesh->IsIndexed())
-                total += item.mesh->GetIndexCount() / 3;
-            else
-                total += item.mesh->GetVertexCount() / 3;
-        }
+static std::string FormatCompactCount(uint64_t value) {
+    if (value >= 1000000ull) {
+        return std::to_string(value / 1000000ull) + "." +
+               std::to_string((value % 1000000ull) / 100000ull) + "M";
     }
-    return total;
+    if (value >= 1000ull) {
+        return std::to_string(value / 1000ull) + "." +
+               std::to_string((value % 1000ull) / 100ull) + "k";
+    }
+    return std::to_string(value);
+}
+
+static void DrawDirectionalLightDebug(DirectionalLight& light) {
+    ImGui::Text("Name      : %s", light.name.empty() ? "(unnamed)" : light.name.c_str());
+    ImGui::Text("Enabled   : %s", light.enabled ? "yes" : "no");
+
+    ImGui::DragFloat("Intensity", &light.intensity, 0.05f, 0.0f, 1000.0f, "%.3f");
+    ImGui::ColorEdit3("Color", &light.color.x);
+
+    float direction[3] = {light.direction.x, light.direction.y, light.direction.z};
+    if (ImGui::DragFloat3("Direction", direction, 0.02f, -1.0f, 1.0f, "%.3f")) {
+        const glm::vec3 candidate(direction[0], direction[1], direction[2]);
+        if (glm::length(candidate) > 0.0001f)
+            light.direction = glm::normalize(candidate);
+    }
+
+    ImGui::TextDisabled("Direction is normalized after edits.");
+}
+
+static void DrawPointLightDebug(PointLight& light, int index) {
+    const std::string label = "Point Light " + std::to_string(index + 1);
+    if (!ImGui::TreeNode(label.c_str()))
+        return;
+
+    ImGui::Text("Name      : %s", light.name.empty() ? "(unnamed)" : light.name.c_str());
+    ImGui::Text("Enabled   : %s", light.enabled ? "yes" : "no");
+
+    ImGui::DragFloat("Intensity", &light.intensity, 0.05f, 0.0f, 1000.0f, "%.3f");
+    ImGui::ColorEdit3("Color", &light.color.x);
+    ImGui::DragFloat3("Position", &light.position.x, 0.05f);
+
+    ImGui::TreePop();
+}
+
+static void DrawShadowParamsDebug(LightShadowParams& shadow,
+                                  std::string_view   farPlaneLabel,
+                                  std::string_view   connectionNote,
+                                  bool               showDirectionalGpuNote) {
+    // Keep the debug UI bound directly to LightShadowParams so later shadow-resource
+    // and sampling work can continue from the same runtime state.
+    ImGui::Checkbox("Cast shadow", &shadow.castShadow);
+    ImGui::DragFloat("Depth bias", &shadow.depthBias, 0.0001f, 0.0f, 1.0f, "%.5f");
+    ImGui::DragFloat("Normal bias", &shadow.normalBias, 0.0005f, 0.0f, 10.0f, "%.4f");
+
+    int resolution[2] = {shadow.shadowMapWidth, shadow.shadowMapHeight};
+    if (ImGui::DragInt2("Resolution", resolution, 4.0f, 16, 8192)) {
+        shadow.shadowMapWidth  = resolution[0] < 16 ? 16 : resolution[0];
+        shadow.shadowMapHeight = resolution[1] < 16 ? 16 : resolution[1];
+    }
+
+    ImGui::DragFloat("Near plane", &shadow.nearPlane, 0.01f, 0.001f, 1000.0f, "%.3f");
+    ImGui::DragFloat(farPlaneLabel.data(), &shadow.farPlane, 0.05f, 0.01f, 10000.0f, "%.3f");
+    if (shadow.nearPlane < 0.001f)
+        shadow.nearPlane = 0.001f;
+    if (shadow.farPlane <= shadow.nearPlane)
+        shadow.farPlane = shadow.nearPlane + 0.01f;
+
+    ImGui::SliderInt("PCF radius", &shadow.pcfRadius, 0, 4);
+    if (shadow.pcfRadius < 0)
+        shadow.pcfRadius = 0;
+
+    const int kernelSize  = shadow.pcfRadius * 2 + 1;
+    const int sampleCount = kernelSize * kernelSize;
+    ImGui::Text("Derived PCF kernel: %dx%d (%d taps)", kernelSize, kernelSize, sampleCount);
+    ImGui::TextDisabled("%s", connectionNote.data());
+    if (showDirectionalGpuNote)
+        ImGui::TextDisabled("Directional cast/depth/normal bias are already packed into the light UBO.");
+
+    ImGui::TextDisabled("Slope bias is not modelled in LightShadowParams yet.");
+    ImGui::TextDisabled("PCF enable/sample count are not separate engine fields; kernel is derived from radius only.");
 }
 
 Application::Application() : m_renderer(std::make_unique<Renderer>()) {}
@@ -163,17 +236,13 @@ void Application::Update(Scene& scene) {
     submission.time      = currTime;
     submission.deltaTime = dt;
 
-    const int totalSceneTriangles = CountSceneTriangles(submission.objects);
-
     m_renderer->BeginFrame(submission);
-    m_lastSubmittedItems = 0;
     for (const auto& item : submission.objects) {
         RenderItem drawItem = item;
         if (m_wireframeOverride)
             drawItem.drawMode = DrawMode::Wireframe;
 
         m_renderer->SubmitDraw(drawItem);
-        ++m_lastSubmittedItems;
     }
 
     m_renderer->EndFrame();
@@ -188,12 +257,13 @@ void Application::Update(Scene& scene) {
         ImGui::SetNextWindowBgAlpha(0.87f);
 
         if (ImGui::Begin("Renderer Debug")) {
+            const RendererDebugStats& stats = m_renderer->GetDebugStats();
+            const AssetCacheStats cacheStats = AssetImporter::GetCacheStats();
+            LightEnvironment& liveLights = scene.GetLights();
             // ── Performance ───────────────────────────────────────────────
             ImGui::SeparatorText("Performance");
-            const float frameMs = dt * 1000.0f;
-            const float fps     = (dt > 0.0f) ? (1.0f / dt) : 0.0f;
-            ImGui::Text("Frame time : %.2f ms", frameMs);
-            ImGui::Text("FPS        : %.1f", fps);
+            ImGui::Text("Frame time : %.2f ms", stats.frameTimeMs);
+            ImGui::Text("FPS        : %.1f", stats.fps);
 
             // ── Camera ────────────────────────────────────────────────────
             ImGui::SeparatorText("Camera");
@@ -217,17 +287,163 @@ void Application::Update(Scene& scene) {
             }
 
             // ── Scene ─────────────────────────────────────────────────────
-            ImGui::SeparatorText("Scene");
+            ImGui::SeparatorText("Renderer Stats");
             ImGui::Text("Framebuffer: %d x %d", w, h);
-            ImGui::Text("Draw calls : %d", static_cast<int>(m_lastSubmittedItems));
-            ImGui::Text("Triangles  : %s (world total)",
-                        totalSceneTriangles >= 1000000
-                            ? (std::to_string(totalSceneTriangles / 1000000) + "." +
-                               std::to_string((totalSceneTriangles % 1000000) / 100000) + "M").c_str()
-                            : totalSceneTriangles >= 1000
-                            ? (std::to_string(totalSceneTriangles / 1000) + "." +
-                               std::to_string((totalSceneTriangles % 1000) / 100) + "k").c_str()
-                            : std::to_string(totalSceneTriangles).c_str());
+            ImGui::Text("Submitted  : %u", stats.submittedRenderItemCount);
+            ImGui::Text("Queued     : %u", stats.queuedRenderItemCount);
+            ImGui::Text("Processed  : %u", stats.processedRenderItemCount);
+            ImGui::Text("Draw calls : %u", stats.drawCallCount);
+            ImGui::Text("Approx tris: %s", FormatCompactCount(stats.approxTriangleCount).c_str());
+            if (stats.approxTriangleCountApproximate)
+                ImGui::TextDisabled("Triangle estimate uses index/vertex counts and treats non-triangle topologies as 0.");
+
+            ImGui::SeparatorText("Lighting Debug");
+            ImGui::Text("Directional : %u", stats.directionalLightCount);
+            ImGui::Text("Point lights: %u", stats.pointLightCount);
+            ImGui::Text("Queued casters: %u", stats.shadowCasterCount);
+            if (stats.shadowCasterCountApproximate)
+                ImGui::TextDisabled("Queued caster count comes from accepted RenderItem castShadow flags.");
+
+            ImGui::SeparatorText("Active Lights");
+            ImGui::Text("Directional lights: %d", liveLights.HasDirectionalLight() ? 1 : 0);
+            ImGui::Text("Point lights      : %d", static_cast<int>(liveLights.GetPointLights().size()));
+            ImGui::TextDisabled("Interactive: edits write back to the current scene lights and apply on the next frame.");
+
+            if (liveLights.HasDirectionalLight()) {
+                if (ImGui::TreeNode("Directional Light")) {
+                    DrawDirectionalLightDebug(liveLights.GetDirectionalLight());
+                    ImGui::TreePop();
+                }
+            } else {
+                ImGui::TextDisabled("No directional light in the active scene.");
+            }
+
+            auto& pointLights = liveLights.GetPointLights();
+            if (pointLights.empty()) {
+                ImGui::TextDisabled("No point lights in the active scene.");
+            } else {
+                for (std::size_t i = 0; i < pointLights.size(); ++i) {
+                    ImGui::PushID(static_cast<int>(i));
+                    DrawPointLightDebug(pointLights[i], static_cast<int>(i));
+                    ImGui::PopID();
+                }
+            }
+
+            int directionalShadowLights = 0;
+            if (liveLights.HasDirectionalLight() && liveLights.GetDirectionalLight().shadow.castShadow)
+                directionalShadowLights = 1;
+
+            int pointShadowLights = 0;
+            for (const auto& point : liveLights.GetPointLights()) {
+                if (point.shadow.castShadow)
+                    ++pointShadowLights;
+            }
+
+            int spotShadowLights = 0;
+            for (const auto& spot : liveLights.GetSpotLights()) {
+                if (spot.shadow.castShadow)
+                    ++spotShadowLights;
+            }
+
+            ImGui::SeparatorText("Shadow Debug");
+            ImGui::Text("Directional shadow lights: %d", directionalShadowLights);
+            ImGui::Text("Point shadow lights      : %d", pointShadowLights);
+            ImGui::Text("Spot shadow lights       : %d", spotShadowLights);
+            ImGui::TextDisabled("Interactive: edits write back to per-light shadow config and apply on the next frame.");
+            ImGui::Spacing();
+            ImGui::TextDisabled("Shadow Pass Stats");
+            ImGui::Text("Shadow pass draws        : %u", stats.shadowPassObjectCount);
+            ImGui::Text("Excluded (castShadow=no): %u", stats.shadowPassExcludedObjectCount);
+            ImGui::Text("Receivers (receiveShadow): %u", stats.shadowReceiverCount);
+            ImGui::Text("Queued casters           : %u", stats.shadowCasterCount);
+            if (stats.shadowPassDataAvailable && stats.shadowPassObjectCount == 0)
+                ImGui::TextDisabled("Live directional shadow pass ran, but no submitted object reached the depth draw path.");
+            if (!stats.shadowPassDataAvailable)
+                ImGui::TextDisabled("Directional shadow pass is inactive for this frame, so pass-only counters stay at 0.");
+
+            ImGui::Spacing();
+            ImGui::TextDisabled("Directional Frustum");
+            if (stats.directionalShadowFrustum.available) {
+                ImGui::Text("Focus center (world)     : %.2f, %.2f, %.2f",
+                            stats.directionalShadowFrustum.focusCenterX,
+                            stats.directionalShadowFrustum.focusCenterY,
+                            stats.directionalShadowFrustum.focusCenterZ);
+                ImGui::Text("Light direction          : %.2f, %.2f, %.2f",
+                            stats.directionalShadowFrustum.lightDirectionX,
+                            stats.directionalShadowFrustum.lightDirectionY,
+                            stats.directionalShadowFrustum.lightDirectionZ);
+                ImGui::Text("Ortho radius             : %.2f", stats.directionalShadowFrustum.orthoRadius);
+                ImGui::Text("Near / far clip          : %.2f / %.2f",
+                            stats.directionalShadowFrustum.nearPlane,
+                            stats.directionalShadowFrustum.farPlane);
+                ImGui::TextDisabled("Bounds come from the current coarse caster-fit helper.");
+            } else {
+                ImGui::TextDisabled("Directional frustum info is unavailable for the current frame.");
+            }
+
+            ImGui::Spacing();
+            ImGui::TextDisabled("Shadow Map Preview");
+            if (stats.shadowMapPreviewAvailable) {
+                ImGui::Text("Preview source           : live directional shadow depth texture");
+                ImGui::Text("Preview resolution       : %u x %u", stats.shadowMapWidth, stats.shadowMapHeight);
+
+                const float previewWidth  = 220.0f;
+                const float previewHeight = stats.shadowMapWidth > 0
+                    ? (previewWidth * static_cast<float>(stats.shadowMapHeight) / static_cast<float>(stats.shadowMapWidth))
+                    : previewWidth;
+                ImGui::Image(
+                    reinterpret_cast<ImTextureID>(static_cast<intptr_t>(stats.shadowMapTextureId)),
+                    ImVec2(previewWidth, previewHeight),
+                    ImVec2(0.0f, 1.0f),
+                    ImVec2(1.0f, 0.0f));
+                ImGui::TextDisabled("Preview uses the live shadow map texture handle exposed by Renderer.");
+            } else {
+                ImGui::TextDisabled("Directional shadow map preview is unavailable for the current frame.");
+            }
+
+            ImGui::Spacing();
+            ImGui::TextDisabled("Shadow Controls");
+            if (liveLights.HasDirectionalLight()) {
+                if (ImGui::TreeNode("Directional Shadow")) {
+                    DrawShadowParamsDebug(
+                        liveLights.GetDirectionalLight().shadow,
+                        "Far / extent",
+                        "Resolution is live for directional shadow-map generation; near/far and PCF radius stay on LightShadowParams for future shadow integration.",
+                        true);
+                    ImGui::TreePop();
+                }
+            } else {
+                ImGui::TextDisabled("No directional shadow config in the active scene.");
+            }
+
+            if (pointLights.empty()) {
+                ImGui::TextDisabled("No point-light shadow config in the active scene.");
+            } else {
+                for (std::size_t i = 0; i < pointLights.size(); ++i) {
+                    const std::string label = "Point Shadow " + std::to_string(i + 1);
+                    ImGui::PushID(static_cast<int>(i));
+                    if (ImGui::TreeNode(label.c_str())) {
+                        ImGui::Text("Name      : %s", pointLights[i].name.empty() ? "(unnamed)" : pointLights[i].name.c_str());
+                        DrawShadowParamsDebug(
+                            pointLights[i].shadow,
+                            "Far plane",
+                            "Point-light shadow params stay in scene state until Person 7/8 land the point shadow pass and sampling hooks.",
+                            false);
+                        ImGui::TreePop();
+                    }
+                    ImGui::PopID();
+                }
+            }
+
+            if (!liveLights.GetSpotLights().empty())
+                ImGui::TextDisabled("Spot-light shadow UI is not added in this phase; shadow-enabled count is shown above.");
+
+            ImGui::SeparatorText("Resource Cache");
+            ImGui::Text("Cached total: %zu", cacheStats.TotalCount());
+            ImGui::Text("Shaders     : %zu", cacheStats.shaderCount);
+            ImGui::Text("Textures    : %zu", cacheStats.textureCount);
+            ImGui::Text("Meshes      : %zu", cacheStats.meshCount);
+            ImGui::Text("Materials   : %zu", cacheStats.materialCount);
 
             // ── Renderer ──────────────────────────────────────────────────
             ImGui::SeparatorText("Renderer");

@@ -3,6 +3,7 @@
 #include "scene/LightUtils.h"
 #include "core/KeyboardInput.h"
 #include "core/MouseInput.h"
+#include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
 
 void Scene::SetCamera(Camera camera) {

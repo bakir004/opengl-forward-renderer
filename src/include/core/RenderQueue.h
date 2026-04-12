@@ -1,8 +1,15 @@
 #pragma once
+#include <cstdint>
 #include <vector>
 #include "scene/RenderItem.h"
 
 struct SubmissionContext;
+
+struct RenderQueueFrameStats {
+    uint32_t processedItemCount   = 0;
+    uint32_t drawCallCount        = 0;
+    uint64_t approxTriangleCount  = 0;
+};
 
 /// Collects draw calls for a single frame, sorts them by shader to minimise
 /// shader-switch overhead, then executes them all in one Flush() call.
@@ -12,8 +19,9 @@ struct SubmissionContext;
 ///   2. Renderer::EndFrame() calls Sort() → Flush() → Clear()
 class RenderQueue {
 public:
-    /// Enqueues one item.  Items with visible=false, null mesh, or null shader are silently dropped.
-    void Add(const RenderItem& item);
+    /// Enqueues one item and returns true if it made it into the queue.
+    /// Items with visible=false, no geometry, or no usable shader path are silently dropped.
+    [[nodiscard]] bool Add(const RenderItem& item);
 
     /// Sorts the queue by shader pointer to minimise shader-program switches.
     /// Items without a shader (defensive; Add already filters them) sort to the end.
@@ -23,7 +31,7 @@ public:
     ///   - Tracks the last bound shader; rebinds only on change.
     ///   - Sets glPolygonMode per DrawMode; resets to GL_FILL after the last item.
     ///   - Writes u_Model and u_NormalMatrix uniforms per object.
-    void Flush(SubmissionContext& current);
+    [[nodiscard]] RenderQueueFrameStats Flush(SubmissionContext& current);
 
     /// Clears all queued items (keeps reserved capacity for the next frame).
     void Clear();

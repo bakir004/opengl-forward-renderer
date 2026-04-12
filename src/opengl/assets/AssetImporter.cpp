@@ -107,6 +107,15 @@ std::size_t AssetImporter::CachedCount() {
     return s_shaders.size() + s_textures.size() + s_meshes.size() + s_materials.size();
 }
 
+AssetCacheStats AssetImporter::GetCacheStats() {
+    AssetCacheStats stats{};
+    stats.shaderCount   = s_shaders.size();
+    stats.textureCount  = s_textures.size();
+    stats.meshCount     = s_meshes.size();
+    stats.materialCount = s_materials.size();
+    return stats;
+}
+
 // ---------------------------------------------------------------------------
 //  Internal: ImportShader
 //

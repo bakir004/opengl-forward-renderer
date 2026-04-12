@@ -89,6 +89,62 @@ if [ -f "$BUILD_DIR/CMakeCache.txt" ]; then
     fi
 fi
 
+if [ ! -f "imgui.ini" ]; then
+    touch "imgui.ini"
+    echo "Created local imgui.ini"
+fi
+
+detect_jobs() {
+    if command -v nproc >/dev/null 2>&1; then
+        nproc
+        return
+    fi
+
+    if command -v getconf >/dev/null 2>&1; then
+        getconf _NPROCESSORS_ONLN
+        return
+    fi
+
+    if command -v sysctl >/dev/null 2>&1; then
+        sysctl -n hw.logicalcpu 2>/dev/null || echo 1
+        return
+    fi
+
+    echo 1
+}
+
+JOBS="$(detect_jobs)"
+if ! [[ "$JOBS" =~ ^[0-9]+$ ]] || [ "$JOBS" -lt 1 ]; then
+    JOBS=1
+fi
+
+GENERATOR="${CMAKE_GENERATOR:-}"
+if [ -z "$GENERATOR" ]; then
+    if command -v ninja >/dev/null 2>&1; then
+        GENERATOR="Ninja"
+    else
+        GENERATOR="Unix Makefiles"
+    fi
+fi
+
+if [ "$GENERATOR" = "Ninja" ] && ! command -v ninja >/dev/null 2>&1; then
+    echo "Error: CMAKE_GENERATOR=Ninja is set, but 'ninja' is not installed."
+    exit 1
+fi
+
+if [ "$GENERATOR" = "Unix Makefiles" ] && ! command -v make >/dev/null 2>&1; then
+    echo "Error: Unix Makefiles generator selected, but 'make' is not installed."
+    exit 1
+fi
+
+if [ -f "$BUILD_DIR/CMakeCache.txt" ]; then
+    CACHED_GENERATOR="$(grep -E '^CMAKE_GENERATOR:INTERNAL=' "$BUILD_DIR/CMakeCache.txt" | sed 's/^CMAKE_GENERATOR:INTERNAL=//' || true)"
+    if [ -n "$CACHED_GENERATOR" ] && [ "$CACHED_GENERATOR" != "$GENERATOR" ]; then
+        echo "Existing CMake cache uses generator '$CACHED_GENERATOR'. Recreating $BUILD_DIR..."
+        rm -rf "$BUILD_DIR"
+    fi
+fi
+
 # Ensure build directory exists
 mkdir -p "$BUILD_DIR"
 
