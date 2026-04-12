@@ -27,9 +27,15 @@ static void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 
 static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
     auto app = static_cast<Application*>(glfwGetWindowUserPointer(window));
-    if (app && app->GetMouseInput()) {
+    if (!app || !app->GetMouseInput())
+        return;
+
+    // Route wheel input to camera only when UI is not actively consuming mouse input.
+    // Exception: while cursor is captured for mouselook/game control, keep camera zoom active.
+    const bool uiWantsMouse = ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse;
+    const bool allowCameraScroll = app->GetMouseInput()->IsCaptured() || !uiWantsMouse;
+    if (allowCameraScroll)
         app->GetMouseInput()->OnScroll(static_cast<float>(yoffset));
-    }
 }
 
 static std::string FormatCompactCount(uint64_t value) {
@@ -256,7 +262,10 @@ void Application::Update(Scene& scene) {
         ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowBgAlpha(0.87f);
 
-        if (ImGui::Begin("Renderer Debug")) {
+        const bool lookModeActive = (m_mouse && m_mouse->IsCaptured());
+        const ImGuiWindowFlags debugWindowFlags = lookModeActive ? ImGuiWindowFlags_NoMouseInputs : 0;
+
+        if (ImGui::Begin("Renderer Debug", nullptr, debugWindowFlags)) {
             const RendererDebugStats& stats = m_renderer->GetDebugStats();
             const AssetCacheStats cacheStats = AssetImporter::GetCacheStats();
             LightEnvironment& liveLights = scene.GetLights();
