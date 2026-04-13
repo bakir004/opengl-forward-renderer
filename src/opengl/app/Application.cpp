@@ -88,10 +88,11 @@ static void DrawDirectionalLightDebug(DirectionalLight& light) {
     ImGui::TextDisabled("XYZ: %.3f, %.3f, %.3f", d.x, d.y, d.z);
 }
 
-static void DrawPointLightDebug(PointLight& light, int index) {
+// Returns true if the light should be removed.
+static bool DrawPointLightDebug(PointLight& light, int index, const glm::vec3& cameraPos) {
     const std::string label = "Point Light " + std::to_string(index + 1);
     if (!ImGui::TreeNode(label.c_str()))
-        return;
+        return false;
 
     ImGui::Text("Name      : %s", light.name.empty() ? "(unnamed)" : light.name.c_str());
     ImGui::Text("Enabled   : %s", light.enabled ? "yes" : "no");
@@ -99,8 +100,22 @@ static void DrawPointLightDebug(PointLight& light, int index) {
     ImGui::DragFloat("Intensity", &light.intensity, 0.05f, 0.0f, 1000.0f, "%.3f");
     ImGui::ColorEdit3("Color", &light.color.x);
     ImGui::DragFloat3("Position", &light.position.x, 0.05f);
+    ImGui::DragFloat("Radius", &light.radius, 0.5f, 0.1f, 500.0f, "%.1f");
+
+    if (ImGui::Button("Move to camera"))
+        light.position = cameraPos;
+    ImGui::SameLine();
+    ImGui::TextDisabled("(%.2f, %.2f, %.2f)", cameraPos.x, cameraPos.y, cameraPos.z);
+
+    ImGui::Spacing();
+    ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.6f, 0.1f, 0.1f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.5f, 0.05f, 0.05f, 1.0f));
+    const bool remove = ImGui::Button("Remove light");
+    ImGui::PopStyleColor(3);
 
     ImGui::TreePop();
+    return remove;
 }
 
 static void DrawShadowParamsDebug(LightShadowParams& shadow,
@@ -349,14 +364,38 @@ void Application::Update(Scene& scene) {
             }
 
             auto& pointLights = liveLights.GetPointLights();
+            const glm::vec3 camPos = submission.camera ? submission.camera->GetPosition() : glm::vec3(0.0f);
+
+            // Add button — placed before the list so it's always visible
+            const bool atMax = static_cast<int>(pointLights.size()) >= kMaxPointLights;
+            if (atMax) ImGui::BeginDisabled();
+            if (ImGui::Button("+ Add point light")) {
+                PointLight newLight;
+                newLight.position  = camPos;
+                newLight.color     = {1.0f, 1.0f, 1.0f};
+                newLight.intensity = 3.0f;
+                newLight.radius    = 20.0f;
+                newLight.name      = "Light " + std::to_string(pointLights.size() + 1);
+                liveLights.AddPointLight(newLight);
+            }
+            if (atMax) {
+                ImGui::EndDisabled();
+                ImGui::SameLine();
+                ImGui::TextDisabled("(max %d reached)", kMaxPointLights);
+            }
+
             if (pointLights.empty()) {
                 ImGui::TextDisabled("No point lights in the active scene.");
             } else {
+                int removeIndex = -1;
                 for (std::size_t i = 0; i < pointLights.size(); ++i) {
                     ImGui::PushID(static_cast<int>(i));
-                    DrawPointLightDebug(pointLights[i], static_cast<int>(i));
+                    if (DrawPointLightDebug(pointLights[i], static_cast<int>(i), camPos))
+                        removeIndex = static_cast<int>(i);
                     ImGui::PopID();
                 }
+                if (removeIndex >= 0)
+                    pointLights.erase(pointLights.begin() + removeIndex);
             }
 
             int directionalShadowLights = 0;

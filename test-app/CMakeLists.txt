@@ -11,6 +11,8 @@ add_executable(${PROJECT_NAME}
         src/SolarSystemScene.cpp
         src/DioramaScene.h
         src/DioramaScene.cpp
+        src/NeonCityScene.h
+        src/NeonCityScene.cpp
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE

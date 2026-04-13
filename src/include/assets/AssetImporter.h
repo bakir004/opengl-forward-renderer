@@ -1,5 +1,6 @@
 #pragma once
 
+#include "assets/ModelData.h"
 #include "core/Texture2D.h"
 #include <cstddef>
 #include <memory>
@@ -90,6 +91,12 @@ public:
     /// Returns the first mesh in the file. For multi-mesh files use LoadModel().
     static std::shared_ptr<MeshBuffer> LoadMesh(const std::string& path);
 
+    /// Loads (or returns cached) a multi-material model.
+    /// Returns a ModelData with one SubMesh per Assimp aiMesh and one
+    /// ModelMaterialInfo per unique material (with the diffuse texture path).
+    /// Use this instead of LoadMesh when a model has multiple materials.
+    static ModelData LoadModel(const std::string& path);
+
     /// Loads a Material from a JSON .mat descriptor file.
     /// The .mat file references shader paths and texture paths.
     static std::shared_ptr<Material> LoadMaterial(const std::string& path);
@@ -118,6 +125,7 @@ private:
     static std::unordered_map<std::string, std::shared_ptr<Texture2D>>     s_textures;
     static std::unordered_map<std::string, std::shared_ptr<MeshBuffer>>    s_meshes;
     static std::unordered_map<std::string, std::shared_ptr<Material>>      s_materials;
+    static std::unordered_map<std::string, ModelData>                      s_models;
 
     // Internal helpers
     static std::string        ResolvePath(const std::string& path);
