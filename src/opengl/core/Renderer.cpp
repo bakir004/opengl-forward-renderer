@@ -2,13 +2,14 @@
 #include "core/Camera.h"
 #include "core/Mesh.h"
 #include "core/MeshBuffer.h"
-#include "core/shadows/ShadowMap.h"
+#include "core/shadows/CascadedShadowMap.h"
 #include "scene/FrameSubmission.h"
 #include "scene/LightBlock.h"
 #include "scene/LightUtils.h"
 #include "scene/RenderItem.h"
 #include <glad/glad.h>
 #include <algorithm>
+#include <array>
 #include <glm/geometric.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -20,6 +21,19 @@ namespace
 {
 
     constexpr float kMinShadowSceneRadius = 5.0f;
+    // How far from the camera the cascades cover. Anything beyond receives no shadow.
+    // Deliberately smaller than the world far plane so near-camera cascades stay tight.
+    constexpr float kCascadeShadowMaxDistance = 150.0f;
+    // Practical split lambda: 0 = uniform splits, 1 = logarithmic splits.
+    // Values near 1.0 put most shadow-map resolution into near cascades.
+    constexpr float kCascadeSplitLambda = 0.9f;
+    // World-space distance the light-space near plane is pulled back so casters
+    // between the light and the view slice (e.g. tree canopies above the camera)
+    // still write into the depth map. Must be a fixed absolute value — a ratio
+    // collapses to near-zero for tight near cascades.
+    constexpr float kCascadeCasterPullback = 80.0f;
+    // Small padding on the far side (away from the light) to cover numerical slop.
+    constexpr float kCascadeFarPadding = 5.0f;
 
     GLenum ToGLPrimitive(PrimitiveTopology topology)
     {
@@ -127,6 +141,8 @@ namespace
         stats.shadowMapWidth = 0;
         stats.shadowMapHeight = 0;
         stats.shadowMapPreviewAvailable = false;
+        stats.cascadePreviewTextureIds.fill(0);
+        stats.cascadeSplitDistances.fill(0.0f);
         stats.directionalShadowFrustum = {};
 
         for (const RenderItem &item : submission.objects)
@@ -208,11 +224,16 @@ void Renderer::EndFrame()
 {
     assert(m_inFrame && "EndFrame() called without a matching BeginFrame()");
 
-    // Pass shadow data to queue before flushing
+    // Pass cascade matrices + split distances + depth array + PCF radius to the queue.
     if (m_directionalShadowMap && m_directionalShadowMap->IsValid())
     {
-        m_queue.SetDirectionalShadowData(m_directionalLightViewProj,
-                                         m_directionalShadowMap->GetDepthTexture());
+        int pcfRadius = 1;
+        if (m_debugStats.shadowPassDataAvailable)
+            pcfRadius = m_shadowPcfRadius;
+        m_queue.SetDirectionalShadowData(m_cascadeViewProj,
+                                         m_cascadeSplits,
+                                         m_directionalShadowMap->GetDepthTextureArray(),
+                                         pcfRadius);
     }
 
     m_queue.Sort();
@@ -241,33 +262,127 @@ void Renderer::Resize(int width, int height)
                   width, height);
 }
 
+namespace
+{
+    // Computes view-space cascade split distances using the practical scheme:
+    //   blend of uniform and logarithmic splits controlled by `lambda`.
+    // Splits are stored as positive view-space distances from the camera.
+    std::array<float, CascadedShadowMap::kNumCascades>
+    ComputeCascadeSplits(float nearClip, float farClip, float lambda)
+    {
+        std::array<float, CascadedShadowMap::kNumCascades> splits{};
+        const float range = farClip - nearClip;
+        const float ratio = farClip / std::max(nearClip, 0.0001f);
+        for (uint32_t i = 0; i < CascadedShadowMap::kNumCascades; ++i) {
+            const float p = static_cast<float>(i + 1) / static_cast<float>(CascadedShadowMap::kNumCascades);
+            const float logSplit = nearClip * std::pow(ratio, p);
+            const float uniSplit = nearClip + range * p;
+            splits[i] = lambda * logSplit + (1.0f - lambda) * uniSplit;
+        }
+        return splits;
+    }
+
+    // Builds a *stable* directional-light view-projection matrix for one cascade.
+    //
+    // Stabilization strategy (standard CSM technique):
+    //  1. Compute 8 world-space corners of the view-frustum slice.
+    //  2. Fit a bounding *sphere* to the 8 corners. Sphere center and radius
+    //     are rotation-invariant, so they don't change when the camera rotates.
+    //  3. Use the sphere radius as half the ortho side — width = height always,
+    //     so the projected image fits the square shadow-map texture without
+    //     stretching and the ortho size is camera-orientation-independent.
+    //  4. Snap the sphere center to whole-texel increments in light space so
+    //     shadow edges stay pinned to texels instead of crawling as the camera
+    //     translates.
+    glm::mat4 BuildCascadeViewProjection(const Camera& camera,
+                                         const glm::vec3& lightDirection,
+                                         float sliceNear,
+                                         float sliceFar,
+                                         uint32_t shadowMapSize)
+    {
+        const glm::mat4 sliceProj = glm::perspective(
+            glm::radians(camera.GetFOV()),
+            camera.GetAspect(),
+            sliceNear,
+            sliceFar);
+        const glm::mat4 invViewProj = glm::inverse(sliceProj * camera.GetView());
+
+        std::array<glm::vec3, 8> corners{};
+        int idx = 0;
+        for (int x = 0; x < 2; ++x) {
+            for (int y = 0; y < 2; ++y) {
+                for (int z = 0; z < 2; ++z) {
+                    const glm::vec4 ndc(
+                        2.0f * static_cast<float>(x) - 1.0f,
+                        2.0f * static_cast<float>(y) - 1.0f,
+                        2.0f * static_cast<float>(z) - 1.0f,
+                        1.0f);
+                    const glm::vec4 world = invViewProj * ndc;
+                    corners[idx++] = glm::vec3(world) / world.w;
+                }
+            }
+        }
+
+        // Bounding sphere: centroid + max distance from centroid.
+        glm::vec3 centroid(0.0f);
+        for (const glm::vec3& c : corners) centroid += c;
+        centroid /= 8.0f;
+
+        float radius = 0.0f;
+        for (const glm::vec3& c : corners)
+            radius = std::max(radius, glm::length(c - centroid));
+        // Round up slightly so the sphere size is quantized and doesn't breathe
+        // with sub-pixel camera translation.
+        radius = std::ceil(radius * 16.0f) / 16.0f;
+
+        const glm::vec3 up = (std::abs(glm::dot(lightDirection, glm::vec3(0, 1, 0))) < 0.99f)
+                                 ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0);
+        const glm::mat4 lightView = glm::lookAt(centroid - lightDirection * radius,
+                                                centroid,
+                                                up);
+
+        // Snap the light-space centroid to whole-texel increments. The ortho
+        // covers [-radius, +radius], so one texel is (2*radius)/shadowMapSize
+        // world units wide.
+        const float texelSize = (2.0f * radius) / static_cast<float>(shadowMapSize);
+        glm::vec3 centroidLightSpace = glm::vec3(lightView * glm::vec4(centroid, 1.0f));
+        centroidLightSpace.x = std::floor(centroidLightSpace.x / texelSize) * texelSize;
+        centroidLightSpace.y = std::floor(centroidLightSpace.y / texelSize) * texelSize;
+        // Rebuild the view matrix so its origin lands on the snapped centroid.
+        const glm::vec3 snappedCentroidWorld = glm::vec3(glm::inverse(lightView) * glm::vec4(centroidLightSpace, 1.0f));
+        const glm::mat4 stableLightView = glm::lookAt(snappedCentroidWorld - lightDirection * radius,
+                                                      snappedCentroidWorld,
+                                                      up);
+
+        // Square, camera-rotation-invariant ortho. Z extends on the light-facing
+        // side to catch casters above the view slice (kCascadeCasterPullback).
+        const float nearZ = -(radius + kCascadeCasterPullback);
+        const float farZ  = +(radius + kCascadeFarPadding);
+        const glm::mat4 lightProj = glm::ortho(
+            -radius, +radius,
+            -radius, +radius,
+            nearZ, farZ);
+
+        return lightProj * stableLightView;
+    }
+} // namespace
+
 void Renderer::RenderDirectionalShadowPass(const FrameSubmission &submission)
 {
-    if (!submission.lights.HasDirectionalLight())
+    m_debugStats.directionalShadowFrustum = {};
+
+    if (!submission.lights.HasDirectionalLight() || !submission.camera)
         return;
 
     const DirectionalLight &light = submission.lights.GetDirectionalLight();
     if (!light.enabled || !light.shadow.castShadow)
         return;
 
-    const ShadowSceneBounds bounds = ComputeDirectionalShadowBounds(submission.objects);
     glm::vec3 lightDirection = light.direction;
     if (glm::length(lightDirection) <= 0.0001f)
         lightDirection = glm::vec3(0.0f, -1.0f, 0.0f);
     else
         lightDirection = glm::normalize(lightDirection);
-
-    const float shadowFarClip = light.shadow.nearPlane + bounds.radius * 2.0f + light.shadow.farPlane;
-    m_debugStats.directionalShadowFrustum.focusCenterX = bounds.center.x;
-    m_debugStats.directionalShadowFrustum.focusCenterY = bounds.center.y;
-    m_debugStats.directionalShadowFrustum.focusCenterZ = bounds.center.z;
-    m_debugStats.directionalShadowFrustum.lightDirectionX = lightDirection.x;
-    m_debugStats.directionalShadowFrustum.lightDirectionY = lightDirection.y;
-    m_debugStats.directionalShadowFrustum.lightDirectionZ = lightDirection.z;
-    m_debugStats.directionalShadowFrustum.orthoRadius = bounds.radius;
-    m_debugStats.directionalShadowFrustum.nearPlane = light.shadow.nearPlane;
-    m_debugStats.directionalShadowFrustum.farPlane = shadowFarClip;
-    m_debugStats.directionalShadowFrustum.available = true;
 
     if (!m_shadowDepthShader || !m_shadowDepthShader->IsValid())
     {
@@ -282,17 +397,32 @@ void Renderer::RenderDirectionalShadowPass(const FrameSubmission &submission)
         m_directionalShadowMap->GetWidth() != shadowWidth ||
         m_directionalShadowMap->GetHeight() != shadowHeight)
     {
-        m_directionalShadowMap = std::make_unique<ShadowMap>(shadowWidth, shadowHeight);
+        m_directionalShadowMap = std::make_unique<CascadedShadowMap>(shadowWidth, shadowHeight);
     }
 
     if (!m_directionalShadowMap || !m_directionalShadowMap->IsValid())
         return;
 
-    const glm::mat4 lightViewProj = LightUtils::DirectionalLightViewProjection(
-        light, bounds.center, bounds.radius);
+    // Cascade splits are expressed as positive view-space distances from the
+    // camera. The first cascade starts at camera near; the last ends at
+    // min(camera.far, kCascadeShadowMaxDistance).
+    const float camNear = submission.camera->GetNear();
+    const float camFar  = std::min(submission.camera->GetFar(), kCascadeShadowMaxDistance);
+    m_cascadeSplits = ComputeCascadeSplits(camNear, camFar, kCascadeSplitLambda);
+    m_shadowPcfRadius = std::max(0, light.shadow.pcfRadius);
 
-    // Store for use in forward pass
-    m_directionalLightViewProj = lightViewProj;
+    // Populate debug frustum with broad scene bounds (still useful for UI).
+    const ShadowSceneBounds bounds = ComputeDirectionalShadowBounds(submission.objects);
+    m_debugStats.directionalShadowFrustum.focusCenterX = bounds.center.x;
+    m_debugStats.directionalShadowFrustum.focusCenterY = bounds.center.y;
+    m_debugStats.directionalShadowFrustum.focusCenterZ = bounds.center.z;
+    m_debugStats.directionalShadowFrustum.lightDirectionX = lightDirection.x;
+    m_debugStats.directionalShadowFrustum.lightDirectionY = lightDirection.y;
+    m_debugStats.directionalShadowFrustum.lightDirectionZ = lightDirection.z;
+    m_debugStats.directionalShadowFrustum.orthoRadius = bounds.radius;
+    m_debugStats.directionalShadowFrustum.nearPlane = camNear;
+    m_debugStats.directionalShadowFrustum.farPlane = camFar;
+    m_debugStats.directionalShadowFrustum.available = true;
 
     SubmissionContext shadowContext{};
     shadowContext.depthTestEnabled = true;
@@ -302,41 +432,67 @@ void Renderer::RenderDirectionalShadowPass(const FrameSubmission &submission)
     shadowContext.cullMode = CullMode::Back;
     shadowContext.Apply(m_currentContext);
 
-    m_directionalShadowMap->Bind();
-    glClear(GL_DEPTH_BUFFER_BIT);
-
     m_shadowDepthShader->Bind();
-    m_shadowDepthShader->SetUniform("u_LightViewProj", lightViewProj);
+
+    // Polygon offset pushes depth written into the shadow map slightly away
+    // from the light, eliminating self-shadow acne on lit surfaces without
+    // the heavy cost of a large constant bias.
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(2.0f, 4.0f);
 
     uint32_t shadowPassObjectCount = 0;
-    for (const RenderItem &item : submission.objects)
+    for (uint32_t cascade = 0; cascade < CascadedShadowMap::kNumCascades; ++cascade)
     {
-        if (!CanRenderInDirectionalShadowPass(item))
-            continue;
+        const float sliceNear = (cascade == 0) ? camNear : m_cascadeSplits[cascade - 1];
+        const float sliceFar  = m_cascadeSplits[cascade];
 
-        m_shadowDepthShader->SetUniform("u_Model", BuildItemModelMatrix(item));
+        const glm::mat4 cascadeVP = BuildCascadeViewProjection(
+            *submission.camera, lightDirection, sliceNear, sliceFar, shadowWidth);
+        m_cascadeViewProj[cascade] = cascadeVP;
 
-        if (item.meshMulti)
+        m_directionalShadowMap->BindLayer(cascade);
+        glClear(GL_DEPTH_BUFFER_BIT);
+
+        m_shadowDepthShader->SetUniform("u_LightViewProj", cascadeVP);
+
+        for (const RenderItem &item : submission.objects)
         {
-            if (item.subMeshIndex >= item.meshMulti->SubMeshCount())
+            if (!CanRenderInDirectionalShadowPass(item))
                 continue;
-            item.meshMulti->DrawSubMesh(item.subMeshIndex);
-            ++shadowPassObjectCount;
-        }
-        else if (item.mesh)
-        {
-            item.mesh->Draw(ToGLPrimitive(item.topology));
-            ++shadowPassObjectCount;
+
+            m_shadowDepthShader->SetUniform("u_Model", BuildItemModelMatrix(item));
+
+            if (item.meshMulti)
+            {
+                if (item.subMeshIndex >= item.meshMulti->SubMeshCount())
+                    continue;
+                item.meshMulti->DrawSubMesh(item.subMeshIndex);
+                ++shadowPassObjectCount;
+            }
+            else if (item.mesh)
+            {
+                item.mesh->Draw(ToGLPrimitive(item.topology));
+                ++shadowPassObjectCount;
+            }
         }
     }
+
+    glDisable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(0.0f, 0.0f);
 
     m_directionalShadowMap->Unbind();
     ShaderProgram::Unbind();
 
     m_debugStats.shadowPassDataAvailable = true;
+    // Per-cascade 2D texture views (aliased via glTextureView) make the depth
+    // array's individual layers previewable in ImGui::Image.
     m_debugStats.shadowMapPreviewAvailable = true;
     m_debugStats.shadowPassObjectCount = shadowPassObjectCount;
-    m_debugStats.shadowMapTextureId = m_directionalShadowMap->GetDepthTexture();
+    m_debugStats.shadowMapTextureId = m_directionalShadowMap->GetLayerPreviewTexture(0);
     m_debugStats.shadowMapWidth = m_directionalShadowMap->GetWidth();
     m_debugStats.shadowMapHeight = m_directionalShadowMap->GetHeight();
+    for (uint32_t i = 0; i < CascadedShadowMap::kNumCascades; ++i) {
+        m_debugStats.cascadePreviewTextureIds[i] = m_directionalShadowMap->GetLayerPreviewTexture(i);
+        m_debugStats.cascadeSplitDistances[i] = m_cascadeSplits[i];
+    }
 }

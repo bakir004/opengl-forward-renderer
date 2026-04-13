@@ -10,6 +10,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <algorithm>
+#include <string>
 #include <spdlog/spdlog.h>
 
 static GLenum ToGLPrimitive(PrimitiveTopology topology)
@@ -177,16 +178,22 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
             const glm::mat3 normalMat = glm::transpose(glm::inverse(glm::mat3(model)));
             activeShader->SetUniform("u_NormalMatrix", normalMat);
 
-            // ── Shadow data (directional light only) ──────────────────────
+            // ── Cascaded shadow data (directional light only) ─────────────
             if (m_hasShadowData && item.flags.receiveShadow)
             {
-                activeShader->SetUniform("u_DirectionalLightViewProj", m_shadowLightViewProj);
+                for (uint32_t i = 0; i < CascadedShadowMap::kNumCascades; ++i)
+                {
+                    const std::string idx = "[" + std::to_string(i) + "]";
+                    activeShader->SetUniform(("u_CascadeViewProj" + idx).c_str(), m_cascadeViewProj[i]);
+                    activeShader->SetUniform(("u_CascadeSplits"   + idx).c_str(), m_cascadeSplits[i]);
+                }
 
-                // Bind shadow map to texture unit 7
+                // Bind the cascade depth array to texture unit 7.
                 glActiveTexture(GL_TEXTURE0 + 7);
-                glBindTexture(GL_TEXTURE_2D, m_shadowMapTextureId);
-                activeShader->SetUniform("u_ShadowMap", 7);
-                glActiveTexture(GL_TEXTURE0); // Reset to default
+                glBindTexture(GL_TEXTURE_2D_ARRAY, m_shadowMapTextureArrayId);
+                activeShader->SetUniform("u_CascadeShadowMaps", 7);
+                activeShader->SetUniform("u_PCFRadius", m_pcfRadius);
+                glActiveTexture(GL_TEXTURE0);
             }
         }
 
@@ -225,9 +232,15 @@ bool RenderQueue::IsEmpty() const
     return m_items.empty();
 }
 
-void RenderQueue::SetDirectionalShadowData(const glm::mat4 &lightViewProj, uint32_t shadowMapTextureId)
+void RenderQueue::SetDirectionalShadowData(
+    const std::array<glm::mat4, CascadedShadowMap::kNumCascades> &cascadeViewProj,
+    const std::array<float,     CascadedShadowMap::kNumCascades> &cascadeSplits,
+    uint32_t shadowMapTextureArrayId,
+    int pcfRadius)
 {
-    m_shadowLightViewProj = lightViewProj;
-    m_shadowMapTextureId = shadowMapTextureId;
-    m_hasShadowData = (shadowMapTextureId != 0);
+    m_cascadeViewProj = cascadeViewProj;
+    m_cascadeSplits   = cascadeSplits;
+    m_shadowMapTextureArrayId = shadowMapTextureArrayId;
+    m_pcfRadius = pcfRadius;
+    m_hasShadowData = (shadowMapTextureArrayId != 0);
 }
