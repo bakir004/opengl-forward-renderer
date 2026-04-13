@@ -1,8 +1,9 @@
-in vec3 v_Normal;
-in vec3 v_WorldPos;
-in vec2 v_UV;
-// --- ADDED --- Fragment position in light space for shadow sampling
-in vec4 v_LightSpacePos;
+const int NUM_CASCADES = 4;
+
+in vec3  v_Normal;
+in vec3  v_WorldPos;
+in vec2  v_UV;
+in float v_ViewDepth;
 
 layout(std140, binding = 0) uniform Camera {
     mat4 view;
@@ -14,12 +15,14 @@ layout(std140, binding = 0) uniform Camera {
 
 #include "light_block.glsl"
 
-uniform sampler2D u_AlbedoMap;
-// --- ADDED --- Shadow map texture
-uniform sampler2D u_ShadowMap;
-uniform vec4      u_TintColor = vec4(1.0);
-uniform float     u_Shininess = 64.0;
-uniform float     u_SpecularStrength = 0.35;
+uniform sampler2D      u_AlbedoMap;
+uniform sampler2DArray u_CascadeShadowMaps;
+uniform mat4           u_CascadeViewProj[NUM_CASCADES];
+uniform float          u_CascadeSplits[NUM_CASCADES];
+uniform int            u_PCFRadius = 1;
+uniform vec4           u_TintColor = vec4(1.0);
+uniform float          u_Shininess = 64.0;
+uniform float          u_SpecularStrength = 0.35;
 
 out vec4 FragColor;
 
@@ -36,39 +39,91 @@ float BlinnPhongSpecular(vec3 n, vec3 l, vec3 v, float shininess)
     return pow(max(dot(n, h), 0.0), shininess);
 }
 
-// --- ADDED --- Calculate shadow factor with PCF (3x3 kernel)
-float CalculateShadow(vec4 lightSpacePos)
+// Picks the tightest cascade that still covers this fragment's view-space depth.
+int SelectCascade(float viewDepth)
 {
-    // Perspective divide to get NDC
+    for (int i = 0; i < NUM_CASCADES; ++i) {
+        if (viewDepth < u_CascadeSplits[i])
+            return i;
+    }
+    return NUM_CASCADES - 1;
+}
+
+// Fraction of each cascade's range used as a blend zone into the next cascade.
+// Inside this zone we sample both cascades and lerp; outside, only one.
+const float CASCADE_BLEND_FRACTION = 0.15;
+
+// Samples one cascade with PCF. Returns [0,1] occlusion where 1 is fully shadowed.
+float SampleCascade(int cascade, vec3 worldPos, float bias)
+{
+    vec4 lightSpacePos = u_CascadeViewProj[cascade] * vec4(worldPos, 1.0);
     vec3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
-    
-    // Transform from [-1,1] to [0,1]
     projCoords = projCoords * 0.5 + 0.5;
-    
-    // Clamp to shadow map bounds to avoid sampling outside
-    if (projCoords.z > 1.0 || projCoords.x < 0.0 || projCoords.x > 1.0 || 
+
+    if (projCoords.z > 1.0 || projCoords.x < 0.0 || projCoords.x > 1.0 ||
         projCoords.y < 0.0 || projCoords.y > 1.0)
-        return 0.0; // No shadow outside shadow map
-    
-    // Get closest depth from shadow map
-    float closestDepth = texture(u_ShadowMap, projCoords.xy).r;
+        return 0.0;
+
+    vec2 texelSize = 1.0 / vec2(textureSize(u_CascadeShadowMaps, 0).xy);
     float currentDepth = projCoords.z;
-    
-    // Bias to prevent shadow acne
-    float bias = 0.005;
-    
-    // PCF: 3x3 kernel for soft shadows
+
+    int radius = clamp(u_PCFRadius, 0, 4);
+    if (radius == 0) {
+        float d = texture(u_CascadeShadowMaps,
+                          vec3(projCoords.xy, float(cascade))).r;
+        return (currentDepth - bias) > d ? 1.0 : 0.0;
+    }
+
     float shadow = 0.0;
-    vec2 texelSize = 1.0 / textureSize(u_ShadowMap, 0);
-    
-    for (int x = -1; x <= 1; ++x) {
-        for (int y = -1; y <= 1; ++y) {
-            float pcfDepth = texture(u_ShadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
-            shadow += (currentDepth - bias) > pcfDepth ? 0.5 : 0.0; // 0.5 for soft 3x3
+    float samples = 0.0;
+    for (int x = -radius; x <= radius; ++x) {
+        for (int y = -radius; y <= radius; ++y) {
+            vec2 offset = vec2(x, y) * texelSize;
+            float pcfDepth = texture(
+                u_CascadeShadowMaps,
+                vec3(projCoords.xy + offset, float(cascade))).r;
+            shadow += (currentDepth - bias) > pcfDepth ? 1.0 : 0.0;
+            samples += 1.0;
         }
     }
-    shadow /= 9.0; // Average 9 samples
-    
+    return shadow / samples;
+}
+
+float CascadeBias(int cascade, float slope)
+{
+    // Slope-scaled bias, looser on far cascades where texels are larger.
+    float bias = max(0.005 * slope, 0.0015);
+    return bias * (1.0 + float(cascade) * 0.75);
+}
+
+// Picks the tightest cascade for this fragment, samples it with PCF, and
+// cross-fades into the next cascade near the split boundary so the transition
+// isn't visibly stepped.
+float CalculateShadow(vec3 worldPos, vec3 normal, vec3 lightDir, float viewDepth)
+{
+    int cascade = SelectCascade(viewDepth);
+
+    float slope = 1.0 - max(dot(normal, lightDir), 0.0);
+    float bias  = CascadeBias(cascade, slope);
+    float shadow = SampleCascade(cascade, worldPos, bias);
+
+    // Only blend forward if there is a next cascade to blend into.
+    if (cascade < NUM_CASCADES - 1) {
+        float splitNear = (cascade == 0) ? 0.0 : u_CascadeSplits[cascade - 1];
+        float splitFar  = u_CascadeSplits[cascade];
+        float blendStart = mix(splitFar, splitNear, CASCADE_BLEND_FRACTION);
+
+        if (viewDepth > blendStart) {
+            float t = (viewDepth - blendStart) / max(splitFar - blendStart, 0.0001);
+            t = clamp(t, 0.0, 1.0);
+            // Smoothstep feels more natural than a linear ramp for shadow blends.
+            t = t * t * (3.0 - 2.0 * t);
+
+            float nextBias   = CascadeBias(cascade + 1, slope);
+            float nextShadow = SampleCascade(cascade + 1, worldPos, nextBias);
+            shadow = mix(shadow, nextShadow, t);
+        }
+    }
     return shadow;
 }
 
@@ -105,12 +160,9 @@ vec3 DirectionalLighting(vec3 albedo, vec3 n, vec3 v)
 
     vec3 diffuseColor = albedo * irradiance * diffuse;
     vec3 specColor = irradiance * (u_SpecularStrength * spec);
-    
-    // --- ADDED --- Apply directional shadow
-    float shadow = CalculateShadow(v_LightSpacePos);
-    vec3 result = (diffuseColor + specColor) * (1.0 - shadow);
-    
-    return result;
+
+    float shadow = CalculateShadow(v_WorldPos, n, l, v_ViewDepth);
+    return (diffuseColor + specColor) * (1.0 - shadow);
 }
 
 vec3 PointLighting(vec3 albedo, vec3 worldPos, vec3 n, vec3 v)

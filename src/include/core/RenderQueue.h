@@ -1,7 +1,9 @@
 #pragma once
+#include <array>
 #include <cstdint>
 #include <vector>
 #include <glm/glm.hpp>
+#include "core/shadows/CascadedShadowMap.h"
 #include "scene/RenderItem.h"
 
 struct SubmissionContext;
@@ -46,14 +48,21 @@ public:
     /// warning is logged so the missing assignment is easy to spot.
     void SetErrorShader(const ShaderProgram *shader);
 
-    /// Sets shadow data for the current frame. Called by Renderer before Flush()
-    /// to provide directional light view-projection matrix and shadow map texture.
-    void SetDirectionalShadowData(const glm::mat4 &lightViewProj, uint32_t shadowMapTextureId);
+    /// Sets cascaded shadow data for the current frame. Called by Renderer before
+    /// Flush() to provide per-cascade view-projection matrices, view-space split
+    /// distances, and the GL_TEXTURE_2D_ARRAY holding cascade depth layers.
+    void SetDirectionalShadowData(
+        const std::array<glm::mat4, CascadedShadowMap::kNumCascades> &cascadeViewProj,
+        const std::array<float,     CascadedShadowMap::kNumCascades> &cascadeSplits,
+        uint32_t shadowMapTextureArrayId,
+        int pcfRadius);
 
 private:
     std::vector<RenderItem> m_items;
     const ShaderProgram *m_errorShader = nullptr;
-    glm::mat4 m_shadowLightViewProj = glm::mat4(1.0f);
-    uint32_t m_shadowMapTextureId = 0;
+    std::array<glm::mat4, CascadedShadowMap::kNumCascades> m_cascadeViewProj{};
+    std::array<float,     CascadedShadowMap::kNumCascades> m_cascadeSplits{};
+    uint32_t m_shadowMapTextureArrayId = 0;
+    int  m_pcfRadius = 1;
     bool m_hasShadowData = false;
 };

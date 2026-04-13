@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <glm/glm.hpp>
@@ -7,7 +8,7 @@
 #include "core/RenderQueue.h"
 #include "core/UniformBuffer.h"
 #include "core/ShaderProgram.h"
-#include "core/shadows/ShadowMap.h"
+#include "core/shadows/CascadedShadowMap.h"
 
 struct RenderItem;
 struct FrameSubmission;
@@ -45,6 +46,10 @@ struct RendererDebugStats
     uint32_t shadowMapTextureId = 0;
     uint32_t shadowMapWidth = 0;
     uint32_t shadowMapHeight = 0;
+    // Per-cascade 2D texture views into the depth array, suitable for ImGui.
+    std::array<uint32_t, CascadedShadowMap::kNumCascades> cascadePreviewTextureIds{};
+    // View-space distance covered by each cascade (positive, far edge).
+    std::array<float,    CascadedShadowMap::kNumCascades> cascadeSplitDistances{};
     ShadowFrustumDebugInfo directionalShadowFrustum;
 
     // The count currently comes from accepted RenderItem flags in SubmitDraw().
@@ -72,8 +77,10 @@ class Renderer
     std::unique_ptr<UniformBuffer> m_lightUBO;
     std::unique_ptr<ShaderProgram> m_errorShader;
     std::unique_ptr<ShaderProgram> m_shadowDepthShader;
-    std::unique_ptr<ShadowMap> m_directionalShadowMap;
-    glm::mat4 m_directionalLightViewProj = glm::mat4(1.0f);
+    std::unique_ptr<CascadedShadowMap> m_directionalShadowMap;
+    std::array<glm::mat4, CascadedShadowMap::kNumCascades> m_cascadeViewProj{};
+    std::array<float, CascadedShadowMap::kNumCascades> m_cascadeSplits{};
+    int m_shadowPcfRadius = 1;
     RendererDebugStats m_debugStats;
     bool m_reportedInvalidPackedLights = false;
     bool m_inFrame = false;

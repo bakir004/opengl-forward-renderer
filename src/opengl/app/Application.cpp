@@ -451,23 +451,43 @@ void Application::Update(Scene& scene) {
             }
 
             ImGui::Spacing();
-            ImGui::TextDisabled("Shadow Map Preview");
+            ImGui::TextDisabled("Cascade Shadow Map Preview");
             if (stats.shadowMapPreviewAvailable) {
-                ImGui::Text("Preview source           : live directional shadow depth texture");
-                ImGui::Text("Preview resolution       : %u x %u", stats.shadowMapWidth, stats.shadowMapHeight);
+                ImGui::Text("Resolution per cascade   : %u x %u", stats.shadowMapWidth, stats.shadowMapHeight);
 
-                const float previewWidth  = 220.0f;
+                const float previewWidth  = 150.0f;
                 const float previewHeight = stats.shadowMapWidth > 0
                     ? (previewWidth * static_cast<float>(stats.shadowMapHeight) / static_cast<float>(stats.shadowMapWidth))
                     : previewWidth;
-                ImGui::Image(
-                    reinterpret_cast<ImTextureID>(static_cast<intptr_t>(stats.shadowMapTextureId)),
-                    ImVec2(previewWidth, previewHeight),
-                    ImVec2(0.0f, 1.0f),
-                    ImVec2(1.0f, 0.0f));
-                ImGui::TextDisabled("Preview uses the live shadow map texture handle exposed by Renderer.");
+
+                // Lay the 4 cascade previews out in a 2x2 grid with a caption
+                // above each image showing its view-space far-edge distance.
+                for (size_t i = 0; i < stats.cascadePreviewTextureIds.size(); ++i) {
+                    const uint32_t texId = stats.cascadePreviewTextureIds[i];
+                    const float    splitFar = stats.cascadeSplitDistances[i];
+                    const float    splitNear = (i == 0) ? 0.0f : stats.cascadeSplitDistances[i - 1];
+
+                    ImGui::BeginGroup();
+                    ImGui::Text("Cascade %zu: [%.1f, %.1f]", i, splitNear, splitFar);
+                    if (texId != 0) {
+                        ImGui::Image(
+                            reinterpret_cast<ImTextureID>(static_cast<intptr_t>(texId)),
+                            ImVec2(previewWidth, previewHeight),
+                            ImVec2(0.0f, 1.0f),
+                            ImVec2(1.0f, 0.0f));
+                    } else {
+                        ImGui::Dummy(ImVec2(previewWidth, previewHeight));
+                        ImGui::TextDisabled("no view");
+                    }
+                    ImGui::EndGroup();
+
+                    // Two previews per row.
+                    if ((i % 2) == 0)
+                        ImGui::SameLine();
+                }
+                ImGui::TextDisabled("Previews are 2D views aliasing the depth array's cascade layers.");
             } else {
-                ImGui::TextDisabled("Directional shadow map preview is unavailable for the current frame.");
+                ImGui::TextDisabled("Cascade shadow map preview is unavailable for the current frame.");
             }
 
             ImGui::Spacing();
