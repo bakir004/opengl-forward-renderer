@@ -34,6 +34,7 @@ add_library(${PROJECT_NAME} STATIC
         opengl/core/Material.cpp
         opengl/assets/AssetImporter.cpp
         opengl/assets/MeshImporter.cpp
+        opengl/assets/ModelImporter.cpp
         opengl/core/Mesh.cpp
 )
 
