@@ -29,6 +29,7 @@ struct LightShadowParams {
     bool  castShadow      = false;
     float depthBias       = 0.005f;   ///< Constant bias added to shadow depth comparison
     float normalBias      = 0.02f;    ///< Normal-offset bias in world units
+    float slopeBias       = 2.0f;     ///< Slope-scaled multiplier for depth bias on grazing surfaces
     float nearPlane       = 0.1f;     ///< Shadow camera near clip
     float farPlane        = 100.0f;   ///< Shadow camera far clip (directional: ortho half-extent)
     int   shadowMapWidth  = 2048;
