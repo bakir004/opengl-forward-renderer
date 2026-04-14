@@ -177,6 +177,8 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
 
             const glm::mat3 normalMat = glm::transpose(glm::inverse(glm::mat3(model)));
             activeShader->SetUniform("u_NormalMatrix", normalMat);
+            
+            activeShader->SetUniform("u_ReceiveShadow", item.flags.receiveShadow ? 1 : 0);
 
             // ── Cascaded shadow data (directional light only) ─────────────
             if (m_hasShadowData && item.flags.receiveShadow)
