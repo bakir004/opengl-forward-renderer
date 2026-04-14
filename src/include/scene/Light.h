@@ -25,6 +25,18 @@ struct SpotCone {
 
 /// Shadow configuration carried per-light.
 /// Consumed by Person 7 (shadow resources) and Person 8 (shadow sampling).
+///
+/// Directional shadow tuning — recommended ranges tested in SampleScene:
+///   depthBias  : 0.001 .. 0.02    — floor for the depth comparison.
+///                                   Too low → shadow acne. Too high → peter-panning.
+///   normalBias : 0.0   .. 0.10    — world-space offset along the surface normal
+///                                   before projecting into light space. Handles
+///                                   grazing-angle acne more gracefully than depthBias alone.
+///                                   Too high → objects visibly float above their shadow.
+///   slopeBias  : 0.5   .. 5.0     — multiplier that grows the depth bias on surfaces
+///                                   facing away from the light. Rarely needs changing
+///                                   away from the 2.0 default.
+///   pcfRadius  : 0 (hard) .. 4 (9x9 kernel) — larger is softer but more expensive.
 struct LightShadowParams {
     bool  castShadow      = false;
     float depthBias       = 0.005f;   ///< Constant bias added to shadow depth comparison
