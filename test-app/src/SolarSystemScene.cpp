@@ -170,6 +170,8 @@ bool SolarSystemScene::Setup()
         sun.shader = m_shader.get();
         sun.transform.SetScale({5.5f, 5.5f, 5.5f});
         sun.transform.SetTranslation({0.0f, 0.0f, 0.0f});
+        sun.flags.castShadow = false;
+        sun.flags.receiveShadow = false;
         m_sunIdx = AddObject(sun);
     }
 
@@ -250,6 +252,8 @@ bool SolarSystemScene::Setup()
         star.transform.SetTranslation({std::cos(theta) * r * kStarRadius,
                                        y * kStarRadius,
                                        std::sin(theta) * r * kStarRadius});
+        star.flags.castShadow = false;
+        star.flags.receiveShadow = false;
         // Vary orientation so pyramids don't all point the same way.
         // Compose a pitch quat and a yaw quat — explicit axis/angle avoids any
         // Euler decomposition-order ambiguity for these pseudo-random orientations.
@@ -292,6 +296,8 @@ bool SolarSystemScene::Setup()
             .Color({1.0f, 0.94f, 0.80f})
             .Intensity(1.3f)
             .Name("SolarDirectional")
+            .CastShadow(true)
+            .ShadowResolution(2048, 2048)
             .Build());
     lights.AddPointLight(
         PointLightBuilder()
@@ -301,6 +307,27 @@ bool SolarSystemScene::Setup()
             .Radius(320.0f)
             .Name("SolarCore")
             .Build());
+
+    lights.AddPointLight(
+        PointLightBuilder()
+            .Position({0.0f, 0.0f, 0.0f})
+            .Color({0.85f, 0.95f, 1.0f}) // Bluish-white light
+            .Intensity(0.0f) // Disabled by default until spawned
+            .Radius(80.0f)
+            .Name("ShootingStar")
+            .Build());
+
+    m_shootingStarMesh = std::make_unique<MeshBuffer>(
+        GenerateSphere(0.4f, 8, {.colorMode = ColorMode::Solid, .baseColor = {0.9f, 0.95f, 1.0f}, .doubleSided = false}).CreateMeshBuffer());
+    
+    RenderItem shootingStar;
+    shootingStar.mesh = m_shootingStarMesh.get();
+    shootingStar.shader = m_shader.get();
+    shootingStar.transform.SetScale({0.01f, 0.01f, 0.01f});
+    shootingStar.flags.castShadow = false;
+    shootingStar.flags.receiveShadow = false;
+    shootingStar.flags.visible = false;
+    m_shootingStarIdx = AddObject(shootingStar);
 
     spdlog::info("[SolarSystemScene] Ready — {} planets, {} moons, {} asteroids, {} stars",
                  m_planets.size(), m_moons.size(), m_asteroids.size(), kStarCount);
@@ -480,6 +507,70 @@ void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInpu
                               std::sin(angle) * a.orbitRadius});
             // rotAngle accumulates in radians — no glm::degrees needed.
             t.SetRotation(glm::angleAxis(a.rotAngle, glm::vec3(0.0f, 1.0f, 0.0f)));
+        }
+
+        // ── Shooting Star Logic ──────────────────────────────────────────────────
+        m_starTimer += deltaTime;
+        
+        auto& pointLights = GetLights().GetPointLights();
+        PointLight* sStarLight = nullptr;
+        for (auto& l : pointLights) {
+            if (l.name == "ShootingStar") {
+                sStarLight = &l;
+                break;
+            }
+        }
+        
+        if (!m_starActive) {
+            // Trigger delay (4 to 10 seconds before next spawn)
+            if (m_starTimer > 4.0f + 6.0f * (float)(std::rand() % 100) / 100.0f) {
+                m_starActive = true;
+                m_starTimer = 0.0f;
+                m_starDuration = 1.0f + 1.5f * (float)(std::rand() % 100) / 100.0f;
+                
+                float rX = -150.0f + 300.0f * ((float)(std::rand() % 100) / 100.0f);
+                float rY = 20.0f + 50.0f * ((float)(std::rand() % 100) / 100.0f);
+                float rZ = -150.0f + 300.0f * ((float)(std::rand() % 100) / 100.0f);
+                
+                m_starStartPos = {rX, rY, rZ};
+                m_starEndPos = m_starStartPos + glm::vec3(-60.0f + (std::rand()%120), -50.0f, -60.0f + (std::rand()%120));
+                
+                if (m_shootingStarIdx != (size_t)-1) {
+                    GetObject(m_shootingStarIdx).flags.visible = true;
+                    // Significantly scale along Z to simulate an elongated light trail
+                    GetObject(m_shootingStarIdx).transform.SetScale({1.0f, 1.0f, 12.0f});
+                }
+            }
+        } else {
+            float t = m_starTimer / m_starDuration;
+            if (t >= 1.0f) {
+                m_starActive = false;
+                m_starTimer = 0.0f;
+                if (m_shootingStarIdx != (size_t)-1) {
+                    GetObject(m_shootingStarIdx).flags.visible = false;
+                }
+                if (sStarLight) sStarLight->intensity = 0.0f;
+            } else {
+                glm::vec3 pos = m_starStartPos + (m_starEndPos - m_starStartPos) * t;
+                // Sine wave fade-in and fade-out based on flight progress
+                float intensity = std::sin(t * 3.14159f) * 45.0f; // Extreme burst intensity
+                
+                if (m_shootingStarIdx != (size_t)-1) {
+                    auto& starObj = GetObject(m_shootingStarIdx);
+                    starObj.transform.SetTranslation(pos);
+                    
+                    // Align the stretched tail (Z axis) along the flight trajectory
+                    glm::vec3 dir = glm::normalize(m_starEndPos - m_starStartPos);
+                    float pitch = std::asin(-dir.y);
+                    float yaw = std::atan2(dir.x, dir.z);
+                    starObj.transform.SetRotation(glm::angleAxis(yaw, glm::vec3(0,1,0)) * glm::angleAxis(pitch, glm::vec3(1,0,0)));
+                }
+                
+                if (sStarLight) {
+                    sStarLight->position = pos;
+                    sStarLight->intensity = intensity;
+                }
+            }
         }
     }
 }
