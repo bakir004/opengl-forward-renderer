@@ -91,8 +91,13 @@ float SampleCascade(int cascade, vec3 worldPos, float bias)
 
 float CascadeBias(int cascade, float slope)
 {
-    // Slope-scaled bias, looser on far cascades where texels are larger.
-    float bias = max(0.005 * slope, 0.0015);
+    // Base bias comes from u_Directional.depthBias (runtime-tunable in debug UI).
+    // The slope term grows the bias on surfaces facing away from the light to
+    // prevent shadow acne, and far cascades loosen further because their texels
+    // are larger and more prone to self-shadow artifacts.
+    float baseBias  = u_Directional.depthBias;
+    float slopeBias = baseBias * 2.0 * slope;
+    float bias      = max(slopeBias, baseBias * 0.3);
     return bias * (1.0 + float(cascade) * 0.75);
 }
 
