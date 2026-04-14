@@ -23,7 +23,7 @@ LightBlock LightBlock::Pack(const LightEnvironment& env) {
         gd.castShadow    = d.shadow.castShadow ? 1u : 0u;
         gd.depthBias     = d.shadow.depthBias;
         gd.normalBias    = d.shadow.normalBias;
-        gd._pad0         = 0.0f;
+        gd.slopeBias     = d.shadow.slopeBias;
     }
 
     // ── Point lights ──────────────────────────────────────────────────────

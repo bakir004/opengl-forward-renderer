@@ -54,9 +54,17 @@ int SelectCascade(float viewDepth)
 const float CASCADE_BLEND_FRACTION = 0.15;
 
 // Samples one cascade with PCF. Returns [0,1] occlusion where 1 is fully shadowed.
-float SampleCascade(int cascade, vec3 worldPos, float bias)
+// The normal is used for normal-offset bias: the world position is shifted
+// along the surface normal before the light-space projection, which moves the
+// shadow test point away from the surface and reduces both acne and peter-panning
+// more gracefully than depth bias alone. The offset grows on far cascades to
+// match their larger texel footprint.
+float SampleCascade(int cascade, vec3 worldPos, vec3 normal, float bias)
 {
-    vec4 lightSpacePos = u_CascadeViewProj[cascade] * vec4(worldPos, 1.0);
+    float normalOffsetScale = u_Directional.normalBias * (1.0 + float(cascade) * 0.5);
+    vec3  biasedWorldPos    = worldPos + normal * normalOffsetScale;
+
+    vec4 lightSpacePos = u_CascadeViewProj[cascade] * vec4(biasedWorldPos, 1.0);
     vec3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
     projCoords = projCoords * 0.5 + 0.5;
 
@@ -91,8 +99,13 @@ float SampleCascade(int cascade, vec3 worldPos, float bias)
 
 float CascadeBias(int cascade, float slope)
 {
-    // Slope-scaled bias, looser on far cascades where texels are larger.
-    float bias = max(0.005 * slope, 0.0015);
+    // Base bias comes from u_Directional.depthBias (runtime-tunable in debug UI).
+    // The slope term grows the bias on surfaces facing away from the light to
+    // prevent shadow acne, and far cascades loosen further because their texels
+    // are larger and more prone to self-shadow artifacts.
+    float baseBias  = u_Directional.depthBias;
+    float slopeBias = baseBias * u_Directional.slopeBias * slope;
+    float bias      = max(slopeBias, baseBias * 0.3);
     return bias * (1.0 + float(cascade) * 0.75);
 }
 
@@ -105,7 +118,7 @@ float CalculateShadow(vec3 worldPos, vec3 normal, vec3 lightDir, float viewDepth
 
     float slope = 1.0 - max(dot(normal, lightDir), 0.0);
     float bias  = CascadeBias(cascade, slope);
-    float shadow = SampleCascade(cascade, worldPos, bias);
+    float shadow = SampleCascade(cascade, worldPos, normal, bias);
 
     // Only blend forward if there is a next cascade to blend into.
     if (cascade < NUM_CASCADES - 1) {
@@ -120,7 +133,7 @@ float CalculateShadow(vec3 worldPos, vec3 normal, vec3 lightDir, float viewDepth
             t = t * t * (3.0 - 2.0 * t);
 
             float nextBias   = CascadeBias(cascade + 1, slope);
-            float nextShadow = SampleCascade(cascade + 1, worldPos, nextBias);
+            float nextShadow = SampleCascade(cascade + 1, worldPos, normal, nextBias);
             shadow = mix(shadow, nextShadow, t);
         }
     }

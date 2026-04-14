@@ -19,7 +19,7 @@ struct GpuDirectionalLight {
     uint  castShadow;
     float depthBias;
     float normalBias;
-    float _pad0;
+    float slopeBias;      // slope-scaled multiplier for depth bias
 };
 
 struct GpuPointLight {

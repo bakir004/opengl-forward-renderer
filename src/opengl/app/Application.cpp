@@ -127,6 +127,7 @@ static void DrawShadowParamsDebug(LightShadowParams& shadow,
     ImGui::Checkbox("Cast shadow", &shadow.castShadow);
     ImGui::DragFloat("Depth bias", &shadow.depthBias, 0.0001f, 0.0f, 1.0f, "%.5f");
     ImGui::DragFloat("Normal bias", &shadow.normalBias, 0.0005f, 0.0f, 10.0f, "%.4f");
+    ImGui::DragFloat("Slope bias",  &shadow.slopeBias,  0.05f,   0.0f, 10.0f, "%.3f");
 
     int resolution[2] = {shadow.shadowMapWidth, shadow.shadowMapHeight};
     if (ImGui::DragInt2("Resolution", resolution, 4.0f, 16, 8192)) {
@@ -152,7 +153,6 @@ static void DrawShadowParamsDebug(LightShadowParams& shadow,
     if (showDirectionalGpuNote)
         ImGui::TextDisabled("Directional cast/depth/normal bias are already packed into the light UBO.");
 
-    ImGui::TextDisabled("Slope bias is not modelled in LightShadowParams yet.");
     ImGui::TextDisabled("PCF enable/sample count are not separate engine fields; kernel is derived from radius only.");
 }
 
