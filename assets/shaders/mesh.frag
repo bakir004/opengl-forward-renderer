@@ -20,6 +20,7 @@ uniform sampler2DArray u_CascadeShadowMaps;
 uniform mat4           u_CascadeViewProj[NUM_CASCADES];
 uniform float          u_CascadeSplits[NUM_CASCADES];
 uniform int            u_PCFRadius = 1;
+uniform int            u_ReceiveShadow = 1;
 uniform vec4           u_TintColor = vec4(1.0);
 uniform float          u_Shininess = 64.0;
 uniform float          u_SpecularStrength = 0.35;
@@ -174,7 +175,10 @@ vec3 DirectionalLighting(vec3 albedo, vec3 n, vec3 v)
     vec3 diffuseColor = albedo * irradiance * diffuse;
     vec3 specColor = irradiance * (u_SpecularStrength * spec);
 
-    float shadow = CalculateShadow(v_WorldPos, n, l, v_ViewDepth);
+    float shadow = 0.0;
+    if (u_ReceiveShadow != 0) {
+        shadow = CalculateShadow(v_WorldPos, n, l, v_ViewDepth);
+    }
     return (diffuseColor + specColor) * (1.0 - shadow);
 }
 
