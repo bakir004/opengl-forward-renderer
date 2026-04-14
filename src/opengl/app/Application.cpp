@@ -294,11 +294,56 @@ void Application::Update(Scene& scene) {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
+        const bool lookModeActive = (m_mouse && m_mouse->IsCaptured());
+
+        // --- Help Overlay & User Guide ---
+        ImGuiWindowFlags helpButtonFlags = ImGuiWindowFlags_NoDecoration | 
+                                           ImGuiWindowFlags_AlwaysAutoResize | 
+                                           ImGuiWindowFlags_NoSavedSettings | 
+                                           ImGuiWindowFlags_NoFocusOnAppearing | 
+                                           ImGuiWindowFlags_NoNav | 
+                                           ImGuiWindowFlags_NoMove;
+        
+        if (lookModeActive) helpButtonFlags |= ImGuiWindowFlags_NoMouseInputs;
+
+        ImGui::SetNextWindowPos(ImVec2(static_cast<float>(w) - 10.0f, 10.0f), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+        ImGui::SetNextWindowBgAlpha(0.35f);
+        if (ImGui::Begin("Help Overlay", nullptr, helpButtonFlags)) {
+            if (ImGui::Button("? Help")) {
+                m_showHelpWindow = !m_showHelpWindow;
+            }
+        }
+        ImGui::End();
+
+        if (m_showHelpWindow) {
+            ImGui::SetNextWindowSize(ImVec2(500, 0), ImGuiCond_FirstUseEver);
+            const ImGuiWindowFlags guideFlags = lookModeActive ? ImGuiWindowFlags_NoMouseInputs : 0;
+            if (ImGui::Begin("Application Guide", &m_showHelpWindow, guideFlags)) {
+                ImGui::TextWrapped("Welcome! Use this guide to navigate through the application and interact with the UI.");
+                ImGui::Spacing();
+                ImGui::SeparatorText("Keyboard Controls");
+                ImGui::BulletText("W, A, S, D: Move camera (forward, left, backward, right).");
+                ImGui::BulletText("Space, LCtrl: Move camera vertically (up, down).");
+                ImGui::BulletText("Shift: Hold to sprint (move significantly faster).");
+                ImGui::BulletText("TAB: Toggle mouse capture (switch between UI interaction and camera freelook).");
+                ImGui::BulletText("1-4: Switch between different project scenes (1: Sample, 2: Solar System, 3: Diorama, 4: Neon City).");
+                ImGui::Spacing();
+                ImGui::SeparatorText("Mouse Controls");
+                ImGui::BulletText("Mouse Movement: Look around (only active when the mouse cursor is captured via TAB).");
+                ImGui::BulletText("Right Mouse Button (Hold): Temporarily capture mouse to look around.");
+                ImGui::BulletText("Scroll Wheel: Zoom in / Zoom out (adjusts FOV or Orbit distance).");
+                ImGui::Spacing();
+                ImGui::SeparatorText("General Tips");
+                ImGui::TextWrapped("Press TAB to release the mouse cursor and interact with this UI. On the left, you can use the 'Renderer Debug' panel to add and manipulate point lights, check renderer performance, and change shadow parameters. Changes apply in real-time!");
+            }
+            ImGui::End();
+        }
+        // ---------------------------------
+
         ImGui::SetNextWindowSize(ImVec2(340, 0), ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowBgAlpha(0.87f);
 
-        const bool lookModeActive = (m_mouse && m_mouse->IsCaptured());
         const ImGuiWindowFlags debugWindowFlags = lookModeActive ? ImGuiWindowFlags_NoMouseInputs : 0;
 
         if (ImGui::Begin("Renderer Debug", nullptr, debugWindowFlags)) {
