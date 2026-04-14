@@ -104,7 +104,7 @@ float CascadeBias(int cascade, float slope)
     // prevent shadow acne, and far cascades loosen further because their texels
     // are larger and more prone to self-shadow artifacts.
     float baseBias  = u_Directional.depthBias;
-    float slopeBias = baseBias * 2.0 * slope;
+    float slopeBias = baseBias * u_Directional.slopeBias * slope;
     float bias      = max(slopeBias, baseBias * 0.3);
     return bias * (1.0 + float(cascade) * 0.75);
 }

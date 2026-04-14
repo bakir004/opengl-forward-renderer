@@ -28,7 +28,7 @@
 //  offset 32 : uint  castShadow  ( 4 bytes)
 //  offset 36 : float depthBias   ( 4 bytes)
 //  offset 40 : float normalBias  ( 4 bytes)
-//  offset 44 : float _pad        ( 4 bytes)  — round to 16-byte boundary
+//  offset 44 : float slopeBias   ( 4 bytes)  — fills the 16-byte slot
 //
 struct GpuDirectionalLight {
     glm::vec3  direction;
@@ -38,7 +38,7 @@ struct GpuDirectionalLight {
     uint32_t   castShadow;
     float      depthBias;
     float      normalBias;
-    float      _pad0;
+    float      slopeBias;
 };
 static_assert(sizeof(GpuDirectionalLight) == 48,
     "GpuDirectionalLight std140 size must be 48 bytes");
