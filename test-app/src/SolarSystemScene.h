@@ -94,6 +94,15 @@ private:
     float m_beltRotAngle = 0.0f;
     bool m_isPaused = false;
 
+    // Shooting Star variables
+    std::unique_ptr<MeshBuffer> m_shootingStarMesh;
+    size_t m_shootingStarIdx = (size_t)-1;
+    bool m_starActive = false;
+    float m_starTimer = 0.0f;
+    glm::vec3 m_starStartPos;
+    glm::vec3 m_starEndPos;
+    float m_starDuration = 1.0f;
+
     // ── Helpers ───────────────────────────────────────────────────────────────
     void AddPlanet(float orbitRadius, float orbitSpeed, float startAngle,
                    float tiltDeg, float selfRotSpeed, float scale,

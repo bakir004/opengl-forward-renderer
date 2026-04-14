@@ -56,6 +56,9 @@ private:
     size_t m_duckInsideIdx = 0;
     float m_duckInsideAngle = 0.0f;
 
+    std::unique_ptr<MeshBuffer> m_fireflyMesh;
+    size_t m_fireflyIdx = (size_t)-1;
+    float m_fireflyTimer = 0.0f;
 
     size_t m_playerCubeIdx = 0;
     glm::vec3 m_playerPosition = {-2.0f, -0.6f, 2.0f};

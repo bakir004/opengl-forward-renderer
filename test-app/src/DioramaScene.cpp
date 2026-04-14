@@ -72,8 +72,9 @@ bool DioramaScene::Setup() {
     m_benchMatInst = std::make_unique<MaterialInstance>(m_benchMaterial);
 
     // Quad geometry for floors and walls
-    m_colorQuad = std::make_unique<MeshBuffer>(GenerateQuad({.colorMode = ColorMode::Solid, .baseColor = {0.6f, 0.4f, 0.2f}}).CreateMeshBuffer()); // Wood inside
-    m_wallQuad = std::make_unique<MeshBuffer>(GenerateQuad({.colorMode = ColorMode::Solid, .baseColor = {0.8f, 0.8f, 0.8f}}).CreateMeshBuffer()); // Walls
+    m_colorQuad = std::make_unique<MeshBuffer>(GenerateQuad({.colorMode = ColorMode::Solid, .baseColor = {0.6f, 0.4f, 0.2f}}).CreateMeshBuffer()); // Wood flooring
+    m_wallQuad = std::make_unique<MeshBuffer>(GenerateQuad({.colorMode = ColorMode::Solid, .baseColor = {0.8f, 0.8f, 0.8f}}).CreateMeshBuffer()); // Wall surface
+    m_fireflyMesh = std::make_unique<MeshBuffer>(GenerateCube({.colorMode = ColorMode::Solid, .baseColor = {0.6f, 1.0f, 0.2f}}).CreateMeshBuffer()); // Firefly
 
     // Camera
     Camera cam;
@@ -83,14 +84,16 @@ bool DioramaScene::Setup() {
     SetClearColor({0.3f, 0.5f, 0.8f, 1.0f}); // Sky blueish
 
     // ── Lights (Dev3: scene-side setup) ───────────────────────────────────
-    SetAmbientLight({0.18f, 0.20f, 0.24f}, 0.45f);
+    SetAmbientLight({0.18f, 0.20f, 0.24f}, 0.25f);
     auto& lights = GetLights();
     lights.SetDirectionalLight(
         DirectionalLightBuilder()
             .Direction({-0.35f, -1.0f, -0.25f})
             .Color({1.0f, 0.98f, 0.92f})
-            .Intensity(0.95f)
+            .Intensity(1.4f)
             .Name("DioramaSun")
+            .CastShadow(true)
+            .ShadowResolution(2048, 2048)
             .Build());
     lights.AddPointLight(
         PointLightBuilder()
@@ -100,6 +103,16 @@ bool DioramaScene::Setup() {
             .Radius(13.0f)
             .Name("LanternLight")
             .Build());
+    
+    // Warm light emitting from the indoor lantern
+    lights.AddPointLight(
+        PointLightBuilder()
+            .Position({-8.3f, 0.5f, -8.2f}) // Matches the position of the houseLantern object
+            .Color({1.0f, 0.65f, 0.25f}) // Warm orange-yellow color
+            .Intensity(3.5f)
+            .Radius(9.0f)
+            .Name("HouseInterior")
+            .Build());
     lights.AddPointLight(
         PointLightBuilder()
             .Position({8.5f, 1.1f, -6.0f})
@@ -107,6 +120,16 @@ bool DioramaScene::Setup() {
             .Intensity(1.4f)
             .Radius(10.0f)
             .Name("PoolLight")
+            .Build());
+            
+    // Firefly dynamic light
+    lights.AddPointLight(
+        PointLightBuilder()
+            .Position({0.0f, 0.0f, 0.0f})
+            .Color({0.5f, 1.0f, 0.2f}) // Neon green color for the firefly
+            .Intensity(2.2f)
+            .Radius(7.0f)
+            .Name("Firefly")
             .Build());
 
     // Outside Ground (Grass Patch)
@@ -117,6 +140,7 @@ bool DioramaScene::Setup() {
         outGround.transform.SetTranslation({0.0f, -1.5f, 0.0f});
         outGround.transform.SetRotationEulerDegrees({-90.0f, 0.0f, 0.0f});
         outGround.transform.SetScale({0.1f, 0.1f, 0.1f});
+        outGround.flags.castShadow = false;
         AddObject(outGround);
     }
 
@@ -147,7 +171,7 @@ bool DioramaScene::Setup() {
         RenderItem plant;
         plant.mesh = m_indoorPlant.get();
         plant.material = m_indoorPlantMatInst.get();
-        plant.transform.SetTranslation({-9.0f, 0.4f, -8.2f});
+        plant.transform.SetTranslation({-9.5f, 0.4f, -8.2f});
         plant.transform.SetScale({0.7f, 0.7f, 0.7f});
         AddObject(plant);
     }
@@ -160,7 +184,28 @@ bool DioramaScene::Setup() {
         lantern.transform.SetTranslation({-11.0f, -0.65f, -4.7f});
         lantern.transform.SetScale({0.2f, 0.2f, 0.2f});
         AddObject(lantern);
-
+    }
+    
+    // Lantern inside
+    if (m_lantern) {
+        RenderItem houseLantern;
+        houseLantern.mesh = m_lantern.get();
+        houseLantern.material = m_lanternMatInst.get();
+        houseLantern.transform.SetTranslation({-8.5f, 0.1f, -8.2f}); // Position right next to the indoor plant
+        houseLantern.transform.SetScale({0.03f, 0.03f, 0.03f});
+        houseLantern.flags.castShadow = false;
+        AddObject(houseLantern);
+    }
+    
+    // Firefly (Flying light proxy)
+    if (m_fireflyMesh) {
+        RenderItem firefly;
+        firefly.mesh = m_fireflyMesh.get();
+        firefly.shader = m_shader.get();
+        firefly.transform.SetScale({0.04f, 0.04f, 0.04f});
+        firefly.flags.castShadow = false;
+        firefly.flags.receiveShadow = false;
+        m_fireflyIdx = AddObject(firefly);
     }
 
     // Trees
@@ -243,6 +288,27 @@ void DioramaScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& m
     // forward direction; stored as radians, so no degree conversion needed.
     const float yawRad = -m_duckInsideAngle - glm::half_pi<float>();
     duckTrans.SetRotation(glm::angleAxis(yawRad, glm::vec3(0.0f, 1.0f, 0.0f)));
+
+    // Firefly animation logic
+    m_fireflyTimer += deltaTime;
+    if (m_fireflyIdx != (size_t)-1) {
+        float fT = m_fireflyTimer;
+        // The firefly "dances" over the lawn
+        float fx = -2.0f + 7.0f * std::cos(fT * 0.9f);
+        float fy = 0.8f + 0.6f * std::sin(fT * 3.5f); // Bouncing up and down
+        float fz = -5.0f + 4.0f * std::sin(fT * 1.2f);
+        
+        GetObject(m_fireflyIdx).transform.SetTranslation({fx, fy, fz});
+        
+        // Update the mathematical light source
+        auto& pointLights = GetLights().GetPointLights();
+        for (auto& light : pointLights) {
+            if (light.name == "Firefly") {
+                light.position = {fx, fy, fz};
+                break;
+            }
+        }
+    }
 
     Camera& cam = GetCamera();
 
