@@ -4,6 +4,7 @@
 #include "core/Material.h"
 #include "core/MeshBuffer.h"
 #include "core/Primitives.h"   // fallback cube geometry
+#include "assets/ModelData.h"
 
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
@@ -16,6 +17,9 @@
 // Defined in MeshImporter.cpp
 std::shared_ptr<MeshBuffer> ImportMeshFromFile(const std::string& path);
 
+// Defined in ModelImporter.cpp
+ModelData ImportModelFromFile(const std::string& path);
+
 namespace fs = std::filesystem;
 
 // ---------------------------------------------------------------------------
@@ -26,6 +30,7 @@ std::unordered_map<std::string, std::shared_ptr<ShaderProgram>> AssetImporter::s
 std::unordered_map<std::string, std::shared_ptr<Texture2D>>     AssetImporter::s_textures;
 std::unordered_map<std::string, std::shared_ptr<MeshBuffer>>    AssetImporter::s_meshes;
 std::unordered_map<std::string, std::shared_ptr<Material>>      AssetImporter::s_materials;
+std::unordered_map<std::string, ModelData>                      AssetImporter::s_models;
 
 // ---------------------------------------------------------------------------
 //  Path helpers
@@ -105,6 +110,15 @@ void AssetImporter::Clear() {
 
 std::size_t AssetImporter::CachedCount() {
     return s_shaders.size() + s_textures.size() + s_meshes.size() + s_materials.size();
+}
+
+AssetCacheStats AssetImporter::GetCacheStats() {
+    AssetCacheStats stats{};
+    stats.shaderCount   = s_shaders.size();
+    stats.textureCount  = s_textures.size();
+    stats.meshCount     = s_meshes.size();
+    stats.materialCount = s_materials.size();
+    return stats;
 }
 
 // ---------------------------------------------------------------------------
@@ -352,6 +366,43 @@ std::shared_ptr<Material> AssetImporter::LoadMaterial(const std::string& path) {
     s_materials[resolved] = mat;
     spdlog::info("[AssetImporter] Material loaded: '{}'", resolved);
     return mat;
+}
+
+// ---------------------------------------------------------------------------
+//  LoadModel
+//
+//  Multi-material model loader. Delegates to ModelImporter.cpp.
+//  Returns a cached copy on repeated calls for the same path.
+// ---------------------------------------------------------------------------
+
+ModelData AssetImporter::LoadModel(const std::string& path)
+{
+    const std::string resolved = ResolvePath(path);
+
+    auto it = s_models.find(resolved);
+    if (it != s_models.end())
+    {
+        spdlog::debug("[AssetImporter] Model cache hit: '{}'", resolved);
+        return it->second;
+    }
+
+    if (!fs::exists(resolved))
+    {
+        spdlog::warn("[AssetImporter] Model not found: '{}'", path);
+        return {};
+    }
+
+    ModelData data = ImportModelFromFile(resolved);
+    if (!data.IsValid())
+    {
+        spdlog::error("[AssetImporter] Model import failed: '{}'", path);
+        return {};
+    }
+
+    s_models[resolved] = data;
+    spdlog::info("[AssetImporter] Model cached: '{}' ({} submesh(es), {} material(s))",
+                 resolved, data.mesh->SubMeshCount(), data.materials.size());
+    return data;
 }
 
 // ---------------------------------------------------------------------------

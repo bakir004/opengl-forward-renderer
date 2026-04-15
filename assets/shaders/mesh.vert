@@ -13,12 +13,19 @@ layout(location = 2) in vec2 a_UV;
 uniform mat4 u_Model;
 
 out vec3 v_Normal;
+out vec3 v_WorldPos;
 out vec2 v_UV;
+// View-space Z (positive, distance from camera) used for CSM cascade selection.
+out float v_ViewDepth;
 
 void main()
 {
-    // Transform normal into world space (no non-uniform scale assumed).
     v_Normal = normalize(mat3(u_Model) * a_Normal);
-    v_UV     = a_UV;
-    gl_Position = projection * view * u_Model * vec4(a_Position, 1.0);
+    v_WorldPos = (u_Model * vec4(a_Position, 1.0)).xyz;
+    v_UV       = a_UV;
+
+    vec4 viewPos = view * vec4(v_WorldPos, 1.0);
+    v_ViewDepth  = -viewPos.z;
+
+    gl_Position = projection * viewPos;
 }

@@ -26,10 +26,15 @@ add_library(${PROJECT_NAME} STATIC
         opengl/core/MouseInput.cpp
         opengl/scene/Scene.cpp
         opengl/scene/RenderItem.cpp
+        opengl/scene/LightEnvironment.cpp
+        opengl/scene/LightUtils.cpp
+        opengl/scene/LightBlock.cpp
         opengl/core/Texture2D.cpp
+        opengl/core/shadows/CascadedShadowMap.cpp
         opengl/core/Material.cpp
         opengl/assets/AssetImporter.cpp
         opengl/assets/MeshImporter.cpp
+        opengl/assets/ModelImporter.cpp
         opengl/core/Mesh.cpp
 )
 

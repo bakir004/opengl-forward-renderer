@@ -5,6 +5,10 @@
     "vsync": true,
     "title": "Forward Renderer"
   },
+  "shadow_map": {
+    "width": 2048,
+    "height": 2048
+  },
   "logging": {
     "level": "debug"
   },

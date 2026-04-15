@@ -1,13 +1,63 @@
 #pragma once
+#include <array>
+#include <cstdint>
 #include <memory>
+#include <glm/glm.hpp>
 #include "core/InitContext.h"
 #include "core/SubmissionContext.h"
 #include "core/RenderQueue.h"
 #include "core/UniformBuffer.h"
 #include "core/ShaderProgram.h"
+#include "core/shadows/CascadedShadowMap.h"
 
 struct RenderItem;
 struct FrameSubmission;
+
+/// Small per-frame debug snapshot used by the runtime stats UI.
+struct ShadowFrustumDebugInfo
+{
+    float focusCenterX = 0.0f;
+    float focusCenterY = 0.0f;
+    float focusCenterZ = 0.0f;
+    float lightDirectionX = 0.0f;
+    float lightDirectionY = 0.0f;
+    float lightDirectionZ = 0.0f;
+    float orthoRadius = 0.0f;
+    float nearPlane = 0.0f;
+    float farPlane = 0.0f;
+    bool available = false;
+};
+
+struct RendererDebugStats
+{
+    uint32_t submittedRenderItemCount = 0;
+    uint32_t queuedRenderItemCount = 0;
+    uint32_t processedRenderItemCount = 0;
+    uint32_t drawCallCount = 0;
+    uint64_t approxTriangleCount = 0;
+    uint32_t directionalLightCount = 0;
+    uint32_t pointLightCount = 0;
+    uint32_t shadowCasterCount = 0;
+    uint32_t shadowReceiverCount = 0;
+    uint32_t shadowPassObjectCount = 0;
+    uint32_t shadowPassExcludedObjectCount = 0;
+    float frameTimeMs = 0.0f;
+    float fps = 0.0f;
+    uint32_t shadowMapTextureId = 0;
+    uint32_t shadowMapWidth = 0;
+    uint32_t shadowMapHeight = 0;
+    // Per-cascade 2D texture views into the depth array, suitable for ImGui.
+    std::array<uint32_t, CascadedShadowMap::kNumCascades> cascadePreviewTextureIds{};
+    // View-space distance covered by each cascade (positive, far edge).
+    std::array<float,    CascadedShadowMap::kNumCascades> cascadeSplitDistances{};
+    ShadowFrustumDebugInfo directionalShadowFrustum;
+
+    // The count currently comes from accepted RenderItem flags in SubmitDraw().
+    bool shadowCasterCountApproximate = true;
+    bool shadowPassDataAvailable = false;
+    bool approxTriangleCountApproximate = true; // Triangle estimates are pragmatic and treat non-triangle topologies as 0.
+    bool shadowMapPreviewAvailable = false;
+};
 
 /// Manages the OpenGL rendering pipeline.
 ///
@@ -18,13 +68,24 @@ struct FrameSubmission;
 ///   BeginFrame(submission)          — clear, upload camera UBO, apply pipeline state
 ///   SubmitDraw(item) × N            — enqueue draw calls
 ///   EndFrame()                      — sort queue, flush all draws, reset queue
-class Renderer {
-    InitContext       m_initCtx;
+class Renderer
+{
+    InitContext m_initCtx;
     SubmissionContext m_currentContext;
-    RenderQueue                    m_queue;
+    RenderQueue m_queue;
     std::unique_ptr<UniformBuffer> m_cameraUBO;
+    std::unique_ptr<UniformBuffer> m_lightUBO;
     std::unique_ptr<ShaderProgram> m_errorShader;
+    std::unique_ptr<ShaderProgram> m_shadowDepthShader;
+    std::unique_ptr<CascadedShadowMap> m_directionalShadowMap;
+    std::array<glm::mat4, CascadedShadowMap::kNumCascades> m_cascadeViewProj{};
+    std::array<float, CascadedShadowMap::kNumCascades> m_cascadeSplits{};
+    int m_shadowPcfRadius = 1;
+    RendererDebugStats m_debugStats;
+    bool m_reportedInvalidPackedLights = false;
     bool m_inFrame = false;
+
+    void RenderDirectionalShadowPass(const FrameSubmission &submission);
 
 public:
     /// Loads GL function pointers, enables debug output, and applies the default pipeline state.
@@ -36,15 +97,18 @@ public:
 
     /// Begins a frame: applies FrameClearInfo (viewport + clear), uploads the camera UBO,
     /// and applies the submission's SubmissionContext.
-    void BeginFrame(const FrameSubmission& submission);
+    void BeginFrame(const FrameSubmission &submission);
 
     /// Ends a frame: sorts the render queue by shader, flushes all draws, clears the queue.
     void EndFrame();
 
     /// Enqueues a draw item. Must be called between BeginFrame and EndFrame.
-    void SubmitDraw(const RenderItem& item);
+    void SubmitDraw(const RenderItem &item);
 
     /// Called by the GLFW framebuffer-resize callback. Viewport is driven each frame
     /// through FrameSubmission::clearInfo; this method only logs the new dimensions.
     void Resize(int width, int height);
+
+    /// Returns the latest per-frame debug snapshot for runtime UI.
+    [[nodiscard]] const RendererDebugStats &GetDebugStats() const { return m_debugStats; }
 };

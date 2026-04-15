@@ -1,0 +1,11 @@
+Model Information:
+* title:	Dragon Gate Inn with Neon
+* source:	https://sketchfab.com/3d-models/dragon-gate-inn-with-neon-6245309e652144bdb91b2d6188b18b11
+* author:	daydev (https://sketchfab.com/daydev)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Dragon Gate Inn with Neon" (https://sketchfab.com/3d-models/dragon-gate-inn-with-neon-6245309e652144bdb91b2d6188b18b11) by daydev (https://sketchfab.com/daydev) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

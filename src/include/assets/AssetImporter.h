@@ -1,6 +1,8 @@
 #pragma once
 
+#include "assets/ModelData.h"
 #include "core/Texture2D.h"
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -13,6 +15,17 @@ class MeshBuffer;
 
 enum class TextureColorSpace;
 struct SamplerDesc;
+
+struct AssetCacheStats {
+    std::size_t shaderCount   = 0;
+    std::size_t textureCount  = 0;
+    std::size_t meshCount     = 0;
+    std::size_t materialCount = 0;
+
+    [[nodiscard]] std::size_t TotalCount() const {
+        return shaderCount + textureCount + meshCount + materialCount;
+    }
+};
 
 /// Centralised asset loading and caching hub.
 ///
@@ -78,6 +91,12 @@ public:
     /// Returns the first mesh in the file. For multi-mesh files use LoadModel().
     static std::shared_ptr<MeshBuffer> LoadMesh(const std::string& path);
 
+    /// Loads (or returns cached) a multi-material model.
+    /// Returns a ModelData with one SubMesh per Assimp aiMesh and one
+    /// ModelMaterialInfo per unique material (with the diffuse texture path).
+    /// Use this instead of LoadMesh when a model has multiple materials.
+    static ModelData LoadModel(const std::string& path);
+
     /// Loads a Material from a JSON .mat descriptor file.
     /// The .mat file references shader paths and texture paths.
     static std::shared_ptr<Material> LoadMaterial(const std::string& path);
@@ -97,12 +116,16 @@ public:
     /// Returns the number of currently cached entries across all resource types.
     [[nodiscard]] static std::size_t CachedCount();
 
+    /// Returns current per-cache entry counts for debug UI.
+    [[nodiscard]] static AssetCacheStats GetCacheStats();
+
 private:
     // Caches keyed by canonical path.
     static std::unordered_map<std::string, std::shared_ptr<ShaderProgram>> s_shaders;
     static std::unordered_map<std::string, std::shared_ptr<Texture2D>>     s_textures;
     static std::unordered_map<std::string, std::shared_ptr<MeshBuffer>>    s_meshes;
     static std::unordered_map<std::string, std::shared_ptr<Material>>      s_materials;
+    static std::unordered_map<std::string, ModelData>                      s_models;
 
     // Internal helpers
     static std::string        ResolvePath(const std::string& path);
