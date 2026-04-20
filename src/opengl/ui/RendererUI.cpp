@@ -45,7 +45,7 @@ namespace Pal {
     static constexpr ImVec4 HandleHot  = {0.486f, 0.620f, 0.961f, 0.60f}; // accent when hovered/dragged
 }
 
-static constexpr float kTopbarHeight = 38.0f;
+static constexpr float kTopbarHeight = 50.0f;
 static constexpr int   kTabCount     = 4;
 static const char*     kTabLabels[]  = { "Scene", "Lights", "Shadow", "Stats" };
 
@@ -145,7 +145,7 @@ static bool DrawPointLight(PointLight& light, int idx, const glm::vec3& camPos) 
     const std::string name = light.name.empty() ? ("Light " + std::to_string(idx+1)) : light.name;
     ImGui::TextUnformatted(name.c_str());
     ImGui::SameLine(ImGui::GetContentRegionAvail().x - 26);
-    const bool remove = MiniBadgeButton(("✕##rm" + std::to_string(idx)).c_str(), true);
+    const bool remove = MiniBadgeButton(("X##rm" + std::to_string(idx)).c_str(), true);
 
     ImGui::Separator();
     ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
@@ -218,7 +218,12 @@ void RendererUI::Draw(int fbW, int fbH,
     m_vpW = std::max(1, fbW - m_vpX);
     m_vpH = std::max(1, fbH - m_vpY);
 
-    // Notify the renderer so its GL viewport stays in sync.
+    // Notify the renderer of the new dimensions so it can update the projection
+    // matrix aspect ratio. The actual glViewport call with the correct X offset
+    // (to exclude the sidebar) must be set in Renderer::BeginFrame via the
+    // sub.clearInfo.viewport rect {vpX, 0, vpW, vpH} passed by Application.
+    // Do NOT call glViewport(0,0,vpW,vpH) inside Resize — that strips the offset
+    // and is the root cause of content stretching when the sidebar is resized.
     renderer.Resize(m_vpW, m_vpH);
 
     // ── Draw each region ──────────────────────────────────────────────────────
@@ -271,103 +276,120 @@ void RendererUI::DrawTopbar(int fbW,
         ImGui::PopStyleColor();
         ImGui::SameLine(0, 10);
 
-        // Scene switcher
-        const std::size_t maxS = std::min<std::size_t>(4, scenes.size());
-        for (std::size_t i = 0; i < maxS; ++i) {
-            if (!scenes[i]) continue;
-            const bool active = (i == activeSceneIndex);
-            ImGui::PushStyleColor(ImGuiCol_Button,        active ? Pal::AccentDim : ImVec4(0,0,0,0));
+        // ── Dropdown menu style helpers ───────────────────────────────────────
+        auto BeginMenuButton = [&](const char* label, bool isActive) -> bool {
+            ImGui::PushStyleColor(ImGuiCol_Button,        isActive ? Pal::AccentDim : ImVec4(0,0,0,0));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, {0.16f,0.16f,0.19f,1.f});
             ImGui::PushStyleColor(ImGuiCol_ButtonActive,  Pal::AccentDim);
-            ImGui::PushStyleColor(ImGuiCol_Text,          active ? Pal::Accent : Pal::TextMid);
-            ImGui::PushStyleVar  (ImGuiStyleVar_FrameRounding, 0.f);
-            ImGui::SetCursorPosY(0);
-            const std::string& sn = scenes[i]->GetName();
-            const std::string  lb = sn.empty() ? ("Scene " + std::to_string(i+1)) : sn;
-            if (ImGui::Button(lb.c_str(), ImVec2(0, kTopbarHeight)))
-                activeSceneIndex = i;
-            ImGui::PopStyleVar();
-            ImGui::PopStyleColor(4);
-            ImGui::SameLine(0, 0);
-        }
-
-        ImGui::SetCursorPosY(0);
-        ImGui::PushStyleColor(ImGuiCol_Separator, Pal::Border);
-        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-        ImGui::PopStyleColor();
-        ImGui::SameLine(0, 6);
-
-        // Wireframe toggle
-        {
-            const bool wf = wireframeOverride;
-            ImGui::PushStyleColor(ImGuiCol_Button,        wf ? Pal::AccentDim : ImVec4(0,0,0,0));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, {0.16f,0.16f,0.19f,1.f});
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive,  Pal::AccentDim);
-            ImGui::PushStyleColor(ImGuiCol_Text,          wf ? Pal::Accent : Pal::TextMid);
+            ImGui::PushStyleColor(ImGuiCol_Text,          isActive ? Pal::Accent : Pal::TextMid);
             ImGui::PushStyleVar  (ImGuiStyleVar_FrameRounding, 3.f);
             ImGui::SetCursorPosY((kTopbarHeight - ImGui::GetFrameHeight()) * 0.5f);
-            if (ImGui::Button("Wireframe")) wireframeOverride = !wireframeOverride;
+            const bool clicked = ImGui::Button(label);
             ImGui::PopStyleVar(); ImGui::PopStyleColor(4);
-        }
-        ImGui::SameLine(0, 6);
+            return clicked;
+        };
 
-        // Help button
+        ImGui::PushStyleColor(ImGuiCol_PopupBg,      Pal::Bg2);
+        ImGui::PushStyleColor(ImGuiCol_Border,        Pal::Border);
+        ImGui::PushStyleColor(ImGuiCol_HeaderHovered, {0.16f,0.16f,0.22f,1.f});
+        ImGui::PushStyleColor(ImGuiCol_Header,        Pal::AccentDim);
+        ImGui::PushStyleVar  (ImGuiStyleVar_WindowPadding,  ImVec2(8, 6));
+        ImGui::PushStyleVar  (ImGuiStyleVar_ItemSpacing,    ImVec2(8, 6));
+        ImGui::PushStyleVar  (ImGuiStyleVar_PopupRounding,  4.f);
+
+        // ── "Scenes" dropdown ─────────────────────────────────────────────────
+        BeginMenuButton("Scenes", false);
+        if (ImGui::BeginPopupContextItem("##scenesPopup",
+                ImGuiPopupFlags_MouseButtonLeft | ImGuiPopupFlags_NoOpenOverExistingPopup))
         {
-            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0,0,0,0));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, {0.16f,0.16f,0.19f,1.f});
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive,  Pal::AccentDim);
-            ImGui::PushStyleColor(ImGuiCol_Text,          Pal::TextDim);
-            ImGui::PushStyleVar  (ImGuiStyleVar_FrameRounding, 3.f);
-            ImGui::SetCursorPosY((kTopbarHeight - ImGui::GetFrameHeight()) * 0.5f);
-            if (ImGui::Button("? Help")) showHelpWindow = !showHelpWindow;
-            ImGui::PopStyleVar(); ImGui::PopStyleColor(4);
+            const std::size_t maxS = std::min<std::size_t>(9, scenes.size());
+            for (std::size_t i = 0; i < maxS; ++i) {
+                if (!scenes[i]) continue;
+                const bool sel = (i == activeSceneIndex);
+                const std::string& sn = scenes[i]->GetName();
+                const std::string  lb = sn.empty() ? ("Scene " + std::to_string(i+1)) : sn;
+                ImGui::PushStyleColor(ImGuiCol_Text, sel ? Pal::Accent : Pal::TextMid);
+                if (ImGui::MenuItem(lb.c_str(), nullptr, sel))
+                    activeSceneIndex = i;
+                ImGui::PopStyleColor();
+            }
+            ImGui::EndPopup();
+        }
+        ImGui::SameLine(0, 2);
+
+        // ── "View" dropdown ───────────────────────────────────────────────────
+        BeginMenuButton("View", wireframeOverride);
+        if (ImGui::BeginPopupContextItem("##viewPopup",
+                ImGuiPopupFlags_MouseButtonLeft | ImGuiPopupFlags_NoOpenOverExistingPopup))
+        {
+            // Wireframe
+            ImGui::PushStyleColor(ImGuiCol_Text, !wireframeOverride ? Pal::Accent : Pal::TextMid);
+            if (ImGui::MenuItem("Wireframe", nullptr, wireframeOverride))
+                wireframeOverride = !wireframeOverride;
+            ImGui::PopStyleColor();
+
+            // Solid (unavailable)
+            ImGui::BeginDisabled();
+            ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextFaint);
+            ImGui::MenuItem("Solid", nullptr, false);
+            ImGui::PopStyleColor();
+            ImGui::EndDisabled();
+
+            // Lights and Shadows (current / default)
+            ImGui::PushStyleColor(ImGuiCol_Text, !wireframeOverride ? Pal::Accent : Pal::TextMid);
+            if (ImGui::MenuItem("Lights and Shadows", nullptr, !wireframeOverride))
+                wireframeOverride = false;
+            ImGui::PopStyleColor();
+
+            ImGui::EndPopup();
         }
 
-        // Right-side stat badges
+        ImGui::PopStyleVar  (3);
+        ImGui::PopStyleColor(4);
+
         {
             char fps[32], ms[32], tris[32];
             snprintf(fps,  sizeof(fps),  "%.1f fps", stats.fps);
             snprintf(ms,   sizeof(ms),   "%.2f ms",  stats.frameTimeMs);
             snprintf(tris, sizeof(tris), "%s tris",  FormatCompact(stats.approxTriangleCount).c_str());
 
-            const float gap = 8.f;
-            const float rw  = ImGui::CalcTextSize(fps).x
-                            + ImGui::CalcTextSize(ms).x   + 16.f
-                            + ImGui::CalcTextSize(tris).x + 16.f
-                            + ImGui::CalcTextSize("TAB: capture").x + 16.f
-                            + gap * 3.f + 14.f;
-            ImGui::SameLine(static_cast<float>(fbW) - rw);
+            const float gap = 10.f;
+            const float pad = 10.f;
+
+            ImGui::PushFont(ImGui::GetFont()); // keep consistent if you use custom fonts
+
+            ImVec2 fpsSz  = ImGui::CalcTextSize(fps);
+            ImVec2 msSz   = ImGui::CalcTextSize(ms);
+            ImVec2 trisSz = ImGui::CalcTextSize(tris);
+
+            float totalW =
+                fpsSz.x +
+                msSz.x +
+                trisSz.x +
+                gap * 2.f;
+
+            float x = (float)m_vpX + (float)m_vpW - totalW - pad;
+            float y = (float)m_vpY + pad;
+
+            ImDrawList* dl = ImGui::GetForegroundDrawList();
+
+            float cursorX = x;
+            float baselineY = y;
 
             // FPS (green)
-            ImGui::SetCursorPosY((kTopbarHeight - ImGui::GetTextLineHeight()) * 0.5f);
-            ImGui::PushStyleColor(ImGuiCol_Text, Pal::Green);
-            ImGui::TextUnformatted(fps);
-            ImGui::PopStyleColor();
-            ImGui::SameLine(0, gap);
+            dl->AddText(ImVec2(cursorX, baselineY), ImColor(Pal::Green), fps);
+            cursorX += fpsSz.x + gap;
 
-            auto Badge = [&](const char* txt) {
-                ImGui::SetCursorPosY((kTopbarHeight - ImGui::GetFrameHeight()) * 0.5f);
-                ImGui::PushStyleColor(ImGuiCol_Button,        Pal::Bg2);
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Pal::Bg2);
-                ImGui::PushStyleColor(ImGuiCol_ButtonActive,  Pal::Bg2);
-                ImGui::PushStyleColor(ImGuiCol_Text,          Pal::TextDim);
-                ImGui::PushStyleVar  (ImGuiStyleVar_FrameRounding, 3.f);
-                ImGui::Button(txt);
-                ImGui::PopStyleVar(); ImGui::PopStyleColor(4);
-            };
-            Badge(ms);   ImGui::SameLine(0, gap);
-            Badge(tris); ImGui::SameLine(0, gap);
+            // MS
+            dl->AddText(ImVec2(cursorX, baselineY), ImColor(Pal::TextDim), ms);
+            cursorX += msSz.x + gap;
 
-            // TAB capture (red)
-            ImGui::SetCursorPosY((kTopbarHeight - ImGui::GetFrameHeight()) * 0.5f);
-            ImGui::PushStyleColor(ImGuiCol_Button,        {0.14f,0.06f,0.06f,1.f});
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, {0.14f,0.06f,0.06f,1.f});
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive,  {0.14f,0.06f,0.06f,1.f});
-            ImGui::PushStyleColor(ImGuiCol_Text,          {0.94f,0.44f,0.44f,1.f});
-            ImGui::PushStyleVar  (ImGuiStyleVar_FrameRounding, 3.f);
-            ImGui::Button("TAB: capture");
-            ImGui::PopStyleVar(); ImGui::PopStyleColor(4);
+            // TRIS
+            dl->AddText(ImVec2(cursorX, baselineY), ImColor(Pal::TextDim), tris);
+
+            ImGui::PopFont();
         }
+
     }
     ImGui::End();
     ImGui::PopStyleColor(2);
@@ -400,8 +422,8 @@ void RendererUI::DrawSidebar(int fbH, float topY,
     if (ImGui::Begin("##SB", nullptr, flags)) {
 
         // Tab bar
-        ImGui::PushStyleVar  (ImGuiStyleVar_ItemSpacing,  ImVec2(0, 0));
-        ImGui::PushStyleVar  (ImGuiStyleVar_FramePadding, ImVec2(0, 7));
+        ImGui::PushStyleVar  (ImGuiStyleVar_ItemSpacing,  ImVec2(2, 0));
+        ImGui::PushStyleVar  (ImGuiStyleVar_FramePadding, ImVec2(14, 8));
         ImGui::PushStyleColor(ImGuiCol_TabActive,          Pal::Bg3);
         ImGui::PushStyleColor(ImGuiCol_Tab,               Pal::Bg1);
         ImGui::PushStyleColor(ImGuiCol_TabHovered,        Pal::Bg3);
@@ -582,25 +604,21 @@ void RendererUI::DrawViewport(int fbW, int fbH, float topY,
         HudPill(resBuf,  false);
         HudPill(dcBuf,   false);
 
-        // ── Bottom-left gizmo buttons ──────────────────────────────────────
-        const float gx = 10.f;
-        const float gy = vpH - 30.f;
-        const float bsz = 26.f;
-        const char* gLabels[] = { "P", "W", "?" };
-        for (int i = 0; i < 3; ++i) {
-            ImGui::SetCursorPos({gx + i * (bsz + 3.f), gy});
-            ImGui::PushStyleColor(ImGuiCol_Button,        {0.f,0.f,0.f,0.50f});
+        // ── Bottom-left gizmo: W wireframe toggle ─────────────────────────
+        {
+            const float bsz = 26.f;
+            const float gx  = 10.f;
+            const float gy  = vpH - 30.f;
+            ImGui::SetCursorPos({gx, gy});
+            const bool wf = wireframeOverride;
+            ImGui::PushStyleColor(ImGuiCol_Button,        wf ? Pal::AccentDim : ImVec4(0.f,0.f,0.f,0.50f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, {0.12f,0.12f,0.18f,0.85f});
             ImGui::PushStyleColor(ImGuiCol_ButtonActive,  Pal::AccentDim);
-            ImGui::PushStyleColor(ImGuiCol_Text,          Pal::TextDim);
+            ImGui::PushStyleColor(ImGuiCol_Text,          wf ? Pal::Accent : Pal::TextDim);
             ImGui::PushStyleVar  (ImGuiStyleVar_FrameRounding, 3.f);
             ImGui::PushStyleVar  (ImGuiStyleVar_FramePadding,  ImVec2(0, 0));
-            const std::string gid = std::string(gLabels[i]) + "##gz";
-            if (ImGui::Button(gid.c_str(), ImVec2(bsz, bsz))) {
-                if (i == 0) wireframeOverride = false;         // P = polygon / solid
-                if (i == 1) wireframeOverride = true;          // W = wireframe
-                if (i == 2) showHelpWindow    = !showHelpWindow;
-            }
+            if (ImGui::Button("W##gz", ImVec2(bsz, bsz)))
+                wireframeOverride = !wireframeOverride;
             ImGui::PopStyleVar(2); ImGui::PopStyleColor(4);
         }
     }
@@ -668,13 +686,6 @@ void RendererUI::DrawTabScene(Scene& scene, const RendererDebugStats& stats) {
         snprintf(buf,sizeof(buf),"%s",FormatCompact(stats.approxTriangleCount).c_str()); SR("Approx tris", buf);
         snprintf(buf,sizeof(buf),"%u",stats.submittedRenderItemCount); SR("Submitted",   buf);
         snprintf(buf,sizeof(buf),"%u",stats.processedRenderItemCount); SR("Processed",   buf);
-        ImGui::PopStyleColor();
-        ImGui::Spacing();
-    }
-
-    if (SectionHeader("  Renderer", false)) {
-        ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
-        ImGui::Checkbox("Wireframe override", &wireframeOverride);
         ImGui::PopStyleColor();
         ImGui::Spacing();
     }

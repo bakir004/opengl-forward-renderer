@@ -159,10 +159,14 @@ void Application::RunFrame(Scene& scene,
     sub.deltaTime = dt;
 
     // Use the viewport rect computed by RendererUI (sidebar already excluded).
+    // GL's glViewport origin is bottom-left, so:
+    //   x = sidebar + handle width  (pixels from left)
+    //   y = 0                       (bottom of framebuffer; topbar is ImGui-only)
+    //   w, h = remaining area
     // On the very first frame m_ui viewport equals (0,0,fbW,fbH) which is fine.
     int vpX, vpY, vpW, vpH;
     m_ui->GetViewportRect(vpX, vpY, vpW, vpH);
-    sub.clearInfo.viewport = { vpX, vpY,
+    sub.clearInfo.viewport = { vpX, 0,          // y=0: GL bottom-left origin
                                 vpW > 0 ? vpW : fbW,
                                 vpH > 0 ? vpH : fbH };
 

@@ -54,9 +54,9 @@ public:
     bool wireframeOverride = false;
     bool showHelpWindow    = false;
 
-    static constexpr float kSidebarMinWidth = 40.0f;
+    static constexpr float kSidebarMinWidth = 320.0f;
     static constexpr float kSidebarMaxWidth = 520.0f;
-    static constexpr float kHandleWidth     = 6.0f;
+    static constexpr float kHandleWidth     = 12.0f;
 
 private:
     // ── Persistent layout state ───────────────────────────────────────────────
