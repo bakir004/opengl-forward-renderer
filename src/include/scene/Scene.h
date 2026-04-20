@@ -94,4 +94,5 @@ private:
     mutable bool         m_reportedInvalidLights = false;
 
     friend class Application;
+    friend class RendererUI;
 };

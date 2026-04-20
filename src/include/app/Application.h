@@ -8,6 +8,7 @@ class Renderer;
 class KeyboardInput;
 class MouseInput;
 class Scene;
+class RendererUI;
 
 /// Top-level application class. Owns the GLFW window and the Renderer.
 /// Manages the full lifetime of the window, GL context, and main loop.
@@ -47,13 +48,18 @@ class Application {
         /// Returns the current framebuffer dimensions in pixels.
         void GetFramebufferSize(int& width, int& height) const;
 
-    private:
-        GLFWwindow* m_window = nullptr;
-        std::unique_ptr<Renderer>      m_renderer;
-        std::unique_ptr<KeyboardInput> m_input;
-        std::unique_ptr<MouseInput>    m_mouse;
-        float                          m_lastFrameTime = 0.0f;
-        bool                           m_imguiInitialized = false;
-        bool                           m_wireframeOverride = false;
-        bool                           m_showHelpWindow = false;
+private:
+    GLFWwindow*                    m_window           = nullptr;
+    std::unique_ptr<Renderer>      m_renderer;
+    std::unique_ptr<KeyboardInput> m_input;
+    std::unique_ptr<MouseInput>    m_mouse;
+    std::unique_ptr<RendererUI>    m_ui;
+    float                          m_lastFrameTime    = 0.0f;
+    bool                           m_imguiInitialized = false;
+
+    /// Runs one complete frame for the given scene and scene list (shared by
+    /// both Run() overloads to avoid code duplication).
+    void RunFrame(Scene& scene,
+                  const std::vector<Scene*>& scenes,
+                  std::size_t& activeSceneIndex);
 };
