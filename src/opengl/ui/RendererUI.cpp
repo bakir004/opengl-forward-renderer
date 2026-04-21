@@ -7,19 +7,13 @@
 #include "scene/LightEnvironment.h"
 #include "scene/FrameSubmission.h"
 #include "assets/AssetImporter.h"
-
 #include <imgui.h>
-#include <imgui_internal.h>     // ImGui::GetCurrentWindow, SetNextWindowBgAlpha, ItemAdd
-#include <glm/geometric.hpp>
-#include <glm/gtc/constants.hpp>
-
-#include <cstdint>
+#include <imgui_internal.h>
 #include <cmath>
 #include <string>
 #include <algorithm>
 
 namespace Pal {
-    // Apple-inspired Dark Theme
     static constexpr ImVec4 Bg0 = {0.05f, 0.05f, 0.05f, 0.95f}; // Near black, high alpha
     static constexpr ImVec4 Bg1 = {0.11f, 0.11f, 0.12f, 0.85f}; // Deep gray, translucent
     static constexpr ImVec4 Bg2 = {0.16f, 0.16f, 0.17f, 0.90f}; // Lighter gray for items
@@ -222,6 +216,7 @@ void RendererUI::Draw(int fbW, int fbH,
     style.PopupBorderSize = 1.0f;
     style.FrameBorderSize = 0.0f;
     style.WindowPadding = ImVec2(12, 12);
+    style.DisplaySafeAreaPadding = ImVec2(8, 8); // For tooltips to not stick to edges
     style.ItemSpacing = ImVec2(8, 8);
     style.Colors[ImGuiCol_WindowBg] = Pal::Bg1;
     style.Colors[ImGuiCol_Border] = Pal::Border;
@@ -285,7 +280,9 @@ void RendererUI::DrawTopbar(int fbW,
             ImGui::SetCursorPosY((pillHeight - ImGui::GetFrameHeight()) * 0.5f);
             const bool clicked = ImGui::Button(label);
             if (ImGui::IsItemHovered() && hotkey) {
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
                 ImGui::SetTooltip("Hotkey: %s", hotkey);
+                ImGui::PopStyleVar();
             }
             ImGui::PopStyleColor(4);
             return clicked;
@@ -294,8 +291,11 @@ void RendererUI::DrawTopbar(int fbW,
         ImGui::SameLine(0, 20);
         ImGui::SetCursorPosY(0);
 
-        // --- Scenes ---
+        // --- Scenes --
+
         BeginMenuButton("Scenes", false);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 12));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 8));
         if (ImGui::BeginPopupContextItem("##scenesPopup", ImGuiPopupFlags_MouseButtonLeft)) {
             for (std::size_t i = 0; i < scenes.size(); ++i) {
                 if (!scenes[i]) continue;
@@ -305,6 +305,7 @@ void RendererUI::DrawTopbar(int fbW,
             }
             ImGui::EndPopup();
         }
+        ImGui::PopStyleVar(2);
 
         ImGui::SameLine(0, 8);
 
@@ -312,16 +313,19 @@ void RendererUI::DrawTopbar(int fbW,
         if (BeginMenuButton("View", wireframeOverride || showSidebar, "V")) {
             ImGui::OpenPopup("##viewPopup");
         }
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 12));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 8));
         if (ImGui::BeginPopup("##viewPopup")) {
-            if (ImGui::MenuItem("Wireframe", "W", wireframeOverride))
-                wireframeOverride = !wireframeOverride;
-            ImGui::Separator();
-            if (ImGui::MenuItem("Shaded", nullptr, !wireframeOverride))
-                wireframeOverride = false;
             if (ImGui::MenuItem("Inspector", "S", showSidebar))
                 showSidebar = !showSidebar;
+            ImGui::Separator();
+            if (ImGui::MenuItem("Wireframe", "W", wireframeOverride))
+                wireframeOverride = !wireframeOverride;
+            if (ImGui::MenuItem("Shaded", nullptr, !wireframeOverride))
+                wireframeOverride = false;
             ImGui::EndPopup();
         }
+        ImGui::PopStyleVar(2);
 
         ImGui::SameLine(0, 8);
 
@@ -431,8 +435,7 @@ void RendererUI::DrawViewport(int fbW, int fbH, float topY,
                               Scene &scene,
                               bool lookMode) {
     // Minimalist overlays sitting on the viewport
-    const float vpW = static_cast<float>(fbW);
-    const float vpH = static_cast<float>(fbH);
+    const auto vpW = static_cast<float>(fbW), vpH = static_cast<float>(fbH);
 
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration |
                              ImGuiWindowFlags_NoMove |
@@ -489,7 +492,9 @@ void RendererUI::DrawViewport(int fbW, int fbH, float topY,
                 // Potential action trigger
             }
             if (ImGui::IsItemHovered() && hotkey) {
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
                 ImGui::SetTooltip("Hotkey: %s", hotkey);
+                ImGui::PopStyleVar();
             }
 
             ImGui::PopStyleVar();
@@ -520,7 +525,9 @@ void RendererUI::DrawViewport(int fbW, int fbH, float topY,
                     if (std::string(lbl) == "«" or std::string(lbl) == "»") showSidebar = !showSidebar;
                 }
                 if (ImGui::IsItemHovered()) {
+                    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
                     ImGui::SetTooltip("%s (Hotkey: %s)", tooltip, hotkey);
+                    ImGui::PopStyleVar();
                 }
 
                 ImGui::PopStyleVar();

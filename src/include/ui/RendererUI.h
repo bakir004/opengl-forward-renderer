@@ -94,7 +94,7 @@ private:
                       bool lookMode);
 
     // ── Tab content ───────────────────────────────────────────────────────────
-    void DrawTabScene (Scene& scene, const RendererDebugStats& stats);
+    static void DrawTabScene (Scene& scene, const RendererDebugStats& stats);
     void DrawTabLights(Scene& scene, const RendererDebugStats& stats);
     void DrawTabShadow(Scene& scene, const RendererDebugStats& stats);
     void DrawTabStats (Scene& scene, const RendererDebugStats& stats,
