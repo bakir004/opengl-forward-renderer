@@ -241,5 +241,41 @@ void Application::Run(const std::vector<Scene*>& scenes, std::size_t initialIdx)
                 break;
             }
         }
+
+        if (m_input->IsKeyPressed(GLFW_KEY_F11)) {
+            ToggleFullscreen();
+        }
+    }
+}
+
+void Application::ToggleFullscreen() {
+    m_fullscreen = !m_fullscreen;
+
+    if (m_fullscreen) {
+        // Save windowed position + size
+        glfwGetWindowPos(m_window, &m_windowedX, &m_windowedY);
+        glfwGetWindowSize(m_window, &m_windowedW, &m_windowedH);
+
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+
+        glfwSetWindowMonitor(
+            m_window,
+            monitor,
+            0, 0,
+            mode->width,
+            mode->height,
+            mode->refreshRate
+        );
+    } else {
+        glfwSetWindowMonitor(
+            m_window,
+            nullptr,
+            m_windowedX,
+            m_windowedY,
+            m_windowedW,
+            m_windowedH,
+            0
+        );
     }
 }

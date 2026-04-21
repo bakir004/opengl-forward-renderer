@@ -53,6 +53,7 @@ public:
     // ── Public toggles ────────────────────────────────────────────────────────
     bool wireframeOverride = false;
     bool showHelpWindow    = false;
+    bool showSidebar       = true;
 
     static constexpr float kSidebarMinWidth = 320.0f;
     static constexpr float kSidebarMaxWidth = 520.0f;
@@ -65,6 +66,7 @@ private:
 
     // Viewport rect in framebuffer pixels (updated every Draw call).
     int m_vpX = 0, m_vpY = 0, m_vpW = 0, m_vpH = 0;
+    int m_prevVpW = -1,  m_prevVpH = -1;
 
     UITab m_activeTab = UITab::Scene;
 

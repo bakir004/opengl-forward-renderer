@@ -34,6 +34,8 @@ class Application {
         /// @param initialSceneIndex Index of the scene to start with.
         void Run(const std::vector<Scene*>& scenes, std::size_t initialSceneIndex = 0);
 
+        void ToggleFullscreen();
+
         /// Executes one frame: poll events, update input, tick scene, render, swap.
         /// Run() calls this in a loop; expose it here for custom loop control.
         void Update(Scene& scene);
@@ -56,6 +58,10 @@ private:
     std::unique_ptr<RendererUI>    m_ui;
     float                          m_lastFrameTime    = 0.0f;
     bool                           m_imguiInitialized = false;
+
+    bool m_fullscreen = false;
+    int m_windowedX, m_windowedY;
+    int m_windowedW, m_windowedH;
 
     /// Runs one complete frame for the given scene and scene list (shared by
     /// both Run() overloads to avoid code duplication).
