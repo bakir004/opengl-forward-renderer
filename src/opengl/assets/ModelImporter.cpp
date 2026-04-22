@@ -21,6 +21,7 @@
 #include <spdlog/spdlog.h>
 
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -31,9 +32,105 @@ namespace fs = std::filesystem;
 ModelData ImportModelFromFile(const std::string& path);
 
 // ---------------------------------------------------------------------------
+//  ExtractEmbeddedTextures
+//
+//  GLB files store textures as binary blobs inside the file itself. Assimp
+//  exposes them in scene->mTextures[] and signals their use in materials by
+//  setting the diffuse path to "*<index>" (e.g. "*0", "*2").
+//
+//  This function walks every embedded texture and writes it to a temp file
+//  so the rest of the pipeline (AssetImporter::LoadTexture) can load it
+//  from disk as normal, with no changes required upstream.
+//
+//  Returns a map from the Assimp sentinel string ("*0", "*1", …) to the
+//  real temp-file path that was written.
+//
+//  Temp files are placed next to the source GLB:
+//    japanese_cherrybake_embedded_0.png
+//    japanese_cherrybake_embedded_1.png
+//    …
+//  They are re-used on subsequent loads (checked via fs::exists).
+// ---------------------------------------------------------------------------
 
-static std::string ResolveDiffusePath(const aiMaterial* mat,
-                                      const std::string& modelDir)
+static std::unordered_map<std::string, std::string>
+ExtractEmbeddedTextures(const aiScene* scene, const std::string& modelPath)
+{
+    std::unordered_map<std::string, std::string> result;
+
+    if (!scene->mTextures || scene->mNumTextures == 0)
+        return result;
+
+    const std::string modelDir  = fs::path(modelPath).parent_path().string();
+    const std::string modelStem = fs::path(modelPath).stem().string();
+
+    for (unsigned int i = 0; i < scene->mNumTextures; ++i)
+    {
+        const aiTexture* tex = scene->mTextures[i];
+
+        // Build the sentinel key Assimp uses in material paths.
+        const std::string sentinel = "*" + std::to_string(i);
+
+        // Determine file extension.
+        // tex->achFormatHint is a 4-char hint like "png\0", "jpg\0", etc.
+        // If empty (raw uncompressed ARGB8888), we'd need to encode it ourselves;
+        // in practice GLBs always store compressed (PNG/JPG) blobs.
+        std::string ext = tex->achFormatHint;   // e.g. "png", "jpg"
+        if (ext.empty())
+            ext = "png";
+
+        const std::string outPath =
+            (fs::path(modelDir) / (modelStem + "_embedded_" + std::to_string(i) + "." + ext))
+            .string();
+
+        // Skip writing if the file already exists (avoids redundant disk I/O
+        // on repeated calls for the same model).
+        if (!fs::exists(outPath))
+        {
+            // mWidth holds the byte size when mHeight == 0 (compressed data).
+            // When mHeight > 0 the texture is raw ARGB8888 and mWidth is the
+            // pixel width — we don't handle that case here as GLBs never use it.
+            if (tex->mHeight != 0)
+            {
+                spdlog::warn("[ModelImporter] Embedded texture {} is uncompressed "
+                             "(raw ARGB); skipping extraction", i);
+                continue;
+            }
+
+            const std::size_t byteSize = static_cast<std::size_t>(tex->mWidth);
+
+            std::ofstream ofs(outPath, std::ios::binary);
+            if (!ofs)
+            {
+                spdlog::error("[ModelImporter] Cannot write embedded texture to '{}'", outPath);
+                continue;
+            }
+
+            ofs.write(reinterpret_cast<const char*>(tex->pcData), byteSize);
+            spdlog::debug("[ModelImporter] Extracted embedded texture {} → '{}'", i, outPath);
+        }
+        else
+        {
+            spdlog::debug("[ModelImporter] Embedded texture {} already extracted → '{}'", i, outPath);
+        }
+
+        result[sentinel] = outPath;
+    }
+
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+//  ResolveDiffusePath
+//
+//  Resolves a material's diffuse texture path.
+//  - Embedded GLB textures  ("*0", "*1", …): looked up in embeddedMap.
+//  - External file references: joined with modelDir as before.
+// ---------------------------------------------------------------------------
+
+static std::string ResolveDiffusePath(
+    const aiMaterial*                                      mat,
+    const std::string&                                     modelDir,
+    const std::unordered_map<std::string, std::string>&    embeddedMap)
 {
     // GLTF2 PBR base color comes through as BASE_COLOR in newer Assimp builds,
     // but older builds and other formats use DIFFUSE. Try both.
@@ -45,14 +142,28 @@ static std::string ResolveDiffusePath(const aiMaterial* mat,
         if (raw.empty())
             return {};
 
-        // Assimp returns paths relative to the model file's directory.
-        // Prepend the model dir to get a working-dir-relative path.
+        // Embedded GLB texture — return the pre-extracted temp file path.
+        if (!raw.empty() && raw[0] == '*')
+        {
+            auto it = embeddedMap.find(raw);
+            if (it != embeddedMap.end())
+                return it->second;
+
+            spdlog::warn("[ModelImporter] Embedded texture sentinel '{}' has no "
+                         "extracted file — texture will be missing", raw);
+            return {};
+        }
+
+        // External file reference — prepend the model directory.
         fs::path full = fs::path(modelDir) / raw;
-        // Normalise (resolves any ".." segments that Assimp sometimes emits).
         return full.lexically_normal().string();
     }
     return {};
 }
+
+// ---------------------------------------------------------------------------
+//  ImportModelFromFile
+// ---------------------------------------------------------------------------
 
 ModelData ImportModelFromFile(const std::string& path)
 {
@@ -80,6 +191,10 @@ ModelData ImportModelFromFile(const std::string& path)
 
     const std::string modelDir = fs::path(path).parent_path().string();
 
+    // Extract embedded textures first so ResolveDiffusePath can map
+    // "*0" → real file path for every material below.
+    const auto embeddedMap = ExtractEmbeddedTextures(scene, path);
+
     // -----------------------------------------------------------------------
     //  Build a compact material table.
     //  Multiple aiMeshes may share the same aiMaterial index; we deduplicate
@@ -105,7 +220,7 @@ ModelData ImportModelFromFile(const std::string& path)
             aiString matName;
             aiMat->Get(AI_MATKEY_NAME, matName);
             info.name        = matName.C_Str();
-            info.diffusePath = ResolveDiffusePath(aiMat, modelDir);
+            info.diffusePath = ResolveDiffusePath(aiMat, modelDir, embeddedMap);
         }
         materials.push_back(std::move(info));
         return idx;

@@ -11,6 +11,7 @@
 bool NeonCityScene::Setup()
 {
     spdlog::info("[NeonCityScene] Setting up");
+    SetSceneName("Neon City");
 
     auto meshShader = AssetImporter::LoadShader(
         "assets/shaders/mesh.vert",
