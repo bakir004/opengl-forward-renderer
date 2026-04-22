@@ -13,7 +13,6 @@
 bool SampleScene::Setup()
 {
     spdlog::info("[SampleScene] Setting up");
-    SetSceneName("Sample Scene");
 
     m_shader = std::make_unique<ShaderProgram>("assets/shaders/basic.vert", "assets/shaders/basic.frag");
     if (!m_shader->IsValid())
