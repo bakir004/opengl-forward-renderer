@@ -163,7 +163,7 @@ void Camera::SetFOV(float fovDegrees) {
 
 void Camera::SetAspectRatio(float aspect) {
     if (aspect <= 0.0f) {
-        spdlog::warn("[Camera] SetAspectRatio called with non-positive value ({:.3f}) — ignored", aspect);
+        spdlog::warn("[Camera] SetAspectRatio called with non-positive value ({:.3f}) - ignored", aspect);
         return;
     }
     if (m_aspect == aspect) return;
@@ -184,7 +184,7 @@ void Camera::SetClipPlanes(float nearClip, float farClip) {
 
 void Camera::OnResize(int width, int height) {
     if (width <= 0 || height <= 0) {
-        spdlog::warn("[Camera] OnResize called with non-positive dimensions ({}x{}) — ignored",
+        spdlog::warn("[Camera] OnResize called with non-positive dimensions ({}x{}) - ignored",
                      width, height);
         return;
     }

@@ -124,6 +124,7 @@ static MeshBuffer MakeRingMesh(float innerRadius, float outerRadius,
 bool SolarSystemScene::Setup()
 {
     spdlog::info("[SolarSystemScene] Setting up");
+    SetSceneName("Solar System");
 
     m_shader = std::make_unique<ShaderProgram>(
         "assets/shaders/basic.vert",
