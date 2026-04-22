@@ -13,8 +13,7 @@
 
 // ── Data tables ───────────────────────────────────────────────────────────────
 
-static const struct PlanetDef
-{
+static const struct PlanetDef {
     float orbitRadius;
     float orbitSpeed;
     float startAngle;
@@ -37,8 +36,7 @@ static const struct PlanetDef
 // kSaturnPlanetIdx — position of Saturn inside kPlanets[]; used to sync rings.
 static constexpr int kSaturnPlanetIdx = 5;
 
-static const struct MoonDef
-{
+static const struct MoonDef {
     int parent;
     float orbitRadius;
     float orbitSpeed;
@@ -69,8 +67,7 @@ static const struct MoonDef
 // ── Ring mesh factory (file-scope static, no longer a Setup() lambda) ─────────
 
 static MeshBuffer MakeRingMesh(float innerRadius, float outerRadius,
-                               const glm::vec3 &color, int segments)
-{
+                               const glm::vec3 &color, int segments) {
     // Vertex layout: [0..seg-1] = outer ring, [seg..2*seg-1] = inner ring.
     // The index buffer wraps with modulo so no seam vertex is duplicated.
     const int totalVerts = segments * 2;
@@ -78,13 +75,13 @@ static MeshBuffer MakeRingMesh(float innerRadius, float outerRadius,
     verts.reserve(static_cast<size_t>(totalVerts) * 6);
 
     const float step = glm::two_pi<float>() / static_cast<float>(segments);
-    auto pushRingVerts = [&](float radius)
-    {
-        for (int i = 0; i < segments; ++i)
-        {
+    auto pushRingVerts = [&](float radius) {
+        for (int i = 0; i < segments; ++i) {
             const float theta = step * static_cast<float>(i);
-            verts.insert(verts.end(), {radius * std::cos(theta), 0.0f, radius * std::sin(theta),
-                                       color.r, color.g, color.b});
+            verts.insert(verts.end(), {
+                             radius * std::cos(theta), 0.0f, radius * std::sin(theta),
+                             color.r, color.g, color.b
+                         });
         }
     };
     pushRingVerts(outerRadius);
@@ -93,8 +90,7 @@ static MeshBuffer MakeRingMesh(float innerRadius, float outerRadius,
     // Two triangles per quad segment, front + back faces.
     std::vector<uint32_t> indices;
     indices.reserve(static_cast<size_t>(segments) * 12);
-    for (int i = 0; i < segments; ++i)
-    {
+    for (int i = 0; i < segments; ++i) {
         const auto o0 = static_cast<uint32_t>(i);
         const auto o1 = static_cast<uint32_t>((i + 1) % segments);
         const auto i0 = static_cast<uint32_t>(segments + i);
@@ -121,16 +117,14 @@ static MeshBuffer MakeRingMesh(float innerRadius, float outerRadius,
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
-bool SolarSystemScene::Setup()
-{
+bool SolarSystemScene::Setup() {
     spdlog::info("[SolarSystemScene] Setting up");
     SetSceneName("Solar System");
 
     m_shader = std::make_unique<ShaderProgram>(
         "assets/shaders/basic.vert",
         "assets/shaders/basic.frag");
-    if (!m_shader->IsValid())
-    {
+    if (!m_shader->IsValid()) {
         spdlog::error("[SolarSystemScene] Shader failed — aborting");
         return false;
     }
@@ -138,17 +132,21 @@ bool SolarSystemScene::Setup()
     // ── Shared mesh assets ────────────────────────────────────────────────────
 
     m_asteroidMesh = std::make_unique<MeshBuffer>(
-        GeneratePyramid({.colorMode = ColorMode::Solid,
-                         .baseColor = {0.55f, 0.52f, 0.48f}})
-            .CreateMeshBuffer());
+        GeneratePyramid({
+            .colorMode = ColorMode::Solid,
+            .baseColor = {0.55f, 0.52f, 0.48f}
+        })
+        .CreateMeshBuffer());
 
     m_shipMesh = std::make_unique<MeshBuffer>(
         GenerateCube().CreateMeshBuffer());
 
     m_starMesh = std::make_unique<MeshBuffer>(
-        GeneratePyramid({.colorMode = ColorMode::Solid,
-                         .baseColor = {0.95f, 0.95f, 1.00f}})
-            .CreateMeshBuffer());
+        GeneratePyramid({
+            .colorMode = ColorMode::Solid,
+            .baseColor = {0.95f, 0.95f, 1.00f}
+        })
+        .CreateMeshBuffer());
 
     // ── Saturn ring meshes ────────────────────────────────────────────────────
     // Radii are expressed in world units relative to Saturn's body scale (2.10).
@@ -163,8 +161,10 @@ bool SolarSystemScene::Setup()
     // ── Sun ───────────────────────────────────────────────────────────────────
     {
         m_sunMesh = std::make_unique<MeshBuffer>(
-            GenerateSphere(1.0f, 32, {.colorMode = ColorMode::Solid, .baseColor = {1.0f, 0.90f, 0.25f}, .doubleSided = true})
-                .CreateMeshBuffer());
+            GenerateSphere(1.0f, 32, {
+                               .colorMode = ColorMode::Solid, .baseColor = {1.0f, 0.90f, 0.25f}, .doubleSided = true
+                           })
+            .CreateMeshBuffer());
 
         RenderItem sun;
         sun.mesh = m_sunMesh.get();
@@ -177,16 +177,14 @@ bool SolarSystemScene::Setup()
     }
 
     // ── Planets ───────────────────────────────────────────────────────────────
-    for (const auto &def : kPlanets)
-    {
+    for (const auto &def: kPlanets) {
         AddPlanet(def.orbitRadius, def.orbitSpeed, def.startAngle,
                   def.tiltDeg, def.selfRotSpeed, def.scale, def.color);
         spdlog::info("[SolarSystemScene] Added planet: {}", def.name);
     }
 
     // ── Moons ─────────────────────────────────────────────────────────────────
-    for (const auto &def : kMoons)
-    {
+    for (const auto &def: kMoons) {
         AddMoon(def.parent, def.orbitRadius, def.orbitSpeed,
                 def.startAngle, def.scale, def.color);
         spdlog::info("[SolarSystemScene] Added moon: {}", def.name);
@@ -194,8 +192,7 @@ bool SolarSystemScene::Setup()
 
     // ── Saturn ring scene objects ─────────────────────────────────────────────
     // Geometry is already in world-relative units; only position/tilt track Saturn.
-    for (MeshBuffer *mesh : {m_satRingInner.get(), m_satRingMid.get(), m_satRingOuter.get()})
-    {
+    for (MeshBuffer *mesh: {m_satRingInner.get(), m_satRingMid.get(), m_satRingOuter.get()}) {
         RenderItem item;
         item.mesh = mesh;
         item.shader = m_shader.get();
@@ -208,8 +205,7 @@ bool SolarSystemScene::Setup()
     constexpr float kBeltInner = 50.0f;
     constexpr float kBeltOuter = 57.0f;
     constexpr float kBeltWidth = kBeltOuter - kBeltInner; // = 7.0f
-    for (int i = 0; i < kAsteroidCount; ++i)
-    {
+    for (int i = 0; i < kAsteroidCount; ++i) {
         const float fi = static_cast<float>(i);
 
         Asteroid a;
@@ -225,9 +221,11 @@ bool SolarSystemScene::Setup()
         item.mesh = m_asteroidMesh.get();
         item.shader = m_shader.get();
         item.transform.SetScale({s, s * 1.4f, s});
-        item.transform.SetTranslation({std::cos(a.angle) * a.orbitRadius,
-                                       0.0f,
-                                       std::sin(a.angle) * a.orbitRadius});
+        item.transform.SetTranslation({
+            std::cos(a.angle) * a.orbitRadius,
+            0.0f,
+            std::sin(a.angle) * a.orbitRadius
+        });
         a.idx = AddObject(item);
         m_asteroids.push_back(a);
     }
@@ -238,8 +236,7 @@ bool SolarSystemScene::Setup()
     constexpr int kStarCount = 300;
     constexpr float kStarRadius = 200.0f;
     const float goldenAngle = glm::pi<float>() * (3.0f - std::sqrt(5.0f));
-    for (int i = 0; i < kStarCount; ++i)
-    {
+    for (int i = 0; i < kStarCount; ++i) {
         const float fi = static_cast<float>(i);
         const float y = 1.0f - (fi / (kStarCount - 1)) * 2.0f;
         const float r = std::sqrt(std::max(0.0f, 1.0f - y * y));
@@ -250,9 +247,11 @@ bool SolarSystemScene::Setup()
         star.mesh = m_starMesh.get();
         star.shader = m_shader.get();
         star.transform.SetScale({s, s, s});
-        star.transform.SetTranslation({std::cos(theta) * r * kStarRadius,
-                                       y * kStarRadius,
-                                       std::sin(theta) * r * kStarRadius});
+        star.transform.SetTranslation({
+            std::cos(theta) * r * kStarRadius,
+            y * kStarRadius,
+            std::sin(theta) * r * kStarRadius
+        });
         star.flags.castShadow = false;
         star.flags.receiveShadow = false;
         // Vary orientation so pyramids don't all point the same way.
@@ -288,39 +287,11 @@ bool SolarSystemScene::Setup()
     SetCamera(cam);
     SetClearColor({0.01f, 0.01f, 0.05f, 1.0f}); // deep space black
 
-    // ── Lights (Dev3: scene-side setup) ───────────────────────────────────
-    SetAmbientLight({0.02f, 0.02f, 0.03f}, 0.25f);
-    auto &lights = GetLights();
-    lights.SetDirectionalLight(
-        DirectionalLightBuilder()
-            .Direction({-0.2f, -1.0f, -0.15f})
-            .Color({1.0f, 0.94f, 0.80f})
-            .Intensity(1.3f)
-            .Name("SolarDirectional")
-            .CastShadow(true)
-            .ShadowResolution(2048, 2048)
-            .Build());
-    lights.AddPointLight(
-        PointLightBuilder()
-            .Position({0.0f, 0.0f, 0.0f})
-            .Color({1.0f, 0.90f, 0.65f})
-            .Intensity(6.0f)
-            .Radius(320.0f)
-            .Name("SolarCore")
-            .Build());
-
-    lights.AddPointLight(
-        PointLightBuilder()
-            .Position({0.0f, 0.0f, 0.0f})
-            .Color({0.85f, 0.95f, 1.0f}) // Bluish-white light
-            .Intensity(0.0f) // Disabled by default until spawned
-            .Radius(80.0f)
-            .Name("ShootingStar")
-            .Build());
-
     m_shootingStarMesh = std::make_unique<MeshBuffer>(
-        GenerateSphere(0.4f, 8, {.colorMode = ColorMode::Solid, .baseColor = {0.9f, 0.95f, 1.0f}, .doubleSided = false}).CreateMeshBuffer());
-    
+        GenerateSphere(0.4f, 8, {
+                           .colorMode = ColorMode::Solid, .baseColor = {0.9f, 0.95f, 1.0f}, .doubleSided = false
+                       }).CreateMeshBuffer());
+
     RenderItem shootingStar;
     shootingStar.mesh = m_shootingStarMesh.get();
     shootingStar.shader = m_shader.get();
@@ -340,12 +311,11 @@ bool SolarSystemScene::Setup()
 void SolarSystemScene::AddPlanet(float orbitRadius, float orbitSpeed,
                                  float startAngle, float tiltDeg,
                                  float selfRotSpeed, float scale,
-                                 const glm::vec3 &color)
-{
+                                 const glm::vec3 &color) {
     // Build mesh first so we can take its raw pointer before moving into the vector.
     m_planetMeshes.push_back(std::make_unique<MeshBuffer>(
         GenerateSphere(1.0f, 32, {.colorMode = ColorMode::Solid, .baseColor = color, .doubleSided = true})
-            .CreateMeshBuffer()));
+        .CreateMeshBuffer()));
 
     const float x = std::cos(startAngle) * orbitRadius;
     const float z = std::sin(startAngle) * orbitRadius;
@@ -377,23 +347,24 @@ void SolarSystemScene::AddPlanet(float orbitRadius, float orbitSpeed,
 
 void SolarSystemScene::AddMoon(int parentIdx, float orbitRadius,
                                float orbitSpeed, float startAngle,
-                               float scale, const glm::vec3 &color)
-{
+                               float scale, const glm::vec3 &color) {
     const Planet &parent = m_planets[parentIdx];
     const float px = std::cos(parent.angle) * parent.orbitRadius;
     const float pz = std::sin(parent.angle) * parent.orbitRadius;
 
     m_moonMeshes.push_back(std::make_unique<MeshBuffer>(
         GenerateSphere(1.0f, 24, {.colorMode = ColorMode::Solid, .baseColor = color, .doubleSided = true})
-            .CreateMeshBuffer()));
+        .CreateMeshBuffer()));
 
     RenderItem item;
     item.mesh = m_moonMeshes.back().get();
     item.shader = m_shader.get();
     item.transform.SetScale({scale, scale, scale});
-    item.transform.SetTranslation({px + std::cos(startAngle) * orbitRadius,
-                                   0.0f,
-                                   pz + std::sin(startAngle) * orbitRadius});
+    item.transform.SetTranslation({
+        px + std::cos(startAngle) * orbitRadius,
+        0.0f,
+        pz + std::sin(startAngle) * orbitRadius
+    });
 
     m_moons.push_back(Moon{
         .idx = AddObject(item),
@@ -408,11 +379,9 @@ void SolarSystemScene::AddMoon(int parentIdx, float orbitRadius,
 
 // ── OnUpdate ──────────────────────────────────────────────────────────────────
 
-void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInput &mouse)
-{
+void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInput &mouse) {
     // M — toggle pause
-    if (input.IsKeyPressed(GLFW_KEY_M))
-    {
+    if (input.IsKeyPressed(GLFW_KEY_M)) {
         m_isPaused = !m_isPaused;
         spdlog::info("[SolarSystemScene] {}", m_isPaused ? "PAUSED" : "UNPAUSED");
     }
@@ -424,8 +393,7 @@ void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInpu
     {
         auto &t = GetObject(m_playerIdx).transform;
         t.SetTranslation(m_playerPos);
-        if (glm::length(moveDirXZ) > 0.001f)
-        {
+        if (glm::length(moveDirXZ) > 0.001f) {
             const glm::vec3 d = glm::normalize(moveDirXZ);
             // atan2 returns radians — feed directly to angleAxis, skip glm::degrees.
             t.SetRotation(glm::angleAxis(std::atan2(d.x, d.z), glm::vec3(0.0f, 1.0f, 0.0f)));
@@ -433,8 +401,7 @@ void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInpu
     }
 
     // ── Celestial body animations (pause-aware) ───────────────────────────────
-    if (!m_isPaused)
-    {
+    if (!m_isPaused) {
         // Sun self-rotation.
         // Accumulate in radians — pass directly to angleAxis, no degrees conversion.
         m_sunRotAngle += 0.10f * deltaTime;
@@ -442,15 +409,16 @@ void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInpu
             glm::angleAxis(m_sunRotAngle, glm::vec3(0.0f, 1.0f, 0.0f)));
 
         // Planets
-        for (auto &p : m_planets)
-        {
+        for (auto &p: m_planets) {
             p.angle += p.orbitSpeed * deltaTime;
             p.selfRotAngle += p.selfRotSpeed * deltaTime;
 
             auto &t = GetObject(p.idx).transform;
-            t.SetTranslation({std::cos(p.angle) * p.orbitRadius,
-                              0.0f,
-                              std::sin(p.angle) * p.orbitRadius});
+            t.SetTranslation({
+                std::cos(p.angle) * p.orbitRadius,
+                0.0f,
+                std::sin(p.angle) * p.orbitRadius
+            });
 
             // Compose axial tilt (fixed, around X) and self-spin (accumulating, around Y).
             //
@@ -466,14 +434,15 @@ void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInpu
         }
 
         // Moons (no self-rotation, just orbit their parent)
-        for (auto &m : m_moons)
-        {
+        for (auto &m: m_moons) {
             m.angle += m.orbitSpeed * deltaTime;
 
             const Planet &parent = m_planets[m.parentPlanet];
-            GetObject(m.idx).transform.SetTranslation({std::cos(parent.angle) * parent.orbitRadius + std::cos(m.angle) * m.orbitRadius,
-                                                       0.0f,
-                                                       std::sin(parent.angle) * parent.orbitRadius + std::sin(m.angle) * m.orbitRadius});
+            GetObject(m.idx).transform.SetTranslation({
+                std::cos(parent.angle) * parent.orbitRadius + std::cos(m.angle) * m.orbitRadius,
+                0.0f,
+                std::sin(parent.angle) * parent.orbitRadius + std::sin(m.angle) * m.orbitRadius
+            });
         }
 
         // Saturn ring layers — track Saturn's position and axial tilt.
@@ -482,13 +451,13 @@ void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInpu
             const glm::vec3 saturnPos = {
                 std::cos(saturn.angle) * saturn.orbitRadius,
                 0.0f,
-                std::sin(saturn.angle) * saturn.orbitRadius};
+                std::sin(saturn.angle) * saturn.orbitRadius
+            };
             // Same tilt+spin composition as planets — rings co-rotate with Saturn.
             const glm::quat qTilt = glm::angleAxis(glm::radians(saturn.tiltDeg), glm::vec3(1.0f, 0.0f, 0.0f));
             const glm::quat qSpin = glm::angleAxis(saturn.selfRotAngle, glm::vec3(0.0f, 1.0f, 0.0f));
             const glm::quat ringRot = qSpin * qTilt;
-            for (const auto &sr : m_saturnRings)
-            {
+            for (const auto &sr: m_saturnRings) {
                 auto &t = GetObject(sr.idx).transform;
                 t.SetTranslation(saturnPos);
                 t.SetRotation(ringRot);
@@ -498,45 +467,39 @@ void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInpu
 
         // Asteroid belt — each asteroid spins around its own Y axis.
         m_beltRotAngle += 0.04f * deltaTime;
-        for (auto &a : m_asteroids)
-        {
+        for (auto &a: m_asteroids) {
             a.rotAngle += a.rotSpeed * deltaTime;
             const float angle = a.angle + m_beltRotAngle;
             auto &t = GetObject(a.idx).transform;
-            t.SetTranslation({std::cos(angle) * a.orbitRadius,
-                              0.0f,
-                              std::sin(angle) * a.orbitRadius});
+            t.SetTranslation({
+                std::cos(angle) * a.orbitRadius,
+                0.0f,
+                std::sin(angle) * a.orbitRadius
+            });
             // rotAngle accumulates in radians — no glm::degrees needed.
             t.SetRotation(glm::angleAxis(a.rotAngle, glm::vec3(0.0f, 1.0f, 0.0f)));
         }
 
         // ── Shooting Star Logic ──────────────────────────────────────────────────
         m_starTimer += deltaTime;
-        
-        auto& pointLights = GetLights().GetPointLights();
-        PointLight* sStarLight = nullptr;
-        for (auto& l : pointLights) {
-            if (l.name == "ShootingStar") {
-                sStarLight = &l;
-                break;
-            }
-        }
-        
+
+
         if (!m_starActive) {
             // Trigger delay (4 to 10 seconds before next spawn)
-            if (m_starTimer > 4.0f + 6.0f * (float)(std::rand() % 100) / 100.0f) {
+            if (m_starTimer > 4.0f + 6.0f * (float) (std::rand() % 100) / 100.0f) {
                 m_starActive = true;
                 m_starTimer = 0.0f;
-                m_starDuration = 1.0f + 1.5f * (float)(std::rand() % 100) / 100.0f;
-                
-                float rX = -150.0f + 300.0f * ((float)(std::rand() % 100) / 100.0f);
-                float rY = 20.0f + 50.0f * ((float)(std::rand() % 100) / 100.0f);
-                float rZ = -150.0f + 300.0f * ((float)(std::rand() % 100) / 100.0f);
-                
+                m_starDuration = 1.0f + 1.5f * (float) (std::rand() % 100) / 100.0f;
+
+                float rX = -150.0f + 300.0f * ((float) (std::rand() % 100) / 100.0f);
+                float rY = 20.0f + 50.0f * ((float) (std::rand() % 100) / 100.0f);
+                float rZ = -150.0f + 300.0f * ((float) (std::rand() % 100) / 100.0f);
+
                 m_starStartPos = {rX, rY, rZ};
-                m_starEndPos = m_starStartPos + glm::vec3(-60.0f + (std::rand()%120), -50.0f, -60.0f + (std::rand()%120));
-                
-                if (m_shootingStarIdx != (size_t)-1) {
+                m_starEndPos = m_starStartPos + glm::vec3(-60.0f + (std::rand() % 120), -50.0f,
+                                                          -60.0f + (std::rand() % 120));
+
+                if (m_shootingStarIdx != (size_t) -1) {
                     GetObject(m_shootingStarIdx).flags.visible = true;
                     // Significantly scale along Z to simulate an elongated light trail
                     GetObject(m_shootingStarIdx).transform.SetScale({1.0f, 1.0f, 12.0f});
@@ -547,29 +510,24 @@ void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInpu
             if (t >= 1.0f) {
                 m_starActive = false;
                 m_starTimer = 0.0f;
-                if (m_shootingStarIdx != (size_t)-1) {
+                if (m_shootingStarIdx != (size_t) -1) {
                     GetObject(m_shootingStarIdx).flags.visible = false;
                 }
-                if (sStarLight) sStarLight->intensity = 0.0f;
             } else {
                 glm::vec3 pos = m_starStartPos + (m_starEndPos - m_starStartPos) * t;
                 // Sine wave fade-in and fade-out based on flight progress
                 float intensity = std::sin(t * 3.14159f) * 45.0f; // Extreme burst intensity
-                
-                if (m_shootingStarIdx != (size_t)-1) {
-                    auto& starObj = GetObject(m_shootingStarIdx);
+
+                if (m_shootingStarIdx != (size_t) -1) {
+                    auto &starObj = GetObject(m_shootingStarIdx);
                     starObj.transform.SetTranslation(pos);
-                    
+
                     // Align the stretched tail (Z axis) along the flight trajectory
                     glm::vec3 dir = glm::normalize(m_starEndPos - m_starStartPos);
                     float pitch = std::asin(-dir.y);
                     float yaw = std::atan2(dir.x, dir.z);
-                    starObj.transform.SetRotation(glm::angleAxis(yaw, glm::vec3(0,1,0)) * glm::angleAxis(pitch, glm::vec3(1,0,0)));
-                }
-                
-                if (sStarLight) {
-                    sStarLight->position = pos;
-                    sStarLight->intensity = intensity;
+                    starObj.transform.SetRotation(
+                        glm::angleAxis(yaw, glm::vec3(0, 1, 0)) * glm::angleAxis(pitch, glm::vec3(1, 0, 0)));
                 }
             }
         }
