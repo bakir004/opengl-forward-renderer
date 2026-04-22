@@ -4,7 +4,6 @@
 
 #include "SolarSystemScene.h"
 #include "DioramaScene.h"
-#include "JapanScene.h"
 #include "NeonCityScene.h"
 
 int main() {
@@ -32,15 +31,10 @@ int main() {
     if (!neonCityScene.Setup())
         spdlog::warn("[TestApp] NeonCityScene::Setup() failed");
 
-    JapanScene japanScene;
-    if (!japanScene.Setup())
-        spdlog::warn("[TestApp] JapanScene::Setup() failed");
-
     spdlog::info("[TestApp] Tab = toggle mouse look | WASD/Space/LCtrl = move | F1/F2/F3 = camera mode");
-    spdlog::info(
-        "[TestApp] Press 1 for SampleScene | Press 2 for SolarSystemScene | Press 3 for DioramaScene | Press 4 for NeonCityScene");
+    spdlog::info("[TestApp] Press 1 for SampleScene | Press 2 for SolarSystemScene | Press 3 for DioramaScene | Press 4 for NeonCityScene");
 
-    app.Run({&sampleScene, &solarSystemScene, &dioramaScene, &neonCityScene, &japanScene}, 0);
+    app.Run({&sampleScene, &solarSystemScene, &dioramaScene, &neonCityScene}, 0);
 
     spdlog::info("[TestApp] Shutting down");
     return 0;
