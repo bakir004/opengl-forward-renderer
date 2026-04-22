@@ -13,8 +13,6 @@ add_executable(${PROJECT_NAME}
         src/DioramaScene.cpp
         src/NeonCityScene.h
         src/NeonCityScene.cpp
-        src/JapanScene.h
-        src/JapanScene.cpp
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
