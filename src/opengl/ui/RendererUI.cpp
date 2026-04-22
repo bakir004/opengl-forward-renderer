@@ -833,7 +833,6 @@ void RendererUI::DrawHelpWindow(int fbW, int fbH, bool /*lookMode*/) {
         KeyRow("X", "Unimplemented hotkey");
         KeyRow("X", "Unimplemented hotkey");
         KeyRow("X", "Unimplemented hotkey");
-        KeyRow("X", "Unimplemented hotkey");
 
         ImGui::SetCursorPosY(h - 50.0f);
         if (ImGui::Button("Close", ImVec2(-1, 30))) {
