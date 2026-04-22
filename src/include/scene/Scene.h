@@ -5,7 +5,6 @@
 #include "scene/RenderItem.h"
 #include "scene/LightEnvironment.h"
 #include <glm/glm.hpp>
-#include <string>
 #include <vector>
 
 class KeyboardInput;
@@ -25,9 +24,6 @@ public:
     }
 
     virtual ~Scene() = default;
-
-    /// Returns the name of the scene for display in UI.
-    virtual const std::string& GetName() const { return m_sceneName; }
 
     /// Called once per frame. Override to handle input and update scene state.
     virtual void OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mouse) {}
@@ -61,9 +57,6 @@ protected:
     /// Returns the base movement speed configured for the current camera mode (in meters/sec).
     float GetCurrentCameraSpeed() const;
 
-    /// Sets the scene name for display in the UI.
-    void SetSceneName(const std::string& name) { m_sceneName = name; }
-
     // -- Movement properties --
     float m_cameraFreeFlySpeed     = 4.0f;
     float m_cameraFirstPersonSpeed = 3.0f;
@@ -90,9 +83,7 @@ private:
     LightEnvironment     m_lights;
     std::vector<RenderItem> m_objects;
     glm::vec4            m_clearColor = {0.08f, 0.09f, 0.12f, 1.0f};
-    std::string          m_sceneName = "Untitled Scene";
     mutable bool         m_reportedInvalidLights = false;
 
     friend class Application;
-    friend class RendererUI;
 };

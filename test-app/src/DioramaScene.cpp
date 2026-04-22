@@ -12,7 +12,6 @@
 
 bool DioramaScene::Setup() {
     spdlog::info("[DioramaScene] Setting up");
-    SetSceneName("Diorama");
 
     m_shader = std::make_unique<ShaderProgram>("assets/shaders/basic.vert", "assets/shaders/basic.frag");
     if (!m_shader->IsValid()) {
