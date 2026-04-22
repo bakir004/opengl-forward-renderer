@@ -319,7 +319,7 @@ void RendererUI::DrawTopbar(int fbW,
             if (ImGui::MenuItem("Inspector", "S", showSidebar))
                 showSidebar = !showSidebar;
             ImGui::Separator();
-            if (ImGui::MenuItem("Wireframe", "W", wireframeOverride))
+            if (ImGui::MenuItem("Wireframe", "Y", wireframeOverride))
                 wireframeOverride = !wireframeOverride;
             if (ImGui::MenuItem("Shaded", nullptr, !wireframeOverride))
                 wireframeOverride = false;
@@ -535,9 +535,8 @@ void RendererUI::DrawViewport(int fbW, int fbH, float topY,
                 ImGui::SameLine(0, 8);
             };
 
-            ToolBtn(showSidebar ? "«" : "»", showSidebar, "S", "Toggle Inspector");
-            ToolBtn("W", wireframeOverride, "W", "Toggle Wireframe");
-            // Placeholder for other tools (G for grid, etc)
+            ToolBtn(showSidebar ? "«" : "»", showSidebar, "X", "Toggle Inspector");
+            ToolBtn("W", wireframeOverride, "Y", "Toggle Wireframe");
         }
     }
     ImGui::End();
@@ -797,7 +796,7 @@ void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats
 // ─────────────────────────────────────────────────────────────────────────────
 void RendererUI::DrawHelpWindow(int fbW, int fbH, bool /*lookMode*/) {
     const float w = 380.0f;
-    const float h = 420.0f;
+    const float h = 500.0f;
     ImGui::SetNextWindowPos({(fbW - w) * 0.5f, (fbH - h) * 0.5f}, ImGuiCond_Always);
     ImGui::SetNextWindowSize({w, h}, ImGuiCond_Always);
 
@@ -820,8 +819,8 @@ void RendererUI::DrawHelpWindow(int fbW, int fbH, bool /*lookMode*/) {
 
         ImGui::TextColored(Pal::TextDim, "NAVIGATION");
         ImGui::Separator();
-        KeyRow("W, A, S, D", "Move camera (FreeFly)");
-        KeyRow("CTRL, SPACE", "Move down / up");
+        KeyRow("W/A/S/D", "Move forward/left/back/right");
+        KeyRow("SPACE/CTRL", "Move up/down");
         KeyRow("TAB", "Toggle camera angle movement");
         KeyRow("SHIFT", "Raise movement speed");
 
@@ -830,9 +829,13 @@ void RendererUI::DrawHelpWindow(int fbW, int fbH, bool /*lookMode*/) {
 
         ImGui::TextColored(Pal::TextDim, "CONTROLS");
         ImGui::Separator();
-        KeyRow("X", "Unimplemented hotkey");
-        KeyRow("X", "Unimplemented hotkey");
-        KeyRow("X", "Unimplemented hotkey");
+        KeyRow("F1", "Free-fly camera mode");
+        KeyRow("F2", "First person camera mode");
+        KeyRow("F3", "Third person camera mode");
+        KeyRow("F11", "Toggle fullscreen");
+        KeyRow("X", "Toggle inspector");
+        KeyRow("Y", "Toggle wireframe mode (unimplemented)");
+        KeyRow("H", "Toggle this help window");
 
         ImGui::SetCursorPosY(h - 50.0f);
         if (ImGui::Button("Close", ImVec2(-1, 30))) {
