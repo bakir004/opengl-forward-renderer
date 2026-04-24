@@ -177,6 +177,16 @@ bool JapanScene::Setup()
     AddLight({19.86f,-0.10f, -3.21f}, {1.0f,0.73f,0.01f}, 3, "Warm 1");
     AddLight({19.77f,-0.01f,  3.12f}, {1.0f,0.73f,0.01f}, 3, "Warm 2");
 
+    // Player
+    {
+        RenderItem playerItem;
+        playerItem.mesh = m_petalMesh.get(); // Using petal mesh as a placeholder for now
+        playerItem.shader = meshShader.get();
+        playerItem.transform.SetScale({0.5f, 0.5f, 0.5f});
+        playerItem.transform.SetTranslation(m_playerPosition);
+        m_playerCubeIdx = AddObject(playerItem);
+    }
+
     spdlog::info("[JapanScene] Setup complete");
     return true;
 }

@@ -189,7 +189,7 @@ bool SampleScene::Setup()
         // but the game convention is +Z. A -90° yaw around world Y aligns them.
         // glm::angleAxis(angle, axis) is unambiguous — no composition order to remember.
         playerDuck.rotationOffset = glm::angleAxis(glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        playerDuck.translationOffset = {0.0f, -0.9f, 0.0f};
+        playerDuck.translationOffset = {0.0f, 0.0f, 0.0f};
         playerDuck.transform.SetTranslation(m_playerPosition);
         playerDuck.transform.SetScale({0.6f, 0.6f, 0.6f}); // glTF units are meters; duck is ~0.5 m long
         playerDuck.flags.castShadow = true;
@@ -250,7 +250,7 @@ void SampleScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInput &mo
         GetObject(m_playerCubeIdx).flags.visible = (cam.GetMode() != CameraMode::FirstPerson);
 
     glm::vec3 moveDirXZ;
-    UpdateStandardCameraAndPlayer(deltaTime, input, mouse, m_playerPosition, moveDirXZ, 0.7f);
+    UpdateStandardCameraAndPlayer(deltaTime, input, mouse, m_playerPosition, moveDirXZ, 1.1f);
 
     // Keep player cube in sync
     auto &playerTransform = GetObject(m_playerCubeIdx).transform;
@@ -276,7 +276,7 @@ void SampleScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInput &mo
     {
         auto &pTransform = GetObject(m_playerCubeIdx).transform;
         const glm::vec3 pos = pTransform.GetTranslation();
-        pTransform.SetTranslation({pos.x, 1.1f + duckFloatOffset, pos.z});
+        pTransform.SetTranslation({pos.x, pos.y + duckFloatOffset, pos.z});
     }
 
     // --- ADDED --- Toggle lantern light with 'L' key

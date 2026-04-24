@@ -211,8 +211,28 @@ void Application::Update(Scene& scene) {
 void Application::Run(Scene& scene) {
     std::vector<Scene*> sv = { &scene };
     std::size_t idx = 0;
-    while (!glfwWindowShouldClose(m_window))
+    while (!glfwWindowShouldClose(m_window)) {
         RunFrame(scene, sv, idx);
+
+        if (m_input->IsKeyPressed(GLFW_KEY_F11)) {
+            ToggleFullscreen();
+        }
+
+        if (m_input->IsKeyPressed(GLFW_KEY_X)) {
+            m_ui->showSidebar = !m_ui->showSidebar;
+            spdlog::debug("[Application] Toggle sidebar (inspector): {}", m_ui->showSidebar);
+        }
+
+        if (m_input->IsKeyPressed(GLFW_KEY_Y)) {
+            m_ui->wireframeOverride = !m_ui->wireframeOverride;
+            spdlog::debug("[Application] Toggle wireframe mode: {}", m_ui->wireframeOverride);
+        }
+
+        if (m_input->IsKeyPressed(GLFW_KEY_H)) {
+            m_ui->showHelpWindow = !m_ui->showHelpWindow;
+            spdlog::debug("[Application] Toggle help window: {}", m_ui->showHelpWindow);
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -244,6 +264,21 @@ void Application::Run(const std::vector<Scene*>& scenes, std::size_t initialIdx)
 
         if (m_input->IsKeyPressed(GLFW_KEY_F11)) {
             ToggleFullscreen();
+        }
+
+        if (m_input->IsKeyPressed(GLFW_KEY_X)) {
+            m_ui->showSidebar = !m_ui->showSidebar;
+            spdlog::debug("[Application] Toggle sidebar (inspector): {}", m_ui->showSidebar);
+        }
+
+        if (m_input->IsKeyPressed(GLFW_KEY_Y)) {
+            m_ui->wireframeOverride = !m_ui->wireframeOverride;
+            spdlog::debug("[Application] Toggle wireframe mode: {}", m_ui->wireframeOverride);
+        }
+
+        if (m_input->IsKeyPressed(GLFW_KEY_H)) {
+            m_ui->showHelpWindow = !m_ui->showHelpWindow;
+            spdlog::debug("[Application] Toggle help window: {}", m_ui->showHelpWindow);
         }
     }
 }
