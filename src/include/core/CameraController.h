@@ -9,7 +9,8 @@ class IInputProvider;
 /// Abstract camera controller base.
 class CameraController {
 public:
-    explicit CameraController(Camera& camera);
+    explicit CameraController(Camera &camera);
+
     virtual ~CameraController() = default;
 
     void SetMoveSpeed(float speed) { m_moveSpeed = speed; }
@@ -18,12 +19,12 @@ public:
     [[nodiscard]] float GetMoveSpeed() const { return m_moveSpeed; }
     [[nodiscard]] float GetMouseSensitivity() const { return m_mouseSensitivity; }
 
-    virtual void Update(float deltaTime, IInputProvider& input) = 0;
+    virtual void Update(float deltaTime, IInputProvider &input) = 0;
 
 protected:
-    Camera& m_camera;
-    float   m_moveSpeed = 5.0f;
-    float   m_mouseSensitivity = 0.15f;
+    Camera &m_camera;
+    float m_moveSpeed = 5.0f;
+    float m_mouseSensitivity = 0.15f;
 
     bool m_rmbHoldActive = false;
     bool m_capturedBeforeRmbHold = false;
@@ -32,15 +33,17 @@ protected:
 /// Free-fly camera controller (six degrees of freedom).
 class FreeFlyController : public CameraController {
 public:
-    explicit FreeFlyController(Camera& camera);
-    void Update(float deltaTime, IInputProvider& input) override;
+    explicit FreeFlyController(Camera &camera);
+
+    void Update(float deltaTime, IInputProvider &input) override;
 };
 
 /// First-person camera controller (grounded movement, pitch clamp).
 class FirstPersonController : public CameraController {
 public:
-    explicit FirstPersonController(Camera& camera);
-    void Update(float deltaTime, IInputProvider& input) override;
+    explicit FirstPersonController(Camera &camera);
+
+    void Update(float deltaTime, IInputProvider &input) override;
 };
 
 /// Shared scene-level camera/player controller used by Scene::UpdateStandardCameraAndPlayer.
@@ -49,23 +52,26 @@ public:
 /// player state and speed/radius tuning parameters.
 class StandardSceneCameraController {
 public:
-    explicit StandardSceneCameraController(Camera& camera);
+    explicit StandardSceneCameraController(Camera &camera);
+
+    void SetFirstPersonEyeHeight(float height) { m_firstPersonEyeHeight = height; }
 
     void Update(float deltaTime,
-                IInputProvider& input,
-                glm::vec3& playerPos,
-                glm::vec3& outMoveDirXZ,
+                IInputProvider &input,
+                glm::vec3 &playerPos,
+                glm::vec3 &outMoveDirXZ,
                 float orbitTargetYOffset,
-                float& cameraFreeFlySpeed,
-                float& cameraFirstPersonSpeed,
-                float& cameraThirdPersonSpeed,
-                float& cameraOrbitRadius,
-                float& outLastEffectiveSpeed);
+                float &cameraFreeFlySpeed,
+                float &cameraFirstPersonSpeed,
+                float &cameraThirdPersonSpeed,
+                float &cameraOrbitRadius,
+                float &outLastEffectiveSpeed);
 
 private:
-    Camera& m_camera;
-    float   m_mouseSensitivity = 0.1f;
-    float   m_sprintMultiplier = 3.0f;
-    bool    m_rmbHoldActive = false;
-    bool    m_capturedBeforeRmbHold = false;
+    Camera &m_camera;
+    float m_mouseSensitivity = 0.1f;
+    float m_sprintMultiplier = 3.0f;
+    bool m_rmbHoldActive = false;
+    bool m_capturedBeforeRmbHold = false;
+    float m_firstPersonEyeHeight = 0.0f;
 };

@@ -213,7 +213,7 @@ void StandardSceneCameraController::Update(float deltaTime,
             outLastEffectiveSpeed = currentFirstPerson;
             playerPos += outMoveDirXZ * (currentFirstPerson * deltaTime);
             playerPos.y += up * currentFirstPerson * deltaTime;
-            m_camera.SetPosition(playerPos);
+            m_camera.SetPosition(playerPos + glm::vec3(0.0f, m_firstPersonEyeHeight, 0.0f)); // ← add offset
         } else if (m_camera.GetMode() == CameraMode::ThirdPerson) {
             outLastEffectiveSpeed = currentThirdPerson;
             playerPos += outMoveDirXZ * (currentThirdPerson * deltaTime);

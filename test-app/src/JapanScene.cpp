@@ -130,6 +130,7 @@ bool JapanScene::Setup()
     cam.SetPosition({19.0f, 2.0f, 8.0f});
     cam.SetOrientation(-150.0f, 32.0f);
     SetCamera(cam);
+    SetFirstPersonEyeHeight(2.20f);
 
     SetClearColor({0.0f, 0.0f, 0.0f, 1.0f}); // black background
 
@@ -176,15 +177,82 @@ bool JapanScene::Setup()
     AddLight({19.86f,-0.10f, -3.21f}, {1.0f,0.73f,0.01f}, 3, "Warm 1");
     AddLight({19.77f,-0.01f,  3.12f}, {1.0f,0.73f,0.01f}, 3, "Warm 2");
 
-    // Player
+    // ── Sekiro player model ───────────────────────────────────────────────────
+m_sekiroModel = AssetImporter::LoadModel("assets/models/gltf/low-poly_sekiro/scene.gltf");
+
+m_sekiroMaterial = std::make_shared<Material>(meshShader);
+m_sekiroMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
+m_sekiroMaterial->SetFloat("u_Shininess", 64.0f);
+m_sekiroMaterial->SetFloat("u_SpecularStrength", 0.4f);
+
+// Build one MaterialInstance per GLTF material, using vertex colors (no texture needed)
+auto whiteFallbackSekiro = std::make_shared<Texture2D>(
+    Texture2D::CreateFallback(200, 200, 200, 255));
+
+    // Lookup table matching every GLTF material name → its baseColorFactor (linear RGB)
+    static const std::unordered_map<std::string, glm::vec4> kSekiroColors = {
+        { "Dark_red",     { 0.0467f, 0.0301f, 0.0533f, 1.0f } },
+        { "Grey",         { 0.0510f, 0.0510f, 0.0510f, 1.0f } },
+        { "light_grey",   { 0.135f,  0.135f,  0.135f,  1.0f } },
+        { "Scarf",        { 0.800f,  0.490f,  0.274f,  1.0f } },
+        { "Face",         { 0.800f,  0.424f,  0.306f,  1.0f } },
+        { "Hair",         { 0.025f,  0.024f,  0.024f,  1.0f } },
+        { "Bandages",     { 0.482f,  0.262f,  0.153f,  1.0f } },
+        { "Metal",        { 0.393f,  0.393f,  0.393f,  1.0f } },
+        { "Bone",         { 0.471f,  0.325f,  0.118f,  1.0f } },
+        { "Bone_light",   { 0.624f,  0.428f,  0.298f,  1.0f } },
+        { "New_Coat",     { 0.554f,  0.219f,  0.096f,  1.0f } },
+        { "Pants",        { 0.155f,  0.094f,  0.069f,  1.0f } },
+        { "material",     { 0.093f,  0.006f,  0.006f,  1.0f } },
+        { "Material.003", { 0.058f,  0.035f,  0.022f,  1.0f } },
+        { "Black",        { 0.012f,  0.011f,  0.011f,  1.0f } },
+        { "Bronze",       { 0.285f,  0.264f,  0.157f,  1.0f } },
+        { "Sword_red",    { 0.203f,  0.043f,  0.029f,  1.0f } },
+        { "Red_Metal",    { 0.187f,  0.085f,  0.085f,  1.0f } },
+    };
+
+    for (const ModelMaterialInfo& matInfo : m_sekiroModel.materials)
     {
-        RenderItem playerItem;
-        playerItem.mesh = m_petalMesh.get(); // Using petal mesh as a placeholder for now
-        playerItem.shader = meshShader.get();
-        playerItem.transform.SetScale({0.5f, 0.5f, 0.5f});
-        playerItem.transform.SetTranslation(m_playerPosition);
-        m_playerCubeIdx = AddObject(playerItem);
+        auto inst = std::make_unique<MaterialInstance>(m_sekiroMaterial);
+        inst->SetTexture(TextureSlot::Albedo, whiteFallback); // bind something so the slot isn't empty
+
+        auto it = kSekiroColors.find(matInfo.name);
+        if (it != kSekiroColors.end())
+            inst->SetVec4("u_TintColor", it->second);
+        else
+            inst->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f}); // safe fallback
+
+        m_sekiroMatInstances.push_back(std::move(inst));
     }
+
+if (m_sekiroModel.IsValid())
+{
+    const uint32_t subMeshCount = m_sekiroModel.mesh->SubMeshCount();
+
+    for (uint32_t i = 0; i < subMeshCount; ++i)
+    {
+        const SubMesh& sm = m_sekiroModel.mesh->GetSubMesh(i);
+
+        RenderItem item;
+        item.meshMulti    = m_sekiroModel.mesh.get();
+        item.subMeshIndex = i;
+        item.material     = m_sekiroMatInstances[sm.materialIndex].get();
+        item.transform.SetTranslation(m_playerPosition);
+        item.transform.SetScale({0.01f, 0.01f, 0.01f});
+        item.flags.castShadow    = true;
+        item.flags.receiveShadow = true;
+
+        size_t idx = AddObject(item);
+
+        // Store only the first submesh index as the "primary" handle;
+        // we'll drive all parts together via m_sekiroSubMeshIndices
+        m_sekiroSubMeshIndices.push_back(idx);
+        if (m_playerCubeIdx == (size_t)-1)
+            m_playerCubeIdx = idx;
+    }
+
+    spdlog::info("[JapanScene] Added {} Sekiro submeshes", subMeshCount);
+}
 
     spdlog::info("[JapanScene] Setup complete");
     return true;
@@ -226,25 +294,30 @@ void JapanScene::OnUpdate(float deltaTime, IInputProvider& input)
     // ── Camera + player controller ───────────────────────────────────────────
     Camera& cam = GetCamera();
 
-    if (m_playerCubeIdx >= 0)
+    // Hide Sekiro mesh in first-person so it doesn't clip into the camera
+    if (m_sekiroModel.IsValid() && m_playerCubeIdx != (size_t)-1)
         GetObject(m_playerCubeIdx).flags.visible =
             (cam.GetMode() != CameraMode::FirstPerson);
 
     glm::vec3 moveDirXZ;
     UpdateStandardCameraAndPlayer(deltaTime, input,
-                                  m_playerPosition, moveDirXZ, 0.7f);
+                                  m_playerPosition, moveDirXZ, 2.0f);
 
-    // Align the player with a movement direction
-    if (m_playerCubeIdx >= 0)
+    // Sync transform and face the direction of movement
+    // Replace the single-index player transform block with this:
+    for (size_t idx : m_sekiroSubMeshIndices)
     {
-        auto& t = GetObject(m_playerCubeIdx).transform;
+        RenderItem& item = GetObject(idx);
+        item.flags.visible = (cam.GetMode() != CameraMode::FirstPerson);
+
+        auto& t = item.transform;
         t.SetTranslation(m_playerPosition);
 
         if (glm::length(moveDirXZ) > 0.001f)
         {
             const glm::vec3 d = glm::normalize(moveDirXZ);
-            const float yaw = std::atan2(d.x, d.z);
-            t.SetRotation(glm::angleAxis(yaw, glm::vec3(0, 1, 0)));
+            const float yawRad = std::atan2(d.x, d.z);
+            t.SetRotation(glm::angleAxis(yawRad, glm::vec3(0.0f, 1.0f, 0.0f)));
         }
     }
 }
