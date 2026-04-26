@@ -30,9 +30,9 @@ public:
 
     /// Runs the main loop with runtime scene switching.
     /// Press numeric keys 1..9 to switch to scenes at matching indices.
-    /// @param scenes Ordered list of scene pointers. Null entries are ignored.
+    /// @param m_scenes Ordered list of scene pointers. Null entries are ignored.
     /// @param initialSceneIndex Index of the scene to start with.
-    void Run(const std::vector<Scene *> &scenes, std::size_t initialSceneIndex = 0);
+    void Run(const std::vector<Scene *> &m_scenes, std::size_t initialSceneIndex = 0);
 
     void ToggleFullscreen();
 
@@ -61,6 +61,9 @@ private:
     bool m_fullscreen = false;
     int m_windowedX, m_windowedY;
     int m_windowedW, m_windowedH;
+
+    std::vector<Scene*> m_scenes;
+    std::size_t m_activeSceneIndex = 0;
 
     /// Runs one complete frame for the given scene and scene list (shared by
     /// both Run() overloads to avoid code duplication).
