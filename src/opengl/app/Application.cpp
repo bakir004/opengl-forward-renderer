@@ -30,12 +30,12 @@
 // because the renderer viewport is a sub-region of the window (sidebar excluded).
 // RendererUI::Draw() calls renderer.Resize(vpW, vpH) each frame instead.
 // We keep the callback only to handle GL context invalidation on some platforms.
-static void framebuffer_size_callback(GLFWwindow* /*window*/, int /*w*/, int /*h*/) {
+static void framebuffer_size_callback(GLFWwindow * /*window*/, int /*w*/, int /*h*/) {
     // Intentionally empty — resize is driven by RendererUI each frame.
 }
 
-static void scroll_callback(GLFWwindow* window, double /*xoff*/, double yoff) {
-    auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+static void scroll_callback(GLFWwindow *window, double /*xoff*/, double yoff) {
+    auto *app = static_cast<Application *>(glfwGetWindowUserPointer(window));
     if (!app || !app->GetInputManager()) return;
     app->GetInputManager()->GetMouse().OnScroll(static_cast<float>(yoff));
 }
@@ -45,8 +45,8 @@ static void scroll_callback(GLFWwindow* window, double /*xoff*/, double yoff) {
 // ─────────────────────────────────────────────────────────────────────────────
 Application::Application()
     : m_renderer(std::make_unique<Renderer>())
-    , m_ui      (std::make_unique<RendererUI>())
-{}
+      , m_ui(std::make_unique<RendererUI>()) {
+}
 
 Application::~Application() {
     if (m_imguiInitialized) {
@@ -56,7 +56,10 @@ Application::~Application() {
         m_imguiInitialized = false;
     }
     m_renderer->Shutdown();
-    if (m_window) { glfwDestroyWindow(m_window); m_window = nullptr; }
+    if (m_window) {
+        glfwDestroyWindow(m_window);
+        m_window = nullptr;
+    }
     glfwTerminate();
 }
 
@@ -77,18 +80,24 @@ bool Application::Initialize() {
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 #endif
 
-    struct GLVer { int major, minor; };
-    const GLVer versions[] = {{4,6},{4,5},{4,4},{4,3},{4,2},{4,1},{4,0},{3,3}};
+    struct GLVer {
+        int major, minor;
+    };
+    const GLVer versions[] = {{4, 6}, {4, 5}, {4, 4}, {4, 3}, {4, 2}, {4, 1}, {4, 0}, {3, 3}};
     int cMaj = 0, cMin = 0;
-    for (const auto& v : versions) {
+    for (const auto &v: versions) {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, v.major);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, v.minor);
-        glfwWindowHint(GLFW_OPENGL_PROFILE,        GLFW_OPENGL_CORE_PROFILE);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-        glfwWindowHint(GLFW_DEPTH_BITS,            24);
+        glfwWindowHint(GLFW_DEPTH_BITS, 24);
         m_window = glfwCreateWindow(options.window.width, options.window.height,
                                     options.window.title.c_str(), nullptr, nullptr);
-        if (m_window) { cMaj = v.major; cMin = v.minor; break; }
+        if (m_window) {
+            cMaj = v.major;
+            cMin = v.minor;
+            break;
+        }
     }
     if (!m_window) {
         spdlog::error("[Application] Failed to create GLFW window (tried GL 4.6–3.3)");
@@ -125,17 +134,16 @@ bool Application::Initialize() {
     return true;
 }
 
-void Application::GetFramebufferSize(int& w, int& h) const {
+void Application::GetFramebufferSize(int &w, int &h) const {
     glfwGetFramebufferSize(m_window, &w, &h);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RunFrame  — single shared frame body used by both Run() overloads
 // ─────────────────────────────────────────────────────────────────────────────
-void Application::RunFrame(Scene& scene,
-                           const std::vector<Scene*>& scenes,
-                           std::size_t& activeSceneIndex)
-{
+void Application::RunFrame(Scene &scene,
+                           const std::vector<Scene *> &scenes,
+                           std::size_t &activeSceneIndex) {
     glfwPollEvents();
     m_input->Update();
 
@@ -143,7 +151,7 @@ void Application::RunFrame(Scene& scene,
     GetFramebufferSize(fbW, fbH);
 
     const float now = static_cast<float>(glfwGetTime());
-    const float dt  = (m_lastFrameTime > 0.f) ? (now - m_lastFrameTime) : 0.f;
+    const float dt = (m_lastFrameTime > 0.f) ? (now - m_lastFrameTime) : 0.f;
     m_lastFrameTime = now;
 
     scene.InternalUpdate(dt, *m_input, fbW, fbH);
@@ -151,7 +159,7 @@ void Application::RunFrame(Scene& scene,
     // Build submission
     FrameSubmission sub;
     scene.BuildSubmission(sub);
-    sub.time      = now;
+    sub.time = now;
     sub.deltaTime = dt;
 
     // Use the viewport rect computed by RendererUI (sidebar already excluded).
@@ -162,12 +170,14 @@ void Application::RunFrame(Scene& scene,
     // On the very first frame m_ui viewport equals (0,0,fbW,fbH) which is fine.
     int vpX, vpY, vpW, vpH;
     m_ui->GetViewportRect(vpX, vpY, vpW, vpH);
-    sub.clearInfo.viewport = { vpX, 0,          // y=0: GL bottom-left origin
-                                vpW > 0 ? vpW : fbW,
-                                vpH > 0 ? vpH : fbH };
+    sub.clearInfo.viewport = {
+        vpX, 0, // y=0: GL bottom-left origin
+        vpW > 0 ? vpW : fbW,
+        vpH > 0 ? vpH : fbH
+    };
 
     m_renderer->BeginFrame(sub);
-    for (const auto& item : sub.objects) {
+    for (const auto &item: sub.objects) {
         RenderItem di = item;
         if (m_ui->wireframeOverride) di.drawMode = DrawMode::Wireframe;
         m_renderer->SubmitDraw(di);
@@ -195,8 +205,8 @@ void Application::RunFrame(Scene& scene,
 // ─────────────────────────────────────────────────────────────────────────────
 // Update  (single-scene variant called by external custom loops)
 // ─────────────────────────────────────────────────────────────────────────────
-void Application::Update(Scene& scene) {
-    std::vector<Scene*> sv = { &scene };
+void Application::Update(Scene &scene) {
+    std::vector<Scene *> sv = {&scene};
     std::size_t idx = 0;
     RunFrame(scene, sv, idx);
 }
@@ -204,43 +214,31 @@ void Application::Update(Scene& scene) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Run (single scene)
 // ─────────────────────────────────────────────────────────────────────────────
-void Application::Run(Scene& scene) {
-    std::vector<Scene*> sv = { &scene };
+void Application::Run(Scene &scene) {
+    std::vector<Scene *> sv = {&scene};
     std::size_t idx = 0;
     while (!glfwWindowShouldClose(m_window)) {
         RunFrame(scene, sv, idx);
-
-        if (m_input->IsKeyPressed(GLFW_KEY_F11)) {
-            ToggleFullscreen();
-        }
-
-        if (m_input->IsKeyPressed(GLFW_KEY_X)) {
-            m_ui->showSidebar = !m_ui->showSidebar;
-            spdlog::debug("[Application] Toggle sidebar (inspector): {}", m_ui->showSidebar);
-        }
-
-        if (m_input->IsKeyPressed(GLFW_KEY_Y)) {
-            m_ui->wireframeOverride = !m_ui->wireframeOverride;
-            spdlog::debug("[Application] Toggle wireframe mode: {}", m_ui->wireframeOverride);
-        }
-
-        if (m_input->IsKeyPressed(GLFW_KEY_H)) {
-            m_ui->showHelpWindow = !m_ui->showHelpWindow;
-            spdlog::debug("[Application] Toggle help window: {}", m_ui->showHelpWindow);
-        }
+        runHotKeys();
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Run (multiple scenes, keyboard 1–9 + topbar buttons switch scenes)
 // ─────────────────────────────────────────────────────────────────────────────
-void Application::Run(const std::vector<Scene*>& scenes, std::size_t initialIdx) {
-    if (scenes.empty()) { spdlog::warn("[Application] No scenes"); return; }
+void Application::Run(const std::vector<Scene *> &scenes, std::size_t initialIdx) {
+    if (scenes.empty()) {
+        spdlog::warn("[Application] No scenes");
+        return;
+    }
 
     std::size_t active = initialIdx;
     if (active >= scenes.size() || !scenes[active]) active = 0;
     while (active < scenes.size() && !scenes[active]) ++active;
-    if (active >= scenes.size()) { spdlog::warn("[Application] All scenes null"); return; }
+    if (active >= scenes.size()) {
+        spdlog::warn("[Application] All scenes null");
+        return;
+    }
 
     spdlog::info("[Application] Starting at scene {}", active);
 
@@ -253,29 +251,33 @@ void Application::Run(const std::vector<Scene*>& scenes, std::size_t initialIdx)
             if (!scenes[i]) continue;
             if (m_input->IsKeyPressed(GLFW_KEY_1 + static_cast<int>(i)) && active != i) {
                 active = i;
-                spdlog::info("[Application] Switched to scene {} (key {})", i, i+1);
+                spdlog::info("[Application] Switched to scene {} (key {})", i, i + 1);
                 break;
             }
         }
+        runHotKeys();
+    }
+}
 
-        if (m_input->IsKeyPressed(GLFW_KEY_F11)) {
-            ToggleFullscreen();
-        }
+void Application::runHotKeys() {
+    if (m_input->IsKeyPressed(GLFW_KEY_F11)) {
+        ToggleFullscreen();
+        spdlog::info("[Application] Toggle fullscreen: {}", m_fullscreen);
+    }
 
-        if (m_input->IsKeyPressed(GLFW_KEY_X)) {
-            m_ui->showSidebar = !m_ui->showSidebar;
-            spdlog::debug("[Application] Toggle sidebar (inspector): {}", m_ui->showSidebar);
-        }
+    if (m_input->IsKeyPressed(GLFW_KEY_X)) {
+        m_ui->showSidebar = !m_ui->showSidebar;
+        spdlog::debug("[Application] Toggle sidebar (inspector): {}", m_ui->showSidebar);
+    }
 
-        if (m_input->IsKeyPressed(GLFW_KEY_Y)) {
-            m_ui->wireframeOverride = !m_ui->wireframeOverride;
-            spdlog::debug("[Application] Toggle wireframe mode: {}", m_ui->wireframeOverride);
-        }
+    if (m_input->IsKeyPressed(GLFW_KEY_Y)) {
+        m_ui->wireframeOverride = !m_ui->wireframeOverride;
+        spdlog::debug("[Application] Toggle wireframe mode: {}", m_ui->wireframeOverride);
+    }
 
-        if (m_input->IsKeyPressed(GLFW_KEY_H)) {
-            m_ui->showHelpWindow = !m_ui->showHelpWindow;
-            spdlog::debug("[Application] Toggle help window: {}", m_ui->showHelpWindow);
-        }
+    if (m_input->IsKeyPressed(GLFW_KEY_H)) {
+        m_ui->showHelpWindow = !m_ui->showHelpWindow;
+        spdlog::debug("[Application] Toggle help window: {}", m_ui->showHelpWindow);
     }
 }
 
@@ -287,8 +289,8 @@ void Application::ToggleFullscreen() {
         glfwGetWindowPos(m_window, &m_windowedX, &m_windowedY);
         glfwGetWindowSize(m_window, &m_windowedW, &m_windowedH);
 
-        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+        GLFWmonitor *monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode *mode = glfwGetVideoMode(monitor);
 
         glfwSetWindowMonitor(
             m_window,
