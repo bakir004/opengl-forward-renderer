@@ -17,21 +17,6 @@ enum class UITab : int {
     Stats  = 3,
 };
 
-/// Encapsulates all ImGui rendering for the application's debug / control UI.
-///
-/// Layout (non-overlapping "islands"):
-///
-///   ┌───────────────────────────────────────────┐  ← topbar (full width)
-///   ├──────────┬──┬─────────────────────────────┤
-///   │          │  │                             │
-///   │ sidebar  │▓▓│       viewport              │
-///   │          │  │   (GL rendering area)       │
-///   └──────────┴──┴─────────────────────────────┘
-///               ↑ 6-px drag handle
-///
-/// The sidebar width is user-adjustable by dragging the handle.
-/// Call GetViewportRect() each frame and pass the result to Renderer::Resize()
-/// so the GL viewport matches the actual on-screen area.
 class RendererUI {
 public:
     RendererUI() = default;

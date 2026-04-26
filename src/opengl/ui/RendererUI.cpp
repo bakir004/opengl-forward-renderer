@@ -477,7 +477,7 @@ void RendererUI::DrawViewport(int fbW, int fbH, float topY,
         const float pillGap = 6.0f;
         float py = vpH - pillH - kPanelPadding;
 
-        auto HudPill = [&](const char *txt, bool accent, const char *hotkey = nullptr) {
+        auto HudPill = [&](const char *txt, bool accent, const char *hotkey = nullptr) -> bool {
             const float tw = ImGui::CalcTextSize(txt).x;
             const float pw = tw + 20.0f;
             ImGui::SetCursorPos({vpW - pw - kPanelPadding, py});
@@ -488,9 +488,8 @@ void RendererUI::DrawViewport(int fbW, int fbH, float topY,
             ImGui::PushStyleColor(ImGuiCol_Text, accent ? Pal::Accent : Pal::TextDim);
             ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, pillH * 0.5f);
 
-            if (ImGui::Button(txt, ImVec2(pw, pillH)) && hotkey) {
-                // Potential action trigger
-            }
+            bool clicked = ImGui::Button(txt, ImVec2(pw, pillH));
+
             if (ImGui::IsItemHovered() && hotkey) {
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
                 ImGui::SetTooltip("Hotkey: %s", hotkey);
@@ -499,12 +498,20 @@ void RendererUI::DrawViewport(int fbW, int fbH, float topY,
 
             ImGui::PopStyleVar();
             ImGui::PopStyleColor(4);
+
             py -= (pillH + pillGap);
+            return clicked;
         };
 
         HudPill(dcBuf, false);
         HudPill(resBuf, false);
-        HudPill(modeStr, true, "C (switch)");
+        if (HudPill(modeStr, true, "C (switch)")) {
+            Camera& cam = scene.GetCamera();
+            CameraMode mode = cam.GetMode();
+
+            mode = static_cast<CameraMode>((static_cast<int>(mode) + 1) % 3);
+            cam.SetMode(mode);
+        }
 
         // ── Bottom-left gizmo row ──────────────────────────────────────────
         {
@@ -548,7 +555,7 @@ void RendererUI::DrawViewport(int fbW, int fbH, float topY,
 // Tab: Scene
 // ─────────────────────────────────────────────────────────────────────────────
 void RendererUI::DrawTabScene(Scene &scene, const RendererDebugStats &stats) {
-    if (SectionHeader("  Camera")) {
+    if (SectionHeader("Camera")) {
         FrameSubmission tmp;
         scene.BuildSubmission(tmp);
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
@@ -594,7 +601,7 @@ void RendererUI::DrawTabScene(Scene &scene, const RendererDebugStats &stats) {
         ImGui::Spacing();
     }
 
-    if (SectionHeader("  Render Stats")) {
+    if (SectionHeader("Render Stats")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
         auto SR = [](const char *l, const char *v) {
             ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextDim);
@@ -623,7 +630,7 @@ void RendererUI::DrawTabScene(Scene &scene, const RendererDebugStats &stats) {
 void RendererUI::DrawTabLights(Scene &scene, const RendererDebugStats & /*stats*/) {
     LightEnvironment &lights = scene.GetLights();
 
-    if (SectionHeader("  Directional Light")) {
+    if (SectionHeader("Directional Light")) {
         if (lights.HasDirectionalLight())
             DrawDirectionalLight(lights.GetDirectionalLight());
         else {
@@ -634,7 +641,7 @@ void RendererUI::DrawTabLights(Scene &scene, const RendererDebugStats & /*stats*
         ImGui::Spacing();
     }
 
-    if (SectionHeader("  Point Lights")) {
+    if (SectionHeader("Point Lights")) {
         FrameSubmission tmp;
         scene.BuildSubmission(tmp);
         const glm::vec3 cam = tmp.camera ? tmp.camera->GetPosition() : glm::vec3(0.f);
@@ -688,7 +695,7 @@ void RendererUI::DrawTabShadow(Scene &scene, const RendererDebugStats &stats) {
     for (const auto &pl: lights.GetPointLights())
         if (pl.shadow.castShadow) ++ptSh;
 
-    if (SectionHeader("  Summary")) {
+    if (SectionHeader("Summary")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
         ImGui::Text("Dir shadow lights : %d", dirSh);
         ImGui::Text("Point shadow lights: %d", ptSh);
@@ -698,7 +705,7 @@ void RendererUI::DrawTabShadow(Scene &scene, const RendererDebugStats &stats) {
     }
 
     if (lights.HasDirectionalLight()) {
-        if (SectionHeader("  Directional Shadow", false)) {
+        if (SectionHeader("Directional Shadow", false)) {
             DrawShadowParams(lights.GetDirectionalLight().shadow,
                              "Far / extent",
                              "Resolution is live for directional shadow-map generation.", true);
@@ -709,7 +716,7 @@ void RendererUI::DrawTabShadow(Scene &scene, const RendererDebugStats &stats) {
     auto &pls = lights.GetPointLights();
     for (std::size_t i = 0; i < pls.size(); ++i) {
         ImGui::PushID(static_cast<int>(i));
-        const std::string hdr = "  Point Shadow " + std::to_string(i + 1) + "##psh";
+        const std::string hdr = "Point Shadow " + std::to_string(i + 1) + "##psh";
         if (SectionHeader(hdr.c_str(), false)) {
             DrawShadowParams(pls[i].shadow, "Far plane",
                              "Point-light shadow params.", false);
@@ -718,7 +725,7 @@ void RendererUI::DrawTabShadow(Scene &scene, const RendererDebugStats &stats) {
         ImGui::PopID();
     }
 
-    if (SectionHeader("  Cascade Preview", false)) {
+    if (SectionHeader("Cascade Preview", false)) {
         if (stats.shadowMapPreviewAvailable) {
             ImGui::Text("Res/cascade: %u x %u", stats.shadowMapWidth, stats.shadowMapHeight);
 
@@ -759,7 +766,7 @@ void RendererUI::DrawTabShadow(Scene &scene, const RendererDebugStats &stats) {
 // ─────────────────────────────────────────────────────────────────────────────
 void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats,
                               const AssetCacheStats &cs) {
-    if (SectionHeader("  Performance")) {
+    if (SectionHeader("Performance")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
         ImGui::Text("FPS           : %.1f", stats.fps);
         ImGui::Text("Frame time    : %.2f ms", stats.frameTimeMs);
@@ -817,27 +824,36 @@ void RendererUI::DrawHelpWindow(int fbW, int fbH, bool /*lookMode*/) {
             ImGui::Spacing();
         };
 
-        ImGui::TextColored(Pal::TextDim, "NAVIGATION");
+        ImGui::TextColored(Pal::TextDim, "MOVEMENT");
         ImGui::Separator();
-        KeyRow("W/A/S/D", "Move forward/left/back/right");
+        KeyRow("W/A/S/D", "Move");
         KeyRow("SPACE/CTRL", "Move up/down");
-        KeyRow("TAB", "Toggle camera angle movement");
-        KeyRow("SHIFT", "Raise movement speed");
+        KeyRow("SHIFT", "Increase speed");
 
         ImGui::Spacing();
         ImGui::Spacing();
 
-        ImGui::TextColored(Pal::TextDim, "CONTROLS");
+        ImGui::TextColored(Pal::TextDim, "CAMERA");
         ImGui::Separator();
-        KeyRow("F1", "Free-fly camera mode");
-        KeyRow("F2", "First person camera mode");
-        KeyRow("F3", "Third person camera mode");
-        KeyRow("F11", "Toggle fullscreen");
-        KeyRow("X", "Toggle inspector");
-        KeyRow("Z", "Toggle wireframe mode");
-        KeyRow("H", "Toggle this help window");
+        KeyRow("TAB", "Toggle rotation mode");
+        KeyRow("C", "Cycle camera modes");
+        KeyRow("F1", "Free-fly");
+        KeyRow("F2", "First-person");
+        KeyRow("F3", "Third-person");
 
-        ImGui::SetCursorPosY(h - 50.0f);
+        ImGui::Spacing();
+        ImGui::Spacing();
+
+        ImGui::TextColored(Pal::TextDim, "INTERFACE");
+        ImGui::Separator();
+        KeyRow("X", "Toggle inspector");
+        KeyRow("Z", "Wireframe mode");
+        KeyRow("H", "Help window");
+
+        ImGui::Spacing();
+        ImGui::Spacing();
+
+        ImGui::Dummy(ImVec2(0.0f, ImGui::GetContentRegionAvail().y - 30.0f));
         if (ImGui::Button("Close", ImVec2(-1, 30))) {
             showHelpWindow = false;
         }

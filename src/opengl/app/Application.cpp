@@ -227,34 +227,46 @@ void Application::Run(Scene &scene) {
 // Run (multiple scenes, keyboard 1–9 + topbar buttons switch scenes)
 // ─────────────────────────────────────────────────────────────────────────────
 void Application::Run(const std::vector<Scene *> &scenes, std::size_t initialIdx) {
-    if (scenes.empty()) {
+    m_scenes = scenes;
+
+    if (m_scenes.empty()) {
         spdlog::warn("[Application] No scenes");
         return;
     }
 
-    std::size_t active = initialIdx;
-    if (active >= scenes.size() || !scenes[active]) active = 0;
-    while (active < scenes.size() && !scenes[active]) ++active;
-    if (active >= scenes.size()) {
+    m_activeSceneIndex = std::min(initialIdx, m_scenes.size() - 1);
+
+    // ensure valid non-null scene
+    while (m_activeSceneIndex < m_scenes.size() && !m_scenes[m_activeSceneIndex])
+        ++m_activeSceneIndex;
+
+    if (m_activeSceneIndex >= m_scenes.size()) {
         spdlog::warn("[Application] All scenes null");
         return;
     }
 
-    spdlog::info("[Application] Starting at scene {}", active);
+    spdlog::info("[Application] Starting at scene {}", m_activeSceneIndex);
 
     while (!glfwWindowShouldClose(m_window)) {
-        RunFrame(*scenes[active], scenes, active);
+        Scene* scene = m_scenes[m_activeSceneIndex];
+        if (!scene) continue;
 
-        // Keyboard shortcuts 1–9 (supplement the topbar buttons).
-        const std::size_t maxK = std::min<std::size_t>(9, scenes.size());
+        RunFrame(*scene, m_scenes, m_activeSceneIndex);
+
+        // keyboard scene switching
+        const std::size_t maxK = std::min<std::size_t>(9, m_scenes.size());
         for (std::size_t i = 0; i < maxK; ++i) {
-            if (!scenes[i]) continue;
-            if (m_input->IsKeyPressed(GLFW_KEY_1 + static_cast<int>(i)) && active != i) {
-                active = i;
+            if (!m_scenes[i]) continue;
+
+            if (m_input->IsKeyPressed(GLFW_KEY_1 + static_cast<int>(i)) &&
+                m_activeSceneIndex != i) {
+
+                m_activeSceneIndex = i;
                 spdlog::info("[Application] Switched to scene {} (key {})", i, i + 1);
                 break;
-            }
+                }
         }
+
         RunHotKeys();
     }
 }
@@ -278,6 +290,16 @@ void Application::RunHotKeys() {
     if (m_input->IsKeyPressed(GLFW_KEY_H)) {
         m_ui->showHelpWindow = !m_ui->showHelpWindow;
         spdlog::debug("[Application] Toggle help window: {}", m_ui->showHelpWindow);
+    }
+
+    if (m_input->IsKeyPressed(GLFW_KEY_C)) {
+        Camera &cam = m_scenes[m_activeSceneIndex]->GetCamera();
+
+        CameraMode mode = cam.GetMode();
+        mode = static_cast<CameraMode>((static_cast<int>(mode) + 1) % 3);
+
+        cam.SetMode(mode);
+        spdlog::debug("[Application] Toggle camera mode: {}", static_cast<int>(mode));
     }
 }
 
