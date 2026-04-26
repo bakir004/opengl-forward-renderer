@@ -219,7 +219,7 @@ void Application::Run(Scene &scene) {
     std::size_t idx = 0;
     while (!glfwWindowShouldClose(m_window)) {
         RunFrame(scene, sv, idx);
-        runHotKeys();
+        RunHotKeys();
     }
 }
 
@@ -255,11 +255,11 @@ void Application::Run(const std::vector<Scene *> &scenes, std::size_t initialIdx
                 break;
             }
         }
-        runHotKeys();
+        RunHotKeys();
     }
 }
 
-void Application::runHotKeys() {
+void Application::RunHotKeys() {
     if (m_input->IsKeyPressed(GLFW_KEY_F11)) {
         ToggleFullscreen();
         spdlog::info("[Application] Toggle fullscreen: {}", m_fullscreen);

@@ -68,5 +68,5 @@ private:
                   const std::vector<Scene *> &scenes,
                   std::size_t &activeSceneIndex);
 
-    void runHotKeys();
+    void RunHotKeys();
 };
