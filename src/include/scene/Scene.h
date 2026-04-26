@@ -77,6 +77,8 @@ protected:
                                        glm::vec3& playerPos, glm::vec3& outMoveDirXZ,
                                        float orbitTargetYOffset = 0.0f);
 
+    void SetFirstPersonEyeHeight(float height) { m_standardCameraController.SetFirstPersonEyeHeight(height); }
+
 private:
     /// Called by Application each frame before rendering.
     /// Updates camera aspect ratio from the current framebuffer, then calls OnUpdate.
