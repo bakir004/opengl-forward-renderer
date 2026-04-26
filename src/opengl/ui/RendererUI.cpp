@@ -319,7 +319,7 @@ void RendererUI::DrawTopbar(int fbW,
             if (ImGui::MenuItem("Inspector", "S", showSidebar))
                 showSidebar = !showSidebar;
             ImGui::Separator();
-            if (ImGui::MenuItem("Wireframe", "Y", wireframeOverride))
+            if (ImGui::MenuItem("Wireframe", "Z", wireframeOverride))
                 wireframeOverride = !wireframeOverride;
             if (ImGui::MenuItem("Shaded", nullptr, !wireframeOverride))
                 wireframeOverride = false;
@@ -397,7 +397,7 @@ void RendererUI::DrawSidebar(int fbH, float topY,
         // --- Scrollable content area ---
         ImGui::SetCursorPosX(0);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 16));
-        ImGui::BeginChild("##content", ImVec2(0, 0), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
+        ImGui::BeginChild("##content", ImVec2(0, 0), false, ImGuiWindowFlags_None);
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 12));
 
         const AssetCacheStats cs = AssetImporter::GetCacheStats();
@@ -536,7 +536,7 @@ void RendererUI::DrawViewport(int fbW, int fbH, float topY,
             };
 
             ToolBtn(showSidebar ? "«" : "»", showSidebar, "X", "Toggle Inspector");
-            ToolBtn("W", wireframeOverride, "Y", "Toggle Wireframe");
+            ToolBtn("W", wireframeOverride, "Z", "Toggle Wireframe");
         }
     }
     ImGui::End();
@@ -834,7 +834,7 @@ void RendererUI::DrawHelpWindow(int fbW, int fbH, bool /*lookMode*/) {
         KeyRow("F3", "Third person camera mode");
         KeyRow("F11", "Toggle fullscreen");
         KeyRow("X", "Toggle inspector");
-        KeyRow("Y", "Toggle wireframe mode (unimplemented)");
+        KeyRow("Z", "Toggle wireframe mode");
         KeyRow("H", "Toggle this help window");
 
         ImGui::SetCursorPosY(h - 50.0f);

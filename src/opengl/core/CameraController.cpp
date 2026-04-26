@@ -12,18 +12,42 @@ FreeFlyController::FreeFlyController(Camera& camera)
 {
 }
 
-void FreeFlyController::Update(float deltaTime, const KeyboardInput& keyboard, const MouseInput& mouse) {
-    if (mouse.IsCaptured()) {
-        m_camera.Rotate(mouse.GetDeltaX() * m_mouseSensitivity,
-                        -mouse.GetDeltaY() * m_mouseSensitivity);
+void FreeFlyController::Update(float deltaTime, IInputProvider& input) {
+    // Persistent toggle with TAB
+    if (input.IsKeyPressed(GLFW_KEY_TAB)) {
+        if (m_rmbHoldActive) {
+            m_capturedBeforeRmbHold = !m_capturedBeforeRmbHold;
+        } else {
+            input.SetMouseCaptured(!input.IsMouseCaptured());
+        }
     }
 
-    if (keyboard.IsKeyDown(GLFW_KEY_W)) m_camera.Move(CameraDirection::Forward,  m_moveSpeed, deltaTime);
-    if (keyboard.IsKeyDown(GLFW_KEY_S)) m_camera.Move(CameraDirection::Backward, m_moveSpeed, deltaTime);
-    if (keyboard.IsKeyDown(GLFW_KEY_A)) m_camera.Move(CameraDirection::Left,     m_moveSpeed, deltaTime);
-    if (keyboard.IsKeyDown(GLFW_KEY_D)) m_camera.Move(CameraDirection::Right,    m_moveSpeed, deltaTime);
-    if (keyboard.IsKeyDown(GLFW_KEY_SPACE)) m_camera.Move(CameraDirection::Up,   m_moveSpeed, deltaTime);
-    if (keyboard.IsKeyDown(GLFW_KEY_LEFT_CONTROL)) m_camera.Move(CameraDirection::Down, m_moveSpeed, deltaTime);
+    // Temporary hold-to-look with RMB
+    const bool rmbDown = input.IsMouseButtonDown(GLFW_MOUSE_BUTTON_RIGHT);
+    if (rmbDown && !m_rmbHoldActive) {
+        m_rmbHoldActive = true;
+        m_capturedBeforeRmbHold = input.IsMouseCaptured();
+        if (!input.IsMouseCaptured()) {
+            input.SetMouseCaptured(true);
+        }
+    } else if (!rmbDown && m_rmbHoldActive) {
+        m_rmbHoldActive = false;
+        if (!m_capturedBeforeRmbHold) {
+            input.SetMouseCaptured(false);
+        }
+    }
+
+    if (input.IsMouseCaptured()) {
+        m_camera.Rotate(input.GetMouseDeltaX() * m_mouseSensitivity,
+                        -input.GetMouseDeltaY() * m_mouseSensitivity);
+    }
+
+    if (input.IsKeyDown(GLFW_KEY_W)) m_camera.Move(CameraDirection::Forward,  m_moveSpeed, deltaTime);
+    if (input.IsKeyDown(GLFW_KEY_S)) m_camera.Move(CameraDirection::Backward, m_moveSpeed, deltaTime);
+    if (input.IsKeyDown(GLFW_KEY_A)) m_camera.Move(CameraDirection::Left,     m_moveSpeed, deltaTime);
+    if (input.IsKeyDown(GLFW_KEY_D)) m_camera.Move(CameraDirection::Right,    m_moveSpeed, deltaTime);
+    if (input.IsKeyDown(GLFW_KEY_SPACE)) m_camera.Move(CameraDirection::Up,   m_moveSpeed, deltaTime);
+    if (input.IsKeyDown(GLFW_KEY_LEFT_CONTROL)) m_camera.Move(CameraDirection::Down, m_moveSpeed, deltaTime);
 }
 
 FirstPersonController::FirstPersonController(Camera& camera)
@@ -32,18 +56,42 @@ FirstPersonController::FirstPersonController(Camera& camera)
     m_camera.SetMode(CameraMode::FirstPerson);
 }
 
-void FirstPersonController::Update(float deltaTime, const KeyboardInput& keyboard, const MouseInput& mouse) {
-    if (mouse.IsCaptured()) {
-        m_camera.Rotate(mouse.GetDeltaX() * m_mouseSensitivity,
-                        -mouse.GetDeltaY() * m_mouseSensitivity);
+void FirstPersonController::Update(float deltaTime, IInputProvider& input) {
+    // Persistent toggle with TAB
+    if (input.IsKeyPressed(GLFW_KEY_TAB)) {
+        if (m_rmbHoldActive) {
+            m_capturedBeforeRmbHold = !m_capturedBeforeRmbHold;
+        } else {
+            input.SetMouseCaptured(!input.IsMouseCaptured());
+        }
     }
 
-    if (keyboard.IsKeyDown(GLFW_KEY_W)) m_camera.Move(CameraDirection::Forward,  m_moveSpeed, deltaTime);
-    if (keyboard.IsKeyDown(GLFW_KEY_S)) m_camera.Move(CameraDirection::Backward, m_moveSpeed, deltaTime);
-    if (keyboard.IsKeyDown(GLFW_KEY_A)) m_camera.Move(CameraDirection::Left,     m_moveSpeed, deltaTime);
-    if (keyboard.IsKeyDown(GLFW_KEY_D)) m_camera.Move(CameraDirection::Right,    m_moveSpeed, deltaTime);
-    if (keyboard.IsKeyDown(GLFW_KEY_SPACE)) m_camera.Move(CameraDirection::Up,   m_moveSpeed, deltaTime);
-    if (keyboard.IsKeyDown(GLFW_KEY_LEFT_CONTROL)) m_camera.Move(CameraDirection::Down, m_moveSpeed, deltaTime);
+    // Temporary hold-to-look with RMB
+    const bool rmbDown = input.IsMouseButtonDown(GLFW_MOUSE_BUTTON_RIGHT);
+    if (rmbDown && !m_rmbHoldActive) {
+        m_rmbHoldActive = true;
+        m_capturedBeforeRmbHold = input.IsMouseCaptured();
+        if (!input.IsMouseCaptured()) {
+            input.SetMouseCaptured(true);
+        }
+    } else if (!rmbDown && m_rmbHoldActive) {
+        m_rmbHoldActive = false;
+        if (!m_capturedBeforeRmbHold) {
+            input.SetMouseCaptured(false);
+        }
+    }
+
+    if (input.IsMouseCaptured()) {
+        m_camera.Rotate(input.GetMouseDeltaX() * m_mouseSensitivity,
+                        -input.GetMouseDeltaY() * m_mouseSensitivity);
+    }
+
+    if (input.IsKeyDown(GLFW_KEY_W)) m_camera.Move(CameraDirection::Forward,  m_moveSpeed, deltaTime);
+    if (input.IsKeyDown(GLFW_KEY_S)) m_camera.Move(CameraDirection::Backward, m_moveSpeed, deltaTime);
+    if (input.IsKeyDown(GLFW_KEY_A)) m_camera.Move(CameraDirection::Left,     m_moveSpeed, deltaTime);
+    if (input.IsKeyDown(GLFW_KEY_D)) m_camera.Move(CameraDirection::Right,    m_moveSpeed, deltaTime);
+    if (input.IsKeyDown(GLFW_KEY_SPACE)) m_camera.Move(CameraDirection::Up,   m_moveSpeed, deltaTime);
+    if (input.IsKeyDown(GLFW_KEY_LEFT_CONTROL)) m_camera.Move(CameraDirection::Down, m_moveSpeed, deltaTime);
 }
 
 StandardSceneCameraController::StandardSceneCameraController(Camera& camera)
@@ -52,8 +100,7 @@ StandardSceneCameraController::StandardSceneCameraController(Camera& camera)
 }
 
 void StandardSceneCameraController::Update(float deltaTime,
-                                           KeyboardInput& input,
-                                           MouseInput& mouse,
+                                           IInputProvider& input,
                                            glm::vec3& playerPos,
                                            glm::vec3& outMoveDirXZ,
                                            float orbitTargetYOffset,
@@ -63,27 +110,27 @@ void StandardSceneCameraController::Update(float deltaTime,
                                            float& cameraOrbitRadius,
                                            float& outLastEffectiveSpeed) {
     // TAB is a persistent toggle; RMB is temporary hold-to-look.
-    const bool rmbDown = mouse.IsButtonDown(GLFW_MOUSE_BUTTON_RIGHT);
+    const bool rmbDown = input.IsMouseButtonDown(GLFW_MOUSE_BUTTON_RIGHT);
 
     if (input.IsKeyPressed(GLFW_KEY_TAB)) {
         if (m_rmbHoldActive) {
             // While RMB-holding, toggle the baseline state restored on release.
             m_capturedBeforeRmbHold = !m_capturedBeforeRmbHold;
         } else {
-            mouse.SetCaptured(!mouse.IsCaptured());
+            input.SetMouseCaptured(!input.IsMouseCaptured());
         }
     }
 
     if (rmbDown && !m_rmbHoldActive) {
         m_rmbHoldActive = true;
-        m_capturedBeforeRmbHold = mouse.IsCaptured();
-        if (!mouse.IsCaptured()) {
-            mouse.SetCaptured(true);
+        m_capturedBeforeRmbHold = input.IsMouseCaptured();
+        if (!input.IsMouseCaptured()) {
+            input.SetMouseCaptured(true);
         }
     } else if (!rmbDown && m_rmbHoldActive) {
         m_rmbHoldActive = false;
         if (!m_capturedBeforeRmbHold) {
-            mouse.SetCaptured(false);
+            input.SetMouseCaptured(false);
         }
     }
 
@@ -103,14 +150,14 @@ void StandardSceneCameraController::Update(float deltaTime,
         spdlog::debug("[Camera] mode: ThirdPerson");
     }
 
-    if (mouse.IsCaptured())
-        m_camera.Rotate(mouse.GetDeltaX() * m_mouseSensitivity, -mouse.GetDeltaY() * m_mouseSensitivity);
+    if (input.IsMouseCaptured())
+        m_camera.Rotate(input.GetMouseDeltaX() * m_mouseSensitivity, -input.GetMouseDeltaY() * m_mouseSensitivity);
 
     float currentFreeFly = cameraFreeFlySpeed;
     float currentFirstPerson = cameraFirstPersonSpeed;
     float currentThirdPerson = cameraThirdPersonSpeed;
 
-    const float scrollDelta = mouse.GetScrollDeltaY();
+    const float scrollDelta = input.GetMouseScrollDeltaY();
     if (scrollDelta != 0.0f) {
         if (m_camera.GetMode() == CameraMode::ThirdPerson) {
             constexpr float kOrbitZoomStep = 0.75f;
@@ -176,7 +223,7 @@ void StandardSceneCameraController::Update(float deltaTime,
     }
 
     const bool moving   = fwd != 0.0f || right != 0.0f || up != 0.0f;
-    const bool rotating = mouse.IsCaptured() && (mouse.GetDeltaX() != 0.0f || mouse.GetDeltaY() != 0.0f);
+    const bool rotating = input.IsMouseCaptured() && (input.GetMouseDeltaX() != 0.0f || input.GetMouseDeltaY() != 0.0f);
     if (moving || rotating) {
         const glm::vec3 pos = m_camera.GetPosition();
         spdlog::debug("[Camera] pos=({:.2f}, {:.2f}, {:.2f})  yaw={:.1f}deg  pitch={:.1f}deg",

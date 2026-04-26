@@ -1,7 +1,6 @@
 #include "JapanScene.h"
 #include "core/Camera.h"
-#include "core/KeyboardInput.h"
-#include "core/MouseInput.h"
+#include "core/IInputProvider.h"
 #include "core/Primitives.h"
 #include "core/Texture2D.h"
 #include "scene/LightBuilder.h"
@@ -194,7 +193,7 @@ bool JapanScene::Setup()
 // ─────────────────────────────────────────────────────────────────────────────
 // Update
 // ─────────────────────────────────────────────────────────────────────────────
-void JapanScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mouse)
+void JapanScene::OnUpdate(float deltaTime, IInputProvider& input)
 {
     // ── Cherry blossom animation ─────────────────────────────────────────────
     for (auto& p : m_petals)
@@ -232,7 +231,7 @@ void JapanScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mou
             (cam.GetMode() != CameraMode::FirstPerson);
 
     glm::vec3 moveDirXZ;
-    UpdateStandardCameraAndPlayer(deltaTime, input, mouse,
+    UpdateStandardCameraAndPlayer(deltaTime, input,
                                   m_playerPosition, moveDirXZ, 0.7f);
 
     // Align the player with a movement direction

@@ -1,8 +1,6 @@
 #include "SampleScene.h"
-
 #include "core/Camera.h"
-#include "core/KeyboardInput.h"
-#include "core/MouseInput.h"
+#include "core/IInputProvider.h"
 #include "core/Primitives.h"
 #include "scene/LightBuilder.h"
 #include <GLFW/glfw3.h>
@@ -227,7 +225,7 @@ bool SampleScene::Setup()
     return true;
 }
 
-void SampleScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInput &mouse)
+void SampleScene::OnUpdate(float deltaTime, IInputProvider &input)
 {
     // --- ADDED --- Track time for light animation
     m_lightAnimTime += deltaTime;
@@ -250,7 +248,7 @@ void SampleScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInput &mo
         GetObject(m_playerCubeIdx).flags.visible = (cam.GetMode() != CameraMode::FirstPerson);
 
     glm::vec3 moveDirXZ;
-    UpdateStandardCameraAndPlayer(deltaTime, input, mouse, m_playerPosition, moveDirXZ, 1.1f);
+    UpdateStandardCameraAndPlayer(deltaTime, input, m_playerPosition, moveDirXZ, 1.1f);
 
     // Keep player cube in sync
     auto &playerTransform = GetObject(m_playerCubeIdx).transform;

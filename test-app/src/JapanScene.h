@@ -19,7 +19,7 @@ struct Petal {
 class JapanScene : public Scene {
 public:
     bool Setup();
-    void OnUpdate(float deltaTime, KeyboardInput &input, MouseInput &mouse) override;
+    void OnUpdate(float deltaTime, IInputProvider &input) override;
 
 private:
     // ── Castle model ──────────────────────────────────────────────────────────

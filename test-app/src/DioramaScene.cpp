@@ -1,7 +1,6 @@
 #include "DioramaScene.h"
 #include "core/Camera.h"
-#include "core/KeyboardInput.h"
-#include "core/MouseInput.h"
+#include "core/IInputProvider.h"
 #include "core/Primitives.h"
 #include "core/Texture2D.h"
 #include "scene/LightBuilder.h"
@@ -273,7 +272,7 @@ bool DioramaScene::Setup() {
     return true;
 }
 
-void DioramaScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mouse) {
+void DioramaScene::OnUpdate(float deltaTime, IInputProvider& input) {
     // Swimming duck logic
     m_duckInsideAngle += 1.0f * deltaTime;
     const float radius = 0.7f;
@@ -318,7 +317,7 @@ void DioramaScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& m
         GetObject(m_playerCubeIdx).flags.visible = (cam.GetMode() != CameraMode::FirstPerson);
 
     glm::vec3 moveDirXZ;
-    UpdateStandardCameraAndPlayer(deltaTime, input, mouse, m_playerPosition, moveDirXZ, 0.7f);
+    UpdateStandardCameraAndPlayer(deltaTime, input, m_playerPosition, moveDirXZ, 0.7f);
 
     // Keep player cube in sync
     auto& playerTransform = GetObject(m_playerCubeIdx).transform;

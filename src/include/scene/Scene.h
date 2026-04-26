@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/IInputProvider.h"
 #include "core/Camera.h"
 #include "core/CameraController.h"
 #include "scene/RenderItem.h"
@@ -8,8 +9,7 @@
 #include <string>
 #include <vector>
 
-class KeyboardInput;
-class MouseInput;
+class IInputProvider;
 struct FrameSubmission;
 
 /// Base class for all scenes.
@@ -30,7 +30,7 @@ public:
     virtual const std::string& GetName() const { return m_sceneName; }
 
     /// Called once per frame. Override to handle input and update scene state.
-    virtual void OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mouse) {}
+    virtual void OnUpdate(float deltaTime, IInputProvider& input) {}
 
 protected:
     /// Replaces the scene camera.
@@ -73,14 +73,14 @@ protected:
 
     /// Shared standard camera logic (WASD, TAB, F1-F3, mouselook, sprint/zoom).
     /// Safe to call each frame in OnUpdate by subclasses.
-    void UpdateStandardCameraAndPlayer(float deltaTime, KeyboardInput& input, MouseInput& mouse,
+    void UpdateStandardCameraAndPlayer(float deltaTime, IInputProvider& input,
                                        glm::vec3& playerPos, glm::vec3& outMoveDirXZ,
                                        float orbitTargetYOffset = 0.0f);
 
 private:
     /// Called by Application each frame before rendering.
     /// Updates camera aspect ratio from the current framebuffer, then calls OnUpdate.
-    void InternalUpdate(float deltaTime, KeyboardInput& input, MouseInput& mouse, int fbWidth, int fbHeight);
+    void InternalUpdate(float deltaTime, IInputProvider& input, int fbWidth, int fbHeight);
 
     /// Fills a FrameSubmission from current scene state. Called by Application.
     void BuildSubmission(FrameSubmission& out) const;
