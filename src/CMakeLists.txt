@@ -37,6 +37,7 @@ add_library(${PROJECT_NAME} STATIC
         opengl/assets/MeshImporter.cpp
         opengl/assets/ModelImporter.cpp
         opengl/core/Mesh.cpp
+        opengl/core/Grid.cpp
         include/ui/RendererUI.h
         opengl/ui/RendererUI.cpp
 )

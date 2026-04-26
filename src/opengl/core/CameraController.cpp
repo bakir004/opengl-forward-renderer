@@ -12,31 +12,7 @@ FreeFlyController::FreeFlyController(Camera& camera)
 {
 }
 
-void FreeFlyController::Update(float deltaTime, IInputProvider& input) {
-    // Persistent toggle with TAB
-    if (input.IsKeyPressed(GLFW_KEY_TAB)) {
-        if (m_rmbHoldActive) {
-            m_capturedBeforeRmbHold = !m_capturedBeforeRmbHold;
-        } else {
-            input.SetMouseCaptured(!input.IsMouseCaptured());
-        }
-    }
-
-    // Temporary hold-to-look with RMB
-    const bool rmbDown = input.IsMouseButtonDown(GLFW_MOUSE_BUTTON_RIGHT);
-    if (rmbDown && !m_rmbHoldActive) {
-        m_rmbHoldActive = true;
-        m_capturedBeforeRmbHold = input.IsMouseCaptured();
-        if (!input.IsMouseCaptured()) {
-            input.SetMouseCaptured(true);
-        }
-    } else if (!rmbDown && m_rmbHoldActive) {
-        m_rmbHoldActive = false;
-        if (!m_capturedBeforeRmbHold) {
-            input.SetMouseCaptured(false);
-        }
-    }
-
+void FreeFlyController::Update(float deltaTime, const IInputProvider& input) {
     if (input.IsMouseCaptured()) {
         m_camera.Rotate(input.GetMouseDeltaX() * m_mouseSensitivity,
                         -input.GetMouseDeltaY() * m_mouseSensitivity);
@@ -56,31 +32,7 @@ FirstPersonController::FirstPersonController(Camera& camera)
     m_camera.SetMode(CameraMode::FirstPerson);
 }
 
-void FirstPersonController::Update(float deltaTime, IInputProvider& input) {
-    // Persistent toggle with TAB
-    if (input.IsKeyPressed(GLFW_KEY_TAB)) {
-        if (m_rmbHoldActive) {
-            m_capturedBeforeRmbHold = !m_capturedBeforeRmbHold;
-        } else {
-            input.SetMouseCaptured(!input.IsMouseCaptured());
-        }
-    }
-
-    // Temporary hold-to-look with RMB
-    const bool rmbDown = input.IsMouseButtonDown(GLFW_MOUSE_BUTTON_RIGHT);
-    if (rmbDown && !m_rmbHoldActive) {
-        m_rmbHoldActive = true;
-        m_capturedBeforeRmbHold = input.IsMouseCaptured();
-        if (!input.IsMouseCaptured()) {
-            input.SetMouseCaptured(true);
-        }
-    } else if (!rmbDown && m_rmbHoldActive) {
-        m_rmbHoldActive = false;
-        if (!m_capturedBeforeRmbHold) {
-            input.SetMouseCaptured(false);
-        }
-    }
-
+void FirstPersonController::Update(float deltaTime, const IInputProvider& input) {
     if (input.IsMouseCaptured()) {
         m_camera.Rotate(input.GetMouseDeltaX() * m_mouseSensitivity,
                         -input.GetMouseDeltaY() * m_mouseSensitivity);

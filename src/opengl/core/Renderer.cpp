@@ -2,6 +2,7 @@
 #include "core/Camera.h"
 #include "core/Mesh.h"
 #include "core/MeshBuffer.h"
+#include "core/Grid.h"
 #include "core/shadows/CascadedShadowMap.h"
 #include "scene/FrameSubmission.h"
 #include "scene/LightBlock.h"
@@ -186,6 +187,7 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
 {
     assert(!m_inFrame && "BeginFrame() called without a matching EndFrame()");
     m_inFrame = true;
+    m_currentGrid = submission.grid;
     PopulateDebugStatsFromSubmission(submission, m_debugStats);
     RenderDirectionalShadowPass(submission);
 
@@ -242,6 +244,14 @@ void Renderer::EndFrame()
     m_debugStats.drawCallCount = queueStats.drawCallCount;
     m_debugStats.approxTriangleCount = queueStats.approxTriangleCount;
     m_queue.Clear();
+
+    // Render grid after all other geometry (camera UBO is still bound from BeginFrame)
+    if (m_currentGrid)
+    {
+        m_currentGrid->Draw();
+    }
+
+    m_currentGrid = nullptr;
     m_inFrame = false;
 }
 

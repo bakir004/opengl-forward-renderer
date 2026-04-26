@@ -12,6 +12,7 @@
 
 struct RenderItem;
 struct FrameSubmission;
+class Grid;
 
 /// Small per-frame debug snapshot used by the runtime stats UI.
 struct ShadowFrustumDebugInfo
@@ -84,6 +85,7 @@ class Renderer
     RendererDebugStats m_debugStats;
     bool m_reportedInvalidPackedLights = false;
     bool m_inFrame = false;
+    Grid* m_currentGrid = nullptr;
 
     void RenderDirectionalShadowPass(const FrameSubmission &submission);
 

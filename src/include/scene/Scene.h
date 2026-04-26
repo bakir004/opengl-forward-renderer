@@ -8,6 +8,8 @@
 #include <glm/glm.hpp>
 #include <string>
 #include <vector>
+#include <memory>
+#include "core/Grid.h"
 
 class IInputProvider;
 struct FrameSubmission;
@@ -64,6 +66,15 @@ protected:
     /// Sets the scene name for display in the UI.
     void SetSceneName(const std::string& name) { m_sceneName = name; }
 
+    /// Enable or disable the coordinate grid rendering.
+    void SetGridEnabled(bool enabled);
+
+    /// Returns true if the coordinate grid is enabled.
+    bool IsGridEnabled() const { return m_gridEnabled; }
+
+    /// Returns a pointer to the grid (may be nullptr if not enabled).
+    Grid* GetGrid() const { return m_grid.get(); }
+
     // -- Movement properties --
     float m_cameraFreeFlySpeed     = 4.0f;
     float m_cameraFirstPersonSpeed = 3.0f;
@@ -92,6 +103,9 @@ private:
     glm::vec4            m_clearColor = {0.08f, 0.09f, 0.12f, 1.0f};
     std::string          m_sceneName = "Untitled Scene";
     mutable bool         m_reportedInvalidLights = false;
+
+    std::unique_ptr<Grid> m_grid;
+    bool                 m_gridEnabled = false;
 
     friend class Application;
     friend class RendererUI;

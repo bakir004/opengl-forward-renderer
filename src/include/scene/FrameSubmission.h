@@ -7,6 +7,8 @@
 #include "scene/RenderItem.h"
 #include "scene/LightEnvironment.h"
 
+class Grid;
+
 /// Data collected by Scene::BuildSubmission and consumed by Renderer::BeginFrame.
 struct FrameSubmission {
     const Camera*     camera  = nullptr;
@@ -14,6 +16,7 @@ struct FrameSubmission {
     SubmissionContext context;
     LightEnvironment  lights;
     std::vector<RenderItem> objects;
+    Grid*             grid = nullptr;
     float time      = 0.0f;
     float deltaTime = 0.0f;
 };

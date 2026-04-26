@@ -10,7 +10,7 @@ void MouseInput::Update() {
         m_currentButtons[i] = (glfwGetMouseButton(m_window, i) == GLFW_PRESS);
     }
 
-    if (!m_captured && (glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_RIGHT) != GLFW_PRESS)) {
+    if (!m_captured) {
         m_deltaX = 0.0f;
         m_deltaY = 0.0f;
         m_deltaScrollY = m_accumScrollY;
@@ -21,8 +21,10 @@ void MouseInput::Update() {
     double x, y;
     glfwGetCursorPos(m_window, &x, &y);
 
-    if (m_skipNext || (!m_captured && glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS && !m_lastRmbPressed)) {
-        // First frame of either capture OR RMB hold: record position, emit no delta.
+    if (m_skipNext) {
+        // First frame after capture: record position, emit no delta.
+        // Without this, the delta would be the distance from wherever the cursor
+        // last was to its current position — potentially huge.
         m_lastX    = x;
         m_lastY    = y;
         m_deltaX   = 0.0f;
@@ -30,11 +32,8 @@ void MouseInput::Update() {
         m_deltaScrollY = m_accumScrollY;
         m_accumScrollY = 0.0f;
         m_skipNext = false;
-        m_lastRmbPressed = (glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
         return;
     }
-
-    m_lastRmbPressed = (glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
 
     m_deltaX = static_cast<float>(x - m_lastX);
     m_deltaY = static_cast<float>(y - m_lastY);

@@ -2,7 +2,6 @@
 #include "core/KeyboardInput.h"
 #include "core/MouseInput.h"
 #include <imgui.h>
-#include <GLFW/glfw3.h>
 
 InputManager::InputManager(GLFWwindow* window)
     : m_keyboard(std::make_unique<KeyboardInput>(window))
@@ -28,22 +27,12 @@ bool InputManager::IsKeyPressed(int keyCode) const {
 }
 
 bool InputManager::IsMouseButtonDown(int button) const {
-    if (ShouldBlockMouse()) {
-        // Allow RMB to pass through even if ImGui wants the mouse, 
-        // so we can use it to trigger camera look.
-        if (button != GLFW_MOUSE_BUTTON_RIGHT) {
-            return false;
-        }
-    }
+    if (ShouldBlockMouse()) return false;
     return m_mouse->IsButtonDown(button);
 }
 
 bool InputManager::IsMouseButtonPressed(int button) const {
-    if (ShouldBlockMouse()) {
-        if (button != GLFW_MOUSE_BUTTON_RIGHT) {
-            return false;
-        }
-    }
+    if (ShouldBlockMouse()) return false;
     return m_mouse->IsButtonPressed(button);
 }
 

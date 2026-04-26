@@ -83,6 +83,9 @@ bool DioramaScene::Setup() {
     SetCamera(cam);
     SetClearColor({0.3f, 0.5f, 0.8f, 1.0f}); // Sky blueish
 
+    // ── Grid (coordinate system visualization) ────────────────────────────
+    SetGridEnabled(true);
+
     // ── Lights (Dev3: scene-side setup) ───────────────────────────────────
     SetAmbientLight({0.18f, 0.20f, 0.24f}, 0.25f);
     auto& lights = GetLights();

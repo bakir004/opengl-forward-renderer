@@ -2,6 +2,7 @@
 #include "scene/FrameSubmission.h"
 #include "scene/LightUtils.h"
 #include "core/IInputProvider.h"
+#include "core/Grid.h"
 #include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
 
@@ -45,6 +46,20 @@ float Scene::GetCurrentCameraSpeed() const {
     return m_lastEffectiveSpeed;
 }
 
+void Scene::SetGridEnabled(bool enabled) {
+    if (enabled && !m_grid) {
+        m_grid = std::make_unique<Grid>();
+        m_gridEnabled = true;
+        spdlog::info("[Scene] Grid enabled");
+    } else if (!enabled && m_grid) {
+        m_grid.reset();
+        m_gridEnabled = false;
+        spdlog::info("[Scene] Grid disabled");
+    } else {
+        m_gridEnabled = enabled;
+    }
+}
+
 void Scene::InternalUpdate(float deltaTime, IInputProvider& input, int fbWidth, int fbHeight) {
     m_camera.OnResize(fbWidth, fbHeight);
     OnUpdate(deltaTime, input);
@@ -56,6 +71,7 @@ void Scene::BuildSubmission(FrameSubmission& out) const {
     out.clearInfo.clearFlags     = ClearFlags::ColorDepth;
     out.lights                   = m_lights;
     out.objects                  = m_objects;
+    out.grid                     = m_gridEnabled ? m_grid.get() : nullptr;
 
     const bool lightsValid = LightUtils::Validate(out.lights);
     if (!lightsValid && !m_reportedInvalidLights) {

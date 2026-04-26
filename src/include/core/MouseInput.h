@@ -72,7 +72,6 @@ private:
     float       m_deltaScrollY = 0.0f;
     bool        m_captured = false;
     bool        m_skipNext = false;  ///< Suppresses the first delta after capture.
-    bool        m_lastRmbPressed = false;
 
     bool m_currentButtons[kButtonCount] = {};
     bool m_previousButtons[kButtonCount] = {};

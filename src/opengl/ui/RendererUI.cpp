@@ -397,7 +397,7 @@ void RendererUI::DrawSidebar(int fbH, float topY,
         // --- Scrollable content area ---
         ImGui::SetCursorPosX(0);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 16));
-        ImGui::BeginChild("##content", ImVec2(0, 0), false, ImGuiWindowFlags_None);
+        ImGui::BeginChild("##content", ImVec2(0, 0), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 12));
 
         const AssetCacheStats cs = AssetImporter::GetCacheStats();
