@@ -176,13 +176,23 @@ bool JapanScene::Setup()
     AddLight({19.86f,-0.10f, -3.21f}, {1.0f,0.73f,0.01f}, 3, "Warm 1");
     AddLight({19.77f,-0.01f,  3.12f}, {1.0f,0.73f,0.01f}, 3, "Warm 2");
 
-    // Player
-    {
+    // ── Sekiro player model ───────────────────────────────────────────────────
+    m_sekiro = AssetImporter::Import<MeshBuffer>("assets/models/gltf/low-poly_sekiro/scene.gltf");
+    m_sekiroMaterial = std::make_shared<Material>(meshShader);
+    m_sekiroMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
+    m_sekiroMatInst = std::make_unique<MaterialInstance>(m_sekiroMaterial);
+
+    if (m_sekiro) {
         RenderItem playerItem;
-        playerItem.mesh = m_petalMesh.get(); // Using petal mesh as a placeholder for now
-        playerItem.shader = meshShader.get();
-        playerItem.transform.SetScale({0.5f, 0.5f, 0.5f});
+        playerItem.mesh              = m_sekiro.get();
+        playerItem.material          = m_sekiroMatInst.get();
+        // Sekiro's glTF forward is likely +X in model space; rotate -90° around Y
+        // to align with the engine's +Z forward convention (same fix as the duck).
+        // Remove rotationOffset if the model already faces +Z after first run.
+        playerItem.rotationOffset    = glm::angleAxis(glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        playerItem.translationOffset = {0.0f, 0.0f, 0.0f};
         playerItem.transform.SetTranslation(m_playerPosition);
+        playerItem.transform.SetScale({0.01f, 0.01f, 0.01f});
         m_playerCubeIdx = AddObject(playerItem);
     }
 
@@ -226,7 +236,8 @@ void JapanScene::OnUpdate(float deltaTime, IInputProvider& input)
     // ── Camera + player controller ───────────────────────────────────────────
     Camera& cam = GetCamera();
 
-    if (m_playerCubeIdx >= 0)
+    // Hide Sekiro mesh in first-person so it doesn't clip into the camera
+    if (m_sekiro && m_playerCubeIdx != (size_t)-1)
         GetObject(m_playerCubeIdx).flags.visible =
             (cam.GetMode() != CameraMode::FirstPerson);
 
@@ -234,8 +245,8 @@ void JapanScene::OnUpdate(float deltaTime, IInputProvider& input)
     UpdateStandardCameraAndPlayer(deltaTime, input,
                                   m_playerPosition, moveDirXZ, 0.7f);
 
-    // Align the player with a movement direction
-    if (m_playerCubeIdx >= 0)
+    // Sync transform and face the direction of movement
+    if (m_playerCubeIdx != (size_t)-1)
     {
         auto& t = GetObject(m_playerCubeIdx).transform;
         t.SetTranslation(m_playerPosition);
@@ -243,8 +254,8 @@ void JapanScene::OnUpdate(float deltaTime, IInputProvider& input)
         if (glm::length(moveDirXZ) > 0.001f)
         {
             const glm::vec3 d = glm::normalize(moveDirXZ);
-            const float yaw = std::atan2(d.x, d.z);
-            t.SetRotation(glm::angleAxis(yaw, glm::vec3(0, 1, 0)));
+            const float yawRad = std::atan2(d.x, d.z);
+            t.SetRotation(glm::angleAxis(yawRad, glm::vec3(0.0f, 1.0f, 0.0f)));
         }
     }
 }

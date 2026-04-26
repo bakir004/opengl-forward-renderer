@@ -30,7 +30,12 @@ private:
     std::unique_ptr<MeshBuffer> m_petalMesh;
     std::vector<Petal> m_petals;
 
+    // ── Sekiro player model ───────────────────────────────────────────────────
+    std::shared_ptr<MeshBuffer>       m_sekiro;
+    std::shared_ptr<Material>         m_sekiroMaterial;
+    std::unique_ptr<MaterialInstance> m_sekiroMatInst;
+
     // ── Player state ──────────────────────────────────────────────────────────
     glm::vec3 m_playerPosition = {0.0f, 0.0f, 0.0f};
-    int m_playerCubeIdx = -1;
+    size_t    m_playerCubeIdx  = (size_t)-1;
 };
