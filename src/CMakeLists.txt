@@ -24,6 +24,7 @@ add_library(${PROJECT_NAME} STATIC
         opengl/core/UniformBuffer.cpp
         opengl/core/KeyboardInput.cpp
         opengl/core/MouseInput.cpp
+        opengl/core/InputManager.cpp
         opengl/scene/Scene.cpp
         opengl/scene/RenderItem.cpp
         opengl/scene/LightEnvironment.cpp

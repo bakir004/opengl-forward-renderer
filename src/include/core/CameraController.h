@@ -1,9 +1,10 @@
 #pragma once
 
 #include "Camera.h"
-#include "KeyboardInput.h"
-#include "MouseInput.h"
+#include "IInputProvider.h"
 #include <glm/glm.hpp>
+
+class IInputProvider;
 
 /// Abstract camera controller base.
 class CameraController {
@@ -17,26 +18,29 @@ public:
     [[nodiscard]] float GetMoveSpeed() const { return m_moveSpeed; }
     [[nodiscard]] float GetMouseSensitivity() const { return m_mouseSensitivity; }
 
-    virtual void Update(float deltaTime, const KeyboardInput& keyboard, const MouseInput& mouse) = 0;
+    virtual void Update(float deltaTime, IInputProvider& input) = 0;
 
 protected:
     Camera& m_camera;
     float   m_moveSpeed = 5.0f;
     float   m_mouseSensitivity = 0.15f;
+
+    bool m_rmbHoldActive = false;
+    bool m_capturedBeforeRmbHold = false;
 };
 
 /// Free-fly camera controller (six degrees of freedom).
 class FreeFlyController : public CameraController {
 public:
     explicit FreeFlyController(Camera& camera);
-    void Update(float deltaTime, const KeyboardInput& keyboard, const MouseInput& mouse) override;
+    void Update(float deltaTime, IInputProvider& input) override;
 };
 
 /// First-person camera controller (grounded movement, pitch clamp).
 class FirstPersonController : public CameraController {
 public:
     explicit FirstPersonController(Camera& camera);
-    void Update(float deltaTime, const KeyboardInput& keyboard, const MouseInput& mouse) override;
+    void Update(float deltaTime, IInputProvider& input) override;
 };
 
 /// Shared scene-level camera/player controller used by Scene::UpdateStandardCameraAndPlayer.
@@ -48,8 +52,7 @@ public:
     explicit StandardSceneCameraController(Camera& camera);
 
     void Update(float deltaTime,
-                KeyboardInput& input,
-                MouseInput& mouse,
+                IInputProvider& input,
                 glm::vec3& playerPos,
                 glm::vec3& outMoveDirXZ,
                 float orbitTargetYOffset,

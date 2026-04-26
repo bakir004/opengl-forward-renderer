@@ -1,7 +1,6 @@
 #include "NeonCityScene.h"
 #include "core/Camera.h"
-#include "core/KeyboardInput.h"
-#include "core/MouseInput.h"
+#include "core/IInputProvider.h"
 #include "core/ShaderProgram.h"
 #include "core/Texture2D.h"
 #include "core/SubMesh.h"
@@ -136,8 +135,8 @@ bool NeonCityScene::Setup()
     return true;
 }
 
-void NeonCityScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mouse)
+void NeonCityScene::OnUpdate(float deltaTime, IInputProvider& input)
 {
     glm::vec3 moveDirXZ;
-    UpdateStandardCameraAndPlayer(deltaTime, input, mouse, m_playerPosition, moveDirXZ);
+    UpdateStandardCameraAndPlayer(deltaTime, input, m_playerPosition, moveDirXZ);
 }

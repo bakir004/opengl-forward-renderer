@@ -8,7 +8,7 @@
 #include "core/Camera.h"
 #include "utils/Options.h"
 #include "core/Renderer.h"
-#include "core/KeyboardInput.h"
+#include "core/InputManager.h"
 #include "core/MouseInput.h"
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
@@ -36,10 +36,8 @@ static void framebuffer_size_callback(GLFWwindow* /*window*/, int /*w*/, int /*h
 
 static void scroll_callback(GLFWwindow* window, double /*xoff*/, double yoff) {
     auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
-    if (!app || !app->GetMouseInput()) return;
-    const bool uiWants = ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureMouse;
-    if (app->GetMouseInput()->IsCaptured() || !uiWants)
-        app->GetMouseInput()->OnScroll(static_cast<float>(yoff));
+    if (!app || !app->GetInputManager()) return;
+    app->GetInputManager()->GetMouse().OnScroll(static_cast<float>(yoff));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -109,8 +107,7 @@ bool Application::Initialize() {
 
     if (!m_renderer->Initialize()) return false;
 
-    m_input = std::make_unique<KeyboardInput>(m_window);
-    m_mouse = std::make_unique<MouseInput>(m_window);
+    m_input = std::make_unique<InputManager>(m_window);
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -141,7 +138,6 @@ void Application::RunFrame(Scene& scene,
 {
     glfwPollEvents();
     m_input->Update();
-    m_mouse->Update();
 
     int fbW = 0, fbH = 0;
     GetFramebufferSize(fbW, fbH);
@@ -150,7 +146,7 @@ void Application::RunFrame(Scene& scene,
     const float dt  = (m_lastFrameTime > 0.f) ? (now - m_lastFrameTime) : 0.f;
     m_lastFrameTime = now;
 
-    scene.InternalUpdate(dt, *m_input, *m_mouse, fbW, fbH);
+    scene.InternalUpdate(dt, *m_input, fbW, fbH);
 
     // Build submission
     FrameSubmission sub;
@@ -186,7 +182,7 @@ void Application::RunFrame(Scene& scene,
 
         // RendererUI::Draw() also calls renderer.Resize(vpW, vpH) internally
         // so the GL viewport stays correct even as the sidebar is resized.
-        m_ui->Draw(fbW, fbH, scene, *m_renderer, m_mouse.get(),
+        m_ui->Draw(fbW, fbH, scene, *m_renderer, &m_input->GetMouse(),
                    scenes, activeSceneIndex);
 
         ImGui::Render();

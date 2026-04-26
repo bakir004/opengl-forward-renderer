@@ -54,10 +54,15 @@ public:
     /// @param glfwButton A GLFW_MOUSE_BUTTON_* constant.
     [[nodiscard]] bool IsButtonDown(int glfwButton) const;
 
+    /// Returns true only on the single frame the button transitioned from up to down.
+    [[nodiscard]] bool IsButtonPressed(int glfwButton) const;
+
     /// Called internally by the GLFW scroll callback.
     void OnScroll(float yoffset);
 
 private:
+    static constexpr int kButtonCount = 8; // GLFW_MOUSE_BUTTON_LAST + 1
+
     GLFWwindow* m_window   = nullptr;
     double      m_lastX    = 0.0;
     double      m_lastY    = 0.0;
@@ -67,4 +72,8 @@ private:
     float       m_deltaScrollY = 0.0f;
     bool        m_captured = false;
     bool        m_skipNext = false;  ///< Suppresses the first delta after capture.
+    bool        m_lastRmbPressed = false;
+
+    bool m_currentButtons[kButtonCount] = {};
+    bool m_previousButtons[kButtonCount] = {};
 };

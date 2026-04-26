@@ -1,7 +1,6 @@
 #include "SolarSystemScene.h"
 #include "core/Camera.h"
-#include "core/KeyboardInput.h"
-#include "core/MouseInput.h"
+#include "core/IInputProvider.h"
 #include "core/Primitives.h"
 #include "scene/LightBuilder.h"
 #include <GLFW/glfw3.h>
@@ -408,7 +407,7 @@ void SolarSystemScene::AddMoon(int parentIdx, float orbitRadius,
 
 // ── OnUpdate ──────────────────────────────────────────────────────────────────
 
-void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInput &mouse)
+void SolarSystemScene::OnUpdate(float deltaTime, IInputProvider &input)
 {
     // M — toggle pause
     if (input.IsKeyPressed(GLFW_KEY_M))
@@ -418,7 +417,7 @@ void SolarSystemScene::OnUpdate(float deltaTime, KeyboardInput &input, MouseInpu
     }
 
     glm::vec3 moveDirXZ;
-    UpdateStandardCameraAndPlayer(deltaTime, input, mouse, m_playerPos, moveDirXZ, 0.0f);
+    UpdateStandardCameraAndPlayer(deltaTime, input, m_playerPos, moveDirXZ, 0.0f);
 
     // Sync ship transform
     {

@@ -5,8 +5,8 @@
 
 struct GLFWwindow;
 class Renderer;
-class KeyboardInput;
-class MouseInput;
+class IInputProvider;
+class InputManager;
 class Scene;
 class RendererUI;
 
@@ -44,8 +44,8 @@ class Application {
         /// Used by the framebuffer resize callback to forward resize events.
         Renderer* GetRenderer() const { return m_renderer.get(); }
 
-        /// Returns a non-owning pointer to the MouseInput.
-        MouseInput* GetMouseInput() const { return m_mouse.get(); }
+        /// Returns a non-owning pointer to the InputManager.
+        InputManager* GetInputManager() const { return m_input.get(); }
 
         /// Returns the current framebuffer dimensions in pixels.
         void GetFramebufferSize(int& width, int& height) const;
@@ -53,8 +53,7 @@ class Application {
 private:
     GLFWwindow*                    m_window           = nullptr;
     std::unique_ptr<Renderer>      m_renderer;
-    std::unique_ptr<KeyboardInput> m_input;
-    std::unique_ptr<MouseInput>    m_mouse;
+    std::unique_ptr<InputManager>  m_input;
     std::unique_ptr<RendererUI>    m_ui;
     float                          m_lastFrameTime    = 0.0f;
     bool                           m_imguiInitialized = false;

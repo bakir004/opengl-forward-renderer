@@ -1,8 +1,7 @@
 #include "scene/Scene.h"
 #include "scene/FrameSubmission.h"
 #include "scene/LightUtils.h"
-#include "core/KeyboardInput.h"
-#include "core/MouseInput.h"
+#include "core/IInputProvider.h"
 #include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
 
@@ -46,9 +45,9 @@ float Scene::GetCurrentCameraSpeed() const {
     return m_lastEffectiveSpeed;
 }
 
-void Scene::InternalUpdate(float deltaTime, KeyboardInput& input, MouseInput& mouse, int fbWidth, int fbHeight) {
+void Scene::InternalUpdate(float deltaTime, IInputProvider& input, int fbWidth, int fbHeight) {
     m_camera.OnResize(fbWidth, fbHeight);
-    OnUpdate(deltaTime, input, mouse);
+    OnUpdate(deltaTime, input);
 }
 
 void Scene::BuildSubmission(FrameSubmission& out) const {
@@ -67,13 +66,12 @@ void Scene::BuildSubmission(FrameSubmission& out) const {
     }
 }
 
-void Scene::UpdateStandardCameraAndPlayer(float deltaTime, KeyboardInput& input, MouseInput& mouse, 
+void Scene::UpdateStandardCameraAndPlayer(float deltaTime, IInputProvider& input, 
                                           glm::vec3& playerPos, glm::vec3& outMoveDirXZ, 
                                           float orbitTargetYOffset) 
 {
     m_standardCameraController.Update(deltaTime,
                                       input,
-                                      mouse,
                                       playerPos,
                                       outMoveDirXZ,
                                       orbitTargetYOffset,
