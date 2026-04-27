@@ -180,25 +180,48 @@ float DistanceAttenuation(float radius,
     return physical * smoothFalloff;
 }
 
-vec3 DirectionalLighting(vec3 albedo, vec3 n, vec3 v)
+vec3 CalculatePBRLight(vec3 N,
+                       vec3 V,
+                       vec3 L,
+                       vec3 radiance,
+                       vec3 albedo,
+                       float metallic,
+                       float roughness)
 {
-    // Directional light has no source position: only direction + radiance.
+    vec3 H = normalize(V + L);
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    if (NdotV <= 0.0 || NdotL <= 0.0)
+        return vec3(0.0);
+
+    vec3 F0 = mix(vec3(0.04), albedo, metallic);
+    float D = DistributionGGX(N, H, roughness);
+    float G = GeometrySmith(N, V, L, roughness);
+    vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
+
+    vec3 specular = (D * G * F) / max(4.0 * NdotV * NdotL, 0.0001);
+    vec3 kS = F;
+    vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
+    vec3 diffuse = kD * albedo / PI;
+
+    return (diffuse + specular) * radiance * NdotL;
+}
+
+vec3 DirectionalLighting(vec3 albedo, vec3 n, vec3 v, float metallic, float roughness)
+{
+    // Directional light now uses Cook-Torrance BRDF with existing light radiance.
     if (u_HasDirectional == 0 || u_Directional.enabled == 0u)
         return vec3(0.0);
 
     vec3 l = normalize(-u_Directional.direction);
-    float diffuse = DiffuseTerm(n, l);
-    float spec = BlinnPhongSpecular(n, l, v, u_Shininess);
-    vec3 irradiance = u_Directional.color * u_Directional.intensity;
-
-    vec3 diffuseColor = albedo * irradiance * diffuse;
-    vec3 specColor = irradiance * (u_SpecularStrength * spec);
+    vec3 radiance = u_Directional.color * u_Directional.intensity;
+    vec3 directLight = CalculatePBRLight(n, v, l, radiance, albedo, metallic, roughness);
 
     float shadow = 0.0;
     if (u_ReceiveShadow != 0) {
         shadow = CalculateShadow(v_WorldPos, n, l, v_ViewDepth);
     }
-    return (diffuseColor + specColor) * (1.0 - shadow);
+    return directLight * (1.0 - shadow);
 }
 
 vec3 PointLighting(vec3 albedo, vec3 worldPos, vec3 n, vec3 v)
@@ -293,14 +316,16 @@ void main()
     // Base color remains material-driven; lighting modulates this albedo.
     vec4 texel = texture(u_AlbedoMap, v_UV) * u_TintColor;
     vec3 albedo = texel.rgb;
+    float metallic = MaterialMetallic();
+    float roughness = MaterialRoughness();
 
-    // Dev 5 core vectors for Blinn-Phong shading.
+    // Shared view-space vectors for direct and local lighting.
     vec3 n = normalize(v_Normal);
     vec3 v = normalize(cameraPos - v_WorldPos);
 
     // Ambient + directional + local lights.
     vec3 ambient = albedo * u_AmbientColor * u_AmbientIntensity;
-    vec3 directional = DirectionalLighting(albedo, n, v);
+    vec3 directional = DirectionalLighting(albedo, n, v, metallic, roughness);
     vec3 point = PointLighting(albedo, v_WorldPos, n, v);
     vec3 spot = SpotLighting(albedo, v_WorldPos, n, v);
 
