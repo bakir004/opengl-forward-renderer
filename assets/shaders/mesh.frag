@@ -22,27 +22,13 @@ uniform mat4           u_CascadeViewProj[NUM_CASCADES];
 uniform float          u_CascadeSplits[NUM_CASCADES];
 uniform int            u_PCFRadius = 1;
 uniform int            u_ReceiveShadow = 1;
+uniform int            u_HasAlbedoMap = 0;
 uniform vec4           u_TintColor = vec4(1.0);
 uniform vec3           u_AlbedoColor = vec3(0.5);
 uniform float          u_MetallicValue = 0.0;
 uniform float          u_RoughnessValue = 0.5;
-uniform float          u_Shininess = 64.0;
-uniform float          u_SpecularStrength = 0.35;
 
 out vec4 FragColor;
-
-float DiffuseTerm(vec3 n, vec3 l)
-{
-    // Lambert diffuse keeps only front-facing light contribution.
-    return max(dot(n, l), 0.0);
-}
-
-float BlinnPhongSpecular(vec3 n, vec3 l, vec3 v, float shininess)
-{
-    // Blinn-Phong uses the half-vector for stable highlights.
-    vec3 h = normalize(l + v);
-    return pow(max(dot(n, h), 0.0), shininess);
-}
 
 vec3 FallbackAlbedoColor()
 {
@@ -261,9 +247,14 @@ vec3 PointLighting(vec3 albedo,
     return Lo;
 }
 
-vec3 SpotLighting(vec3 albedo, vec3 worldPos, vec3 n, vec3 v)
+vec3 SpotLighting(vec3 albedo,
+                  vec3 worldPos,
+                  vec3 n,
+                  vec3 v,
+                  float metallic,
+                  float roughness)
 {
-    vec3 sum = vec3(0.0);
+    vec3 Lo = vec3(0.0);
 
     int count = clamp(u_NumSpotLights, 0, 8);
     for (int i = 0; i < count; ++i) {
@@ -298,37 +289,31 @@ vec3 SpotLighting(vec3 albedo, vec3 worldPos, vec3 n, vec3 v)
         // Smooth blend: full intensity inside inner cone, zero at/after outer cone.
         float coneBlend = smoothstep(light.outerCos, light.innerCos, cosTheta);
         float weight = attenuation * coneBlend;
-
-        float diffuse = DiffuseTerm(n, l);
-        float spec = BlinnPhongSpecular(n, l, v, u_Shininess);
-        vec3 irradiance = light.color * light.intensity * weight;
-
-        vec3 diffuseColor = albedo * irradiance * diffuse;
-        vec3 specColor = irradiance * (u_SpecularStrength * spec);
-        sum += diffuseColor + specColor;
+        vec3 radiance = light.color * light.intensity * weight;
+        Lo += CalculatePBRLight(n, v, l, radiance, albedo, metallic, roughness);
     }
 
-    return sum;
+    return Lo;
 }
 
 void main()
 {
-    // Base color remains material-driven; lighting modulates this albedo.
-    vec4 texel = texture(u_AlbedoMap, v_UV) * u_TintColor;
-    vec3 albedo = texel.rgb;
+    // Use the bound albedo texture when present; otherwise fall back to the uniform base color.
+    vec4 sampledAlbedo = texture(u_AlbedoMap, v_UV);
+    vec3 albedo = ((u_HasAlbedoMap != 0) ? sampledAlbedo.rgb : FallbackAlbedoColor()) * u_TintColor.rgb;
+    float alpha = ((u_HasAlbedoMap != 0) ? sampledAlbedo.a : 1.0) * u_TintColor.a;
     float metallic = MaterialMetallic();
     float roughness = MaterialRoughness();
 
-    // Shared view-space vectors for direct and local lighting.
-    vec3 n = normalize(v_Normal);
-    vec3 v = normalize(cameraPos - v_WorldPos);
+    // Use normalized world-space normal and the fragment-to-camera view vector for BRDF evaluation.
+    vec3 N = normalize(v_Normal);
+    vec3 V = normalize(cameraPos - v_WorldPos);
 
-    // Ambient + directional + local lights.
+    // Existing scene ambient stays in place; Lo collects direct-light BRDF contributions.
     vec3 ambient = albedo * u_AmbientColor * u_AmbientIntensity;
-    vec3 directional = DirectionalLighting(albedo, n, v, metallic, roughness);
-    vec3 point = PointLighting(albedo, v_WorldPos, n, v, metallic, roughness);
-    vec3 spot = SpotLighting(albedo, v_WorldPos, n, v);
+    vec3 Lo = DirectionalLighting(albedo, N, V, metallic, roughness);
+    Lo += PointLighting(albedo, v_WorldPos, N, V, metallic, roughness);
+    Lo += SpotLighting(albedo, v_WorldPos, N, V, metallic, roughness);
 
-    vec3 litColor = ambient + directional + point + spot;
-    FragColor = vec4(litColor, texel.a);
+    FragColor = vec4(ambient + Lo, alpha);
 }

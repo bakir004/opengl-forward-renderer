@@ -19,6 +19,13 @@ constexpr glm::vec3 kDefaultPbrAlbedoColor(0.5f, 0.5f, 0.5f);
 constexpr float kDefaultPbrMetallicValue = 0.0f;
 constexpr float kDefaultPbrRoughnessValue = 0.5f;
 
+void SetOptionalIntUniform(GLuint programId, const char* name, int value)
+{
+    const GLint location = glGetUniformLocation(programId, name);
+    if (location != -1)
+        glUniform1i(location, value);
+}
+
 void SetOptionalFloatUniform(GLuint programId, const char* name, float value)
 {
     const GLint location = glGetUniformLocation(programId, name);
@@ -42,6 +49,7 @@ void ApplyPbrFallbackUniformDefaults(const ShaderProgram& shader)
     SetOptionalVec3Uniform(programId, "u_AlbedoColor", kDefaultPbrAlbedoColor);
     SetOptionalFloatUniform(programId, "u_MetallicValue", kDefaultPbrMetallicValue);
     SetOptionalFloatUniform(programId, "u_RoughnessValue", kDefaultPbrRoughnessValue);
+    SetOptionalIntUniform(programId, "u_HasAlbedoMap", 0);
 }
 
 } // namespace
