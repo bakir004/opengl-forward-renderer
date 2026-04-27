@@ -23,6 +23,9 @@ uniform float          u_CascadeSplits[NUM_CASCADES];
 uniform int            u_PCFRadius = 1;
 uniform int            u_ReceiveShadow = 1;
 uniform vec4           u_TintColor = vec4(1.0);
+uniform vec3           u_AlbedoColor = vec3(0.5);
+uniform float          u_MetallicValue = 0.0;
+uniform float          u_RoughnessValue = 0.5;
 uniform float          u_Shininess = 64.0;
 uniform float          u_SpecularStrength = 0.35;
 
@@ -39,6 +42,21 @@ float BlinnPhongSpecular(vec3 n, vec3 l, vec3 v, float shininess)
     // Blinn-Phong uses the half-vector for stable highlights.
     vec3 h = normalize(l + v);
     return pow(max(dot(n, h), 0.0), shininess);
+}
+
+vec3 FallbackAlbedoColor()
+{
+    return u_AlbedoColor;
+}
+
+float MaterialMetallic()
+{
+    return clamp(u_MetallicValue, 0.0, 1.0);
+}
+
+float MaterialRoughness()
+{
+    return clamp(u_RoughnessValue, 0.04, 1.0);
 }
 
 // Picks the tightest cascade that still covers this fragment's view-space depth.

@@ -13,6 +13,39 @@
 #include <string>
 #include <spdlog/spdlog.h>
 
+namespace {
+
+constexpr glm::vec3 kDefaultPbrAlbedoColor(0.5f, 0.5f, 0.5f);
+constexpr float kDefaultPbrMetallicValue = 0.0f;
+constexpr float kDefaultPbrRoughnessValue = 0.5f;
+
+void SetOptionalFloatUniform(GLuint programId, const char* name, float value)
+{
+    const GLint location = glGetUniformLocation(programId, name);
+    if (location != -1)
+        glUniform1f(location, value);
+}
+
+void SetOptionalVec3Uniform(GLuint programId, const char* name, const glm::vec3& value)
+{
+    const GLint location = glGetUniformLocation(programId, name);
+    if (location != -1)
+        glUniform3f(location, value.x, value.y, value.z);
+}
+
+void ApplyPbrFallbackUniformDefaults(const ShaderProgram& shader)
+{
+    const GLuint programId = shader.GetID();
+    if (programId == 0)
+        return;
+
+    SetOptionalVec3Uniform(programId, "u_AlbedoColor", kDefaultPbrAlbedoColor);
+    SetOptionalFloatUniform(programId, "u_MetallicValue", kDefaultPbrMetallicValue);
+    SetOptionalFloatUniform(programId, "u_RoughnessValue", kDefaultPbrRoughnessValue);
+}
+
+} // namespace
+
 static GLenum ToGLPrimitive(PrimitiveTopology topology)
 {
     switch (topology)
@@ -151,6 +184,7 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
             if (item.shader != lastShader)
             {
                 item.shader->Bind();
+                ApplyPbrFallbackUniformDefaults(*item.shader);
                 lastShader = item.shader;
                 lastMaterial = nullptr;
             }
