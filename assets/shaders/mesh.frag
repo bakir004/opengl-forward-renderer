@@ -14,6 +14,7 @@ layout(std140, binding = 0) uniform Camera {
 };
 
 #include "light_block.glsl"
+#include "pbr_helpers.glsl"
 
 uniform sampler2D      u_AlbedoMap;
 uniform sampler2DArray u_CascadeShadowMaps;
