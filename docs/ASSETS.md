@@ -81,8 +81,8 @@ They are loaded by `AssetImporter::LoadMaterial()` and parsed into a `Material` 
     "u_EmissiveMap":  { "path": "assets/textures/albedo/rock_emissive.png",      "colorSpace": "sRGB"   }
   },
   "floats": {
-    "u_Metallic":   0.0,
-    "u_Roughness":  0.5
+    "u_MetallicValue":   0.0,
+    "u_RoughnessValue":  0.5
   },
   "vec3s": {
     "u_AlbedoColor": [1.0, 1.0, 1.0]
@@ -159,6 +159,53 @@ The simplest valid `.mat` file — no textures, just a shader and a tint color:
 
 This is equivalent to `assets/materials/default.mat` which ships with the project
 and serves as the reference for new material files.
+
+---
+
+## Cook-Torrance PBR
+
+The main forward fragment shader now uses a Cook-Torrance microfacet BRDF for
+its direct lighting path.
+
+- `D` uses GGX / Trowbridge-Reitz normal distribution.
+- `G` uses Smith masking-shadowing with Schlick-GGX visibility.
+- `F` uses Schlick Fresnel.
+
+### Material Fallback Parameters
+
+This update uses the current fallback material path instead of introducing a new
+texture-driven PBR material system.
+
+| Uniform | Meaning | Default |
+|---------|---------|---------|
+| `u_AlbedoColor` | Base color when no albedo texture is bound | `vec3(0.5)` |
+| `u_MetallicValue` | Metallic factor | `0.0` |
+| `u_RoughnessValue` | Roughness factor | `0.5` |
+
+- `metallic = 0.0` means a dielectric / non-metal surface. In that case `F0`
+  stays near `0.04`, so the specular highlight is neutral/white.
+- `metallic = 1.0` means a metal surface. In that case albedo tints the
+  specular highlight and diffuse energy is removed.
+- Low roughness gives a tighter, brighter highlight.
+- High roughness gives a wider, softer, weaker highlight.
+
+### Out Of Scope
+
+The following are intentionally not part of this Sprint 7 update and should not be
+assumed to exist from this change alone:
+
+- normal mapping
+- TBN generation/use
+- new texture slots for metallic/roughness/AO/emissive
+- PBR validation scene or debug UI
+
+### Manual Test Checklist
+
+- directional light renders correctly
+- point lights render correctly
+- metallic changes the tint of the specular response
+- roughness changes highlight width/intensity
+- shader compile errors are absent at startup
 
 ---
 
