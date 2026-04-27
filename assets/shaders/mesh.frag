@@ -224,9 +224,14 @@ vec3 DirectionalLighting(vec3 albedo, vec3 n, vec3 v, float metallic, float roug
     return directLight * (1.0 - shadow);
 }
 
-vec3 PointLighting(vec3 albedo, vec3 worldPos, vec3 n, vec3 v)
+vec3 PointLighting(vec3 albedo,
+                   vec3 worldPos,
+                   vec3 n,
+                   vec3 v,
+                   float metallic,
+                   float roughness)
 {
-    vec3 sum = vec3(0.0);
+    vec3 Lo = vec3(0.0);
 
     int count = clamp(u_NumPointLights, 0, 16);
     for (int i = 0; i < count; ++i) {
@@ -234,31 +239,26 @@ vec3 PointLighting(vec3 albedo, vec3 worldPos, vec3 n, vec3 v)
         if (light.enabled == 0u)
             continue;
 
-        vec3 toLight = light.position - worldPos;
-        float d = length(toLight);
-        if (d <= 0.0001)
+        vec3 lightVector = light.position - worldPos;
+        float distanceToLight = length(lightVector);
+        if (distanceToLight <= 0.0001)
             continue;
 
-        vec3 l = toLight / d;
+        vec3 l = lightVector / distanceToLight;
         float attenuation = DistanceAttenuation(
             light.radius,
             light.attnConstant,
             light.attnLinear,
             light.attnQuadratic,
-            d);
+            distanceToLight);
         if (attenuation <= 0.0)
             continue;
 
-        float diffuse = DiffuseTerm(n, l);
-        float spec = BlinnPhongSpecular(n, l, v, u_Shininess);
-        vec3 irradiance = light.color * light.intensity * attenuation;
-
-        vec3 diffuseColor = albedo * irradiance * diffuse;
-        vec3 specColor = irradiance * (u_SpecularStrength * spec);
-        sum += diffuseColor + specColor;
+        vec3 radiance = light.color * light.intensity * attenuation;
+        Lo += CalculatePBRLight(n, v, l, radiance, albedo, metallic, roughness);
     }
 
-    return sum;
+    return Lo;
 }
 
 vec3 SpotLighting(vec3 albedo, vec3 worldPos, vec3 n, vec3 v)
@@ -326,7 +326,7 @@ void main()
     // Ambient + directional + local lights.
     vec3 ambient = albedo * u_AmbientColor * u_AmbientIntensity;
     vec3 directional = DirectionalLighting(albedo, n, v, metallic, roughness);
-    vec3 point = PointLighting(albedo, v_WorldPos, n, v);
+    vec3 point = PointLighting(albedo, v_WorldPos, n, v, metallic, roughness);
     vec3 spot = SpotLighting(albedo, v_WorldPos, n, v);
 
     vec3 litColor = ambient + directional + point + spot;
