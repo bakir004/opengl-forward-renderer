@@ -251,7 +251,7 @@ if (m_sekiroModel.IsValid())
             m_playerCubeIdx = idx;
     }
 
-    spdlog::info("[JapanScene] Added {} Sekiro submeshes", subMeshCount);
+    spdlog::info("[JapanScene] Added {} player model submeshes", subMeshCount);
 }
 
     spdlog::info("[JapanScene] Setup complete");

@@ -10,32 +10,55 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <cmath>
-#include <string>
+#include <cstdio>
 #include <algorithm>
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Palette
+// ─────────────────────────────────────────────────────────────────────────────
 namespace Pal {
-    static constexpr ImVec4 Bg0 = {0.05f, 0.05f, 0.05f, 0.95f}; // Near black, high alpha
-    static constexpr ImVec4 Bg1 = {0.11f, 0.11f, 0.12f, 0.85f}; // Deep gray, translucent
-    static constexpr ImVec4 Bg2 = {0.16f, 0.16f, 0.17f, 0.90f}; // Lighter gray for items
-    static constexpr ImVec4 Bg3 = {0.20f, 0.20f, 0.22f, 1.00f}; // Headers
-    static constexpr ImVec4 Border = {0.25f, 0.25f, 0.26f, 0.50f}; // Subtle borders
-    static constexpr ImVec4 Accent = {0.00f, 0.48f, 1.00f, 1.00f}; // Apple Blue (#007aff)
-    static constexpr ImVec4 AccentDim = {0.00f, 0.48f, 1.00f, 0.25f}; // Soft blue tint
-    static constexpr ImVec4 Green = {0.20f, 0.84f, 0.29f, 1.00f}; // Apple Green
-    static constexpr ImVec4 Orange = {1.00f, 0.62f, 0.04f, 1.00f}; // Apple Orange
-    static constexpr ImVec4 Red = {1.00f, 0.28f, 0.24f, 1.00f}; // Apple Red
+    static constexpr ImVec4 Bg1 = {0.11f, 0.11f, 0.12f, 0.85f};
+    static constexpr ImVec4 Bg2 = {0.16f, 0.16f, 0.17f, 0.90f};
+    static constexpr ImVec4 Bg3 = {0.20f, 0.20f, 0.22f, 1.00f};
+    static constexpr ImVec4 Border = {0.25f, 0.25f, 0.26f, 0.50f};
+    static constexpr ImVec4 Accent = {0.00f, 0.48f, 1.00f, 1.00f};
+    static constexpr ImVec4 AccentDim = {0.00f, 0.48f, 1.00f, 0.25f};
+    static constexpr ImVec4 Green = {0.20f, 0.84f, 0.29f, 1.00f};
+    static constexpr ImVec4 Orange = {1.00f, 0.62f, 0.04f, 1.00f};
+    static constexpr ImVec4 Red = {1.00f, 0.28f, 0.24f, 1.00f};
     static constexpr ImVec4 RedBg = {0.25f, 0.10f, 0.10f, 1.00f};
-    static constexpr ImVec4 TextHi = {1.00f, 1.00f, 1.00f, 1.00f}; // San Francisco White
-    static constexpr ImVec4 TextMid = {0.92f, 0.92f, 0.95f, 0.80f}; // Secondary
-    static constexpr ImVec4 TextDim = {0.55f, 0.55f, 0.57f, 1.00f}; // Tertiary
-    static constexpr ImVec4 TextFaint = {0.38f, 0.38f, 0.40f, 1.00f}; // Quaternary
+    static constexpr ImVec4 TextHi = {1.00f, 1.00f, 1.00f, 1.00f};
+    static constexpr ImVec4 TextMid = {0.92f, 0.92f, 0.95f, 0.80f};
+    static constexpr ImVec4 TextDim = {0.55f, 0.55f, 0.57f, 1.00f};
+    static constexpr ImVec4 TextFaint = {0.38f, 0.38f, 0.40f, 1.00f};
 }
 
 static constexpr float kPanelPadding = 12.0f;
 static constexpr float kRounding = 10.0f;
-static constexpr float kTopbarHeight = 44.0f; // Slimmer, Apple-like
+static constexpr float kTopbarHeight = 44.0f;
+static constexpr float kSidebarWidth = 320.0f;
 static constexpr int kTabCount = 4;
 static const char *kTabLabels[] = {"Scene", "Lights", "Shadow", "Stats"};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ApplyTheme — call once after ImGui::CreateContext(), NOT inside a frame.
+// ─────────────────────────────────────────────────────────────────────────────
+void RendererUI::ApplyTheme() {
+    ImGuiStyle &style = ImGui::GetStyle();
+    style.WindowRounding = kRounding;
+    style.ChildRounding = kRounding * 0.5f;
+    style.PopupRounding = kRounding * 0.5f;
+    style.FrameRounding = 4.0f;
+    style.GrabRounding = 4.0f;
+    style.WindowBorderSize = 1.0f;
+    style.PopupBorderSize = 1.0f;
+    style.FrameBorderSize = 0.0f;
+    style.WindowPadding = ImVec2(12, 12);
+    style.DisplaySafeAreaPadding = ImVec2(8, 8);
+    style.ItemSpacing = ImVec2(8, 8);
+    style.Colors[ImGuiCol_WindowBg] = Pal::Bg1;
+    style.Colors[ImGuiCol_Border] = Pal::Border;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Small widget helpers
@@ -93,7 +116,7 @@ static bool SectionHeader(const char *label, bool defaultOpen = true) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Light editors  (unchanged logic, restyled)
+// Light editors
 // ─────────────────────────────────────────────────────────────────────────────
 static void DrawDirectionalLight(DirectionalLight &light) {
     ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
@@ -108,49 +131,62 @@ static void DrawDirectionalLight(DirectionalLight &light) {
     changed |= ImGui::DragFloat("Elevation (°)##dir", &elev, 0.5f, -90.f, 90.f, "%.1f");
     if (changed) {
         const float pr = glm::radians(elev), yr = glm::radians(azim);
-        light.direction = {std::cos(pr) * std::cos(yr), std::sin(pr), std::cos(pr) * std::sin(yr)};
+        light.direction = {
+            std::cos(pr) * std::cos(yr),
+            std::sin(pr),
+            std::cos(pr) * std::sin(yr)
+        };
     }
     ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextFaint);
     ImGui::Text("XYZ: %.3f, %.3f, %.3f", d.x, d.y, d.z);
-    ImGui::PopStyleColor();
-    ImGui::PopStyleColor();
+    ImGui::PopStyleColor(2);
 }
 
-// Returns true → remove this light.
+// Returns true → caller should remove this light.
 static bool DrawPointLight(PointLight &light, int idx, const glm::vec3 &camPos) {
+    // Use ImGui's ID stack for uniqueness — no per-frame string allocation needed.
+    ImGui::PushID(idx);
+
     ImGui::PushStyleColor(ImGuiCol_ChildBg, Pal::Bg3);
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 4.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 6));
 
-    const std::string cid = "plc" + std::to_string(idx);
-    ImGui::BeginChild(cid.c_str(), ImVec2(0, 0),
+    ImGui::BeginChild("##plc", ImVec2(0, 0),
                       ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Border);
 
-    // Header row
-    const std::string name = light.name.empty() ? ("Light " + std::to_string(idx + 1)) : light.name;
-    ImGui::TextUnformatted(name.c_str());
+    // Header row — display name, then remove button flush-right.
+    char nameBuf[64];
+    if (light.name.empty())
+        std::snprintf(nameBuf, sizeof(nameBuf), "Light %d", idx + 1);
+    else
+        std::snprintf(nameBuf, sizeof(nameBuf), "%s", light.name.c_str());
+
+    ImGui::TextUnformatted(nameBuf);
     ImGui::SameLine(ImGui::GetContentRegionAvail().x - 26);
-    const bool remove = MiniBadgeButton(("X##rm" + std::to_string(idx)).c_str(), true);
+    const bool remove = MiniBadgeButton("X##rm", /*danger=*/true);
 
     ImGui::Separator();
     ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
-    const std::string p = "##pl" + std::to_string(idx);
-    ImGui::DragFloat(("Intensity" + p).c_str(), &light.intensity, 0.05f, 0.f, 1000.f, "%.3f");
-    ImGui::ColorEdit3(("Color" + p).c_str(), &light.color.x);
-    ImGui::DragFloat3(("Position" + p).c_str(), &light.position.x, 0.05f);
-    ImGui::DragFloat(("Radius" + p).c_str(), &light.radius, 0.5f, 0.1f, 500.f, "%.1f");
-    if (MiniBadgeButton(("Move to camera" + p).c_str()))
+
+    // All widgets share the same ID scope (PushID above), so plain labels are fine.
+    ImGui::DragFloat("Intensity", &light.intensity, 0.05f, 0.f, 1000.f, "%.3f");
+    ImGui::ColorEdit3("Color", &light.color.x);
+    ImGui::DragFloat3("Position", &light.position.x, 0.05f);
+    ImGui::DragFloat("Radius", &light.radius, 0.5f, 0.1f, 500.f, "%.1f");
+
+    if (MiniBadgeButton("Move to camera"))
         light.position = camPos;
     ImGui::SameLine();
     ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextFaint);
     ImGui::Text("(%.1f, %.1f, %.1f)", camPos.x, camPos.y, camPos.z);
-    ImGui::PopStyleColor();
-    ImGui::PopStyleColor();
+    ImGui::PopStyleColor(2);
 
     ImGui::EndChild();
     ImGui::PopStyleVar(2);
     ImGui::PopStyleColor();
     ImGui::Spacing();
+
+    ImGui::PopID();
     return remove;
 }
 
@@ -158,31 +194,41 @@ static void DrawShadowParams(LightShadowParams &s, const char *farLabel,
                              const char *note, bool dirNote) {
     ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
     ImGui::Checkbox("Cast shadow", &s.castShadow);
+
+    // Clamp before presenting so downstream consumers never see a bad value.
+    s.nearPlane = std::max(s.nearPlane, 0.001f);
+    if (s.farPlane <= s.nearPlane) s.farPlane = s.nearPlane + 0.01f;
+
     ImGui::DragFloat("Depth bias", &s.depthBias, 0.0001f, 0.f, 1.f, "%.5f");
     ImGui::DragFloat("Normal bias", &s.normalBias, 0.0005f, 0.f, 10.f, "%.4f");
     ImGui::DragFloat("Slope bias", &s.slopeBias, 0.050f, 0.f, 10.f, "%.3f");
+
     int res[2] = {s.shadowMapWidth, s.shadowMapHeight};
     if (ImGui::DragInt2("Resolution", res, 4.f, 16, 8192)) {
         s.shadowMapWidth = std::max(16, res[0]);
         s.shadowMapHeight = std::max(16, res[1]);
     }
+
     ImGui::DragFloat("Near plane", &s.nearPlane, 0.01f, 0.001f, 1000.f, "%.3f");
     ImGui::DragFloat(farLabel, &s.farPlane, 0.05f, 0.01f, 10000.f, "%.3f");
-    if (s.nearPlane < 0.001f) s.nearPlane = 0.001f;
+
+    // Re-clamp after drag in case user pulled near past far.
+    s.nearPlane = std::max(s.nearPlane, 0.001f);
     if (s.farPlane <= s.nearPlane) s.farPlane = s.nearPlane + 0.01f;
+
     ImGui::SliderInt("PCF radius", &s.pcfRadius, 0, 4);
-    if (s.pcfRadius < 0) s.pcfRadius = 0;
+    s.pcfRadius = std::max(0, s.pcfRadius);
+
     const int k = s.pcfRadius * 2 + 1;
     ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextFaint);
     ImGui::Text("PCF kernel: %dx%d (%d taps)", k, k, k * k);
     ImGui::TextWrapped("%s", note);
     if (dirNote) ImGui::TextWrapped("Directional cast/bias packed in light UBO.");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleColor();
+    ImGui::PopStyleColor(2);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Top-level Draw — computes the layout and calls sub-draw methods
+// Top-level Draw — builds the shared FrameSubmission once, then dispatches.
 // ─────────────────────────────────────────────────────────────────────────────
 void RendererUI::Draw(int fbW, int fbH,
                       Scene &scene, Renderer &renderer, MouseInput *mouse,
@@ -191,57 +237,35 @@ void RendererUI::Draw(int fbW, int fbH,
     const bool lookMode = mouse && mouse->IsCaptured();
     const RendererDebugStats &stats = renderer.GetDebugStats();
 
-    // ── Layout logic ──────────────────────────────────────────────────────────
-    // In the modern concept, the GL viewport fills the entire window.
-    // Floating panels sit on top of it.
+    // ── Viewport fills the entire window ─────────────────────────────────────
     m_vpX = 0;
     m_vpY = 0;
     m_vpW = fbW;
     m_vpH = fbH;
-
     if (m_vpW != m_prevVpW || m_vpH != m_prevVpH) {
         renderer.Resize(m_vpW, m_vpH);
         m_prevVpW = m_vpW;
         m_prevVpH = m_vpH;
     }
 
-    // ── Global style overrides ────────────────────────────────────────────────
-    ImGuiStyle &style = ImGui::GetStyle();
-    style.WindowRounding = kRounding;
-    style.ChildRounding = kRounding * 0.5f;
-    style.PopupRounding = kRounding * 0.5f;
-    style.FrameRounding = 4.0f;
-    style.GrabRounding = 4.0f;
-    style.WindowBorderSize = 1.0f;
-    style.PopupBorderSize = 1.0f;
-    style.FrameBorderSize = 0.0f;
-    style.WindowPadding = ImVec2(12, 12);
-    style.DisplaySafeAreaPadding = ImVec2(8, 8); // For tooltips to not stick to edges
-    style.ItemSpacing = ImVec2(8, 8);
-    style.Colors[ImGuiCol_WindowBg] = Pal::Bg1;
-    style.Colors[ImGuiCol_Border] = Pal::Border;
+    // ── Build scene submission exactly once for the whole frame ───────────────
+    FrameSubmission frame;
+    scene.BuildSubmission(frame);
 
-    // ── Draw Regions ──────────────────────────────────────────────────────────
-    // The "Topbar" is now a floating Dynamic Island centered at the top.
+    // ── Draw regions ──────────────────────────────────────────────────────────
     DrawTopbar(fbW, scene, stats, scenes, activeSceneIndex, lookMode);
 
-    // The "Sidebar" is now a floating Inspector panel on the left.
-    if (showSidebar) {
-        DrawSidebar(fbH, kPanelPadding, scene, stats, lookMode);
-    }
+    if (showSidebar)
+        DrawSidebar(fbH, scene, stats, frame, lookMode);
 
-    // Resize handle is removed as the panel is now floating/overlayed.
-    // DrawResizeHandle(fbH, kTopbarHeight);
-
-    // HUD overlays (camera badge, FPS etc)
-    DrawViewport(fbW, fbH, 0.0f, stats, scene, lookMode);
+    DrawViewport(fbW, fbH, stats, scene, frame, lookMode);
 
     if (showHelpWindow)
-        DrawHelpWindow(fbW, fbH, lookMode);
+        DrawHelpWindow(fbW, fbH);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Topbar  (full width, fixed height)
+// Topbar — centered Dynamic Island pill
 // ─────────────────────────────────────────────────────────────────────────────
 void RendererUI::DrawTopbar(int fbW,
                             Scene &scene,
@@ -249,7 +273,6 @@ void RendererUI::DrawTopbar(int fbW,
                             const std::vector<Scene *> &scenes,
                             std::size_t &activeSceneIndex,
                             bool lookMode) {
-    // Dynamic Island Style: Centered floating pill
     const float pillWidth = 400.0f;
     const float pillHeight = kTopbarHeight;
     const float pillX = (static_cast<float>(fbW) - pillWidth) * 0.5f;
@@ -264,19 +287,22 @@ void RendererUI::DrawTopbar(int fbW,
     ImGui::SetNextWindowPos({pillX, pillY}, ImGuiCond_Always);
     ImGui::SetNextWindowSize({pillWidth, pillHeight}, ImGuiCond_Always);
 
-    // Glass effect
     ImGui::PushStyleColor(ImGuiCol_WindowBg, Pal::Bg1);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, pillHeight * 0.5f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 0));
 
     if (ImGui::Begin("##DynamicIsland", nullptr, flags)) {
-        // ── Dropdown menu style helpers ───────────────────────────────────────
-        auto BeginMenuButton = [&](const char *label, bool isActive, const char *hotkey = nullptr) -> bool {
-            ImGui::PushStyleColor(ImGuiCol_Button, isActive ? Pal::AccentDim : ImVec4(0, 0, 0, 0));
+        // Helper: transparent menu-bar button that highlights when active.
+        auto MenuButton = [&](const char *label, bool isActive,
+                              const char *hotkey = nullptr) -> bool {
+            ImGui::PushStyleColor(ImGuiCol_Button, isActive
+                                                       ? Pal::AccentDim
+                                                       : ImVec4(0, 0, 0, 0));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, {1.0f, 1.0f, 1.0f, 0.05f});
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, Pal::AccentDim);
-            ImGui::PushStyleColor(ImGuiCol_Text, isActive ? Pal::Accent : Pal::TextMid);
-
+            ImGui::PushStyleColor(ImGuiCol_Text, isActive
+                                                     ? Pal::Accent
+                                                     : Pal::TextMid);
             ImGui::SetCursorPosY((pillHeight - ImGui::GetFrameHeight()) * 0.5f);
             const bool clicked = ImGui::Button(label);
             if (ImGui::IsItemHovered() && hotkey) {
@@ -291,16 +317,15 @@ void RendererUI::DrawTopbar(int fbW,
         ImGui::SameLine(0, 20);
         ImGui::SetCursorPosY(0);
 
-        // --- Scenes --
-
-        BeginMenuButton("Scenes", false);
+        // --- Scenes ---
+        MenuButton("Scenes", false);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 12));
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 8));
         if (ImGui::BeginPopupContextItem("##scenesPopup", ImGuiPopupFlags_MouseButtonLeft)) {
             for (std::size_t i = 0; i < scenes.size(); ++i) {
                 if (!scenes[i]) continue;
-                const bool sel = (i == activeSceneIndex);
-                if (ImGui::MenuItem(scenes[i]->GetName().c_str(), nullptr, sel))
+                if (ImGui::MenuItem(scenes[i]->GetName().c_str(), nullptr,
+                                    i == activeSceneIndex))
                     activeSceneIndex = i;
             }
             ImGui::EndPopup();
@@ -310,9 +335,9 @@ void RendererUI::DrawTopbar(int fbW,
         ImGui::SameLine(0, 8);
 
         // --- View ---
-        if (BeginMenuButton("View", wireframeOverride || showSidebar, "V")) {
+        if (MenuButton("View", wireframeOverride || showSidebar, "V"))
             ImGui::OpenPopup("##viewPopup");
-        }
+
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 12));
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 8));
         if (ImGui::BeginPopup("##viewPopup")) {
@@ -330,31 +355,31 @@ void RendererUI::DrawTopbar(int fbW,
         ImGui::SameLine(0, 8);
 
         // --- Help ---
-        if (BeginMenuButton("Help", showHelpWindow, "H")) {
+        if (MenuButton("Help", showHelpWindow, "H"))
             showHelpWindow = !showHelpWindow;
-        }
 
-        // --- Stats Pill (integrated mini) ---
-        float statsX = pillWidth - 80.0f;
-        ImGui::SetCursorPos({statsX, (pillHeight - ImGui::GetTextLineHeight()) * 0.5f});
+        // --- Mini FPS pill ---
+        ImGui::SetCursorPos({
+            pillWidth - 80.0f,
+            (pillHeight - ImGui::GetTextLineHeight()) * 0.5f
+        });
         ImGui::TextColored(Pal::Green, "%.0f", stats.fps);
         ImGui::SameLine(0, 4);
         ImGui::TextColored(Pal::TextDim, "FPS");
     }
     ImGui::End();
     ImGui::PopStyleVar(2);
-    ImGui::PopStyleColor(1);
+    ImGui::PopStyleColor();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sidebar
+// Sidebar — floating Inspector panel
 // ─────────────────────────────────────────────────────────────────────────────
-void RendererUI::DrawSidebar(int fbH, float topY,
+void RendererUI::DrawSidebar(int fbH,
                              Scene &scene,
                              const RendererDebugStats &stats,
+                             const FrameSubmission &frame,
                              bool lookMode) {
-    // Modern Apple-style floating Inspector
-    const float sbW = 320.0f;
     const float sbH = static_cast<float>(fbH) - (kPanelPadding * 2.0f);
 
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration |
@@ -363,28 +388,36 @@ void RendererUI::DrawSidebar(int fbH, float topY,
     if (lookMode) flags |= ImGuiWindowFlags_NoMouseInputs;
 
     ImGui::SetNextWindowPos({kPanelPadding, kPanelPadding}, ImGuiCond_Always);
-    ImGui::SetNextWindowSize({sbW, sbH}, ImGuiCond_Always);
+    ImGui::SetNextWindowSize({kSidebarWidth, sbH}, ImGuiCond_Always);
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, kRounding);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, Pal::Bg1);
 
     if (ImGui::Begin("##Inspector", nullptr, flags)) {
-        // --- Tab Selection (Pill style) ---
+        // --- Pill-style tab bar ---
         ImGui::SetCursorPos({16, 16});
-        ImGui::BeginChild("##tabBar", ImVec2(sbW - 32, 36), false, ImGuiWindowFlags_NoScrollbar);
+        ImGui::BeginChild("##tabBar", ImVec2(kSidebarWidth - 32, 36),
+                          false, ImGuiWindowFlags_NoScrollbar);
 
-        const float tabW = (sbW - 32) / kTabCount;
+        const float tabW = (kSidebarWidth - 32) / static_cast<float>(kTabCount);
         for (int i = 0; i < kTabCount; ++i) {
             const bool active = (static_cast<int>(m_activeTab) == i);
-            ImGui::PushStyleColor(ImGuiCol_Button, active ? Pal::Accent : ImVec4(0, 0, 0, 0));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, active ? Pal::Accent : ImVec4(1, 1, 1, 0.05f));
+            ImGui::PushStyleColor(ImGuiCol_Button, active
+                                                       ? Pal::Accent
+                                                       : ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, active
+                                                              ? Pal::Accent
+                                                              : ImVec4(1, 1, 1, 0.05f));
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, Pal::Accent);
-            ImGui::PushStyleColor(ImGuiCol_Text, active ? Pal::TextHi : Pal::TextDim);
+            ImGui::PushStyleColor(ImGuiCol_Text, active
+                                                     ? Pal::TextHi
+                                                     : Pal::TextDim);
             ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 18.0f);
 
-            if (ImGui::Button(kTabLabels[i], ImVec2(tabW, 30))) {
+            if (ImGui::Button(kTabLabels[i], ImVec2(tabW, 30)))
                 m_activeTab = static_cast<UITab>(i);
-            }
 
             ImGui::PopStyleVar();
             ImGui::PopStyleColor(4);
@@ -397,14 +430,14 @@ void RendererUI::DrawSidebar(int fbH, float topY,
         // --- Scrollable content area ---
         ImGui::SetCursorPosX(0);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 16));
-        ImGui::BeginChild("##content", ImVec2(0, 0), false, ImGuiWindowFlags_None);
+        ImGui::BeginChild("##content", ImVec2(0, 0));
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 12));
 
         const AssetCacheStats cs = AssetImporter::GetCacheStats();
         switch (m_activeTab) {
-            case UITab::Scene: DrawTabScene(scene, stats);
+            case UITab::Scene: DrawTabScene(scene, stats, frame);
                 break;
-            case UITab::Lights: DrawTabLights(scene, stats);
+            case UITab::Lights: DrawTabLights(scene, stats, frame);
                 break;
             case UITab::Shadow: DrawTabShadow(scene, stats);
                 break;
@@ -416,7 +449,7 @@ void RendererUI::DrawSidebar(int fbH, float topY,
             ImGui::Spacing();
             ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextFaint);
             ImGui::Separator();
-            ImGui::TextUnformatted("TAB - release mouse for UI");
+            ImGui::TextUnformatted("TAB — release mouse for UI");
             ImGui::PopStyleColor();
         }
 
@@ -424,18 +457,20 @@ void RendererUI::DrawSidebar(int fbH, float topY,
         ImGui::EndChild();
     }
     ImGui::End();
-    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(3);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Viewport overlay  (HUD; sits on top of the GL content, no BG)
+// Viewport overlay — HUD; transparent, sits on top of GL content
 // ─────────────────────────────────────────────────────────────────────────────
-void RendererUI::DrawViewport(int fbW, int fbH, float topY,
+void RendererUI::DrawViewport(int fbW, int fbH,
                               const RendererDebugStats &stats,
                               Scene &scene,
+                              const FrameSubmission &frame,
                               bool lookMode) {
-    // Minimalist overlays sitting on the viewport
-    const auto vpW = static_cast<float>(fbW), vpH = static_cast<float>(fbH);
+    const float vpW = static_cast<float>(fbW);
+    const float vpH = static_cast<float>(fbH);
 
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration |
                              ImGuiWindowFlags_NoMove |
@@ -447,103 +482,105 @@ void RendererUI::DrawViewport(int fbW, int fbH, float topY,
 
     ImGui::SetNextWindowPos({0, 0}, ImGuiCond_Always);
     ImGui::SetNextWindowSize({vpW, vpH}, ImGuiCond_Always);
-    ImGui::SetNextWindowBgAlpha(0.0f); // transparent
+    ImGui::SetNextWindowBgAlpha(0.0f);
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(kPanelPadding, kPanelPadding));
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
 
     if (ImGui::Begin("##VP_Overlay", nullptr, flags)) {
-        // ── Bottom-right HUD pills ─────────────────────────────────────────
+        // ── Camera mode string — use the pre-built submission ─────────────────
         const char *modeStr = "FreeFly";
-        {
-            FrameSubmission tmp;
-            scene.BuildSubmission(tmp);
-            if (tmp.camera) {
-                switch (tmp.camera->GetMode()) {
-                    case CameraMode::FirstPerson: modeStr = "First Person";
-                        break;
-                    case CameraMode::ThirdPerson: modeStr = "Third Person";
-                        break;
-                    default: break;
-                }
+        if (frame.camera) {
+            switch (frame.camera->GetMode()) {
+                case CameraMode::FirstPerson: modeStr = "First Person";
+                    break;
+                case CameraMode::ThirdPerson: modeStr = "Third Person";
+                    break;
+                default: break;
             }
         }
 
+        // ── Bottom-right HUD pills ─────────────────────────────────────────────
         char resBuf[32], dcBuf[32];
-        snprintf(resBuf, sizeof(resBuf), "%d × %d", fbW, fbH);
-        snprintf(dcBuf, sizeof(dcBuf), "%u draw calls", stats.drawCallCount);
+        std::snprintf(resBuf, sizeof(resBuf), "%d × %d", fbW, fbH);
+        std::snprintf(dcBuf, sizeof(dcBuf), "%u draw calls", stats.drawCallCount);
 
         const float pillH = 26.0f;
         const float pillGap = 6.0f;
         float py = vpH - pillH - kPanelPadding;
 
-        auto HudPill = [&](const char *txt, bool accent, const char *hotkey = nullptr) -> bool {
+        // Returns true if the pill was clicked.
+        auto HudPill = [&](const char *txt, bool accent,
+                           const char *hotkey = nullptr) -> bool {
             const float tw = ImGui::CalcTextSize(txt).x;
             const float pw = tw + 20.0f;
             ImGui::SetCursorPos({vpW - pw - kPanelPadding, py});
 
             ImGui::PushStyleColor(ImGuiCol_Button, {0.07f, 0.07f, 0.08f, 0.7f});
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, {0.1f, 0.1f, 0.12f, 0.8f});
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, {0.10f, 0.10f, 0.12f, 0.8f});
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, {0.05f, 0.05f, 0.06f, 0.9f});
             ImGui::PushStyleColor(ImGuiCol_Text, accent ? Pal::Accent : Pal::TextDim);
             ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, pillH * 0.5f);
 
-            bool clicked = ImGui::Button(txt, ImVec2(pw, pillH));
+            const bool clicked = ImGui::Button(txt, ImVec2(pw, pillH));
 
             if (ImGui::IsItemHovered() && hotkey) {
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
                 ImGui::SetTooltip("Hotkey: %s", hotkey);
                 ImGui::PopStyleVar();
             }
-
             ImGui::PopStyleVar();
             ImGui::PopStyleColor(4);
-
             py -= (pillH + pillGap);
             return clicked;
         };
 
-        HudPill(dcBuf, false);
-        HudPill(resBuf, false);
-        if (HudPill(modeStr, true, "C (switch)")) {
-            Camera& cam = scene.GetCamera();
-            CameraMode mode = cam.GetMode();
-
-            mode = static_cast<CameraMode>((static_cast<int>(mode) + 1) % 3);
-            cam.SetMode(mode);
+        HudPill(dcBuf, /*accent=*/false);
+        HudPill(resBuf, /*accent=*/false);
+        if (HudPill(modeStr, /*accent=*/true, "C (switch)")) {
+            Camera &cam = scene.GetCamera();
+            CameraMode m = static_cast<CameraMode>(
+                (static_cast<int>(cam.GetMode()) + 1) % 3);
+            cam.SetMode(m);
         }
 
-        // ── Bottom-left gizmo row ──────────────────────────────────────────
+        // ── Bottom-left gizmo row ──────────────────────────────────────────────
         {
             const float bsz = 32.0f;
-            const float gx = kPanelPadding + (showSidebar ? 320.0f + 8.0f : 0.0f);
+            const float gx = kPanelPadding + (showSidebar ? kSidebarWidth + 8.0f : 0.0f);
             const float gy = vpH - bsz - kPanelPadding;
-
             ImGui::SetCursorPos({gx, gy});
 
-            auto ToolBtn = [&](const char *lbl, bool active, const char *hotkey, const char *tooltip) {
-                ImGui::PushStyleColor(ImGuiCol_Button, active ? Pal::Accent : ImVec4(0.07f, 0.07f, 0.08f, 0.7f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, active ? Pal::Accent : ImVec4(1, 1, 1, 0.1f));
+            // Action-driven tool button — no string comparison, no allocation.
+            auto ToolBtn = [&](const char *lbl, bool active,
+                               const char *hotkey, const char *tooltip,
+                               auto action) {
+                ImGui::PushStyleColor(ImGuiCol_Button, active
+                                                           ? Pal::Accent
+                                                           : ImVec4(0.07f, 0.07f, 0.08f, 0.7f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, active
+                                                                  ? Pal::Accent
+                                                                  : ImVec4(1, 1, 1, 0.1f));
                 ImGui::PushStyleColor(ImGuiCol_ButtonActive, Pal::Accent);
                 ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
 
-                if (ImGui::Button(lbl, ImVec2(bsz, bsz))) {
-                    if (std::string(lbl) == "W") wireframeOverride = !wireframeOverride;
-                    if (std::string(lbl) == "«" or std::string(lbl) == "»") showSidebar = !showSidebar;
-                }
+                if (ImGui::Button(lbl, ImVec2(bsz, bsz)))
+                    action();
+
                 if (ImGui::IsItemHovered()) {
                     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
                     ImGui::SetTooltip("%s (Hotkey: %s)", tooltip, hotkey);
                     ImGui::PopStyleVar();
                 }
-
                 ImGui::PopStyleVar();
                 ImGui::PopStyleColor(3);
                 ImGui::SameLine(0, 8);
             };
 
-            ToolBtn(showSidebar ? "«" : "»", showSidebar, "X", "Toggle Inspector");
-            ToolBtn("W", wireframeOverride, "Z", "Toggle Wireframe");
+            ToolBtn(showSidebar ? "«" : "»", showSidebar, "X", "Toggle Inspector",
+                    [&] { showSidebar = !showSidebar; });
+            ToolBtn("W", wireframeOverride, "Z", "Toggle Wireframe",
+                    [&] { wireframeOverride = !wireframeOverride; });
         }
     }
     ImGui::End();
@@ -554,32 +591,34 @@ void RendererUI::DrawViewport(int fbW, int fbH, float topY,
 // ─────────────────────────────────────────────────────────────────────────────
 // Tab: Scene
 // ─────────────────────────────────────────────────────────────────────────────
-void RendererUI::DrawTabScene(Scene &scene, const RendererDebugStats &stats) {
+void RendererUI::DrawTabScene(Scene &scene, const RendererDebugStats &stats,
+                              const FrameSubmission &frame) {
     if (SectionHeader("Camera")) {
-        FrameSubmission tmp;
-        scene.BuildSubmission(tmp);
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
-        if (tmp.camera) {
-            const glm::vec3 p = tmp.camera->GetPosition();
-            auto Row = [](const char *lbl, const char *valFmt, ...) {
-                ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextDim);
-                ImGui::TextUnformatted(lbl);
-                ImGui::PopStyleColor();
-                ImGui::SameLine(90);
-                va_list ap;
-                va_start(ap, valFmt);
-                ImGui::TextV(valFmt, ap);
-                va_end(ap);
-            };
+
+        // Label/value row helper — aligns values at column 90.
+        auto Row = [](const char *lbl, const char *valFmt, ...) {
+            ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextDim);
+            ImGui::TextUnformatted(lbl);
+            ImGui::PopStyleColor();
+            ImGui::SameLine(90);
+            va_list ap;
+            va_start(ap, valFmt);
+            ImGui::TextV(valFmt, ap);
+            va_end(ap);
+        };
+
+        if (frame.camera) {
+            const glm::vec3 p = frame.camera->GetPosition();
             Row("Position", "%.2f, %.2f, %.2f", p.x, p.y, p.z);
             Row("Yaw/Pitch", "%.1f / %.1f",
-                tmp.camera->GetYaw(), tmp.camera->GetPitch());
+                frame.camera->GetYaw(), frame.camera->GetPitch());
 
-            const char *mode = "FreeFly";
-            switch (tmp.camera->GetMode()) {
-                case CameraMode::FirstPerson: mode = "FirstPerson";
+            const char *modeName = "FreeFly";
+            switch (frame.camera->GetMode()) {
+                case CameraMode::FirstPerson: modeName = "FirstPerson";
                     break;
-                case CameraMode::ThirdPerson: mode = "ThirdPerson";
+                case CameraMode::ThirdPerson: modeName = "ThirdPerson";
                     break;
                 default: break;
             }
@@ -587,22 +626,20 @@ void RendererUI::DrawTabScene(Scene &scene, const RendererDebugStats &stats) {
             ImGui::TextUnformatted("Mode");
             ImGui::PopStyleColor();
             ImGui::SameLine(90);
-            ImGui::PushStyleColor(ImGuiCol_Text, Pal::Green);
-            ImGui::TextUnformatted(mode);
-            ImGui::PopStyleColor();
+            ImGui::TextColored(Pal::Green, "%s", modeName);
 
             Row("Speed", "%.1f m/s", scene.GetCurrentCameraSpeed());
         } else {
-            ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextFaint);
-            ImGui::TextUnformatted("No camera");
-            ImGui::PopStyleColor();
+            ImGui::TextColored(Pal::TextFaint, "No camera");
         }
+
         ImGui::PopStyleColor();
         ImGui::Spacing();
     }
 
     if (SectionHeader("Render Stats")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
+
         auto SR = [](const char *l, const char *v) {
             ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextDim);
             ImGui::TextUnformatted(l);
@@ -611,14 +648,15 @@ void RendererUI::DrawTabScene(Scene &scene, const RendererDebugStats &stats) {
             ImGui::TextUnformatted(v);
         };
         char buf[64];
-        snprintf(buf, sizeof(buf), "%u", stats.drawCallCount);
+        std::snprintf(buf, sizeof(buf), "%u", stats.drawCallCount);
         SR("Draw calls", buf);
-        snprintf(buf, sizeof(buf), "%s", FormatCompact(stats.approxTriangleCount).c_str());
+        std::snprintf(buf, sizeof(buf), "%s", FormatCompact(stats.approxTriangleCount).c_str());
         SR("Approx tris", buf);
-        snprintf(buf, sizeof(buf), "%u", stats.submittedRenderItemCount);
+        std::snprintf(buf, sizeof(buf), "%u", stats.submittedRenderItemCount);
         SR("Submitted", buf);
-        snprintf(buf, sizeof(buf), "%u", stats.processedRenderItemCount);
+        std::snprintf(buf, sizeof(buf), "%u", stats.processedRenderItemCount);
         SR("Processed", buf);
+
         ImGui::PopStyleColor();
         ImGui::Spacing();
     }
@@ -627,24 +665,21 @@ void RendererUI::DrawTabScene(Scene &scene, const RendererDebugStats &stats) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Tab: Lights
 // ─────────────────────────────────────────────────────────────────────────────
-void RendererUI::DrawTabLights(Scene &scene, const RendererDebugStats & /*stats*/) {
+void RendererUI::DrawTabLights(Scene &scene, const RendererDebugStats & /*stats*/,
+                               const FrameSubmission &frame) {
     LightEnvironment &lights = scene.GetLights();
 
     if (SectionHeader("Directional Light")) {
         if (lights.HasDirectionalLight())
             DrawDirectionalLight(lights.GetDirectionalLight());
-        else {
-            ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextFaint);
-            ImGui::TextUnformatted("No directional light in scene.");
-            ImGui::PopStyleColor();
-        }
+        else
+            ImGui::TextColored(Pal::TextFaint, "No directional light in scene.");
         ImGui::Spacing();
     }
 
     if (SectionHeader("Point Lights")) {
-        FrameSubmission tmp;
-        scene.BuildSubmission(tmp);
-        const glm::vec3 cam = tmp.camera ? tmp.camera->GetPosition() : glm::vec3(0.f);
+        // Camera position from the pre-built submission — no extra BuildSubmission.
+        const glm::vec3 cam = frame.camera ? frame.camera->GetPosition() : glm::vec3(0.f);
         auto &pls = lights.GetPointLights();
 
         const bool atMax = (static_cast<int>(pls.size()) >= kMaxPointLights);
@@ -666,16 +701,13 @@ void RendererUI::DrawTabLights(Scene &scene, const RendererDebugStats & /*stats*
         ImGui::Spacing();
 
         if (pls.empty()) {
-            ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextFaint);
-            ImGui::TextUnformatted("No point lights in scene.");
-            ImGui::PopStyleColor();
+            ImGui::TextColored(Pal::TextFaint, "No point lights in scene.");
         } else {
             int rm = -1;
-            for (std::size_t i = 0; i < pls.size(); ++i) {
-                if (DrawPointLight(pls[i], static_cast<int>(i), cam)) {
+            for (std::size_t i = 0; i < pls.size(); ++i)
+                if (DrawPointLight(pls[i], static_cast<int>(i), cam))
                     rm = static_cast<int>(i);
-                }
-            }
+
             if (rm >= 0) pls.erase(pls.begin() + rm);
         }
     }
@@ -687,10 +719,10 @@ void RendererUI::DrawTabLights(Scene &scene, const RendererDebugStats & /*stats*
 void RendererUI::DrawTabShadow(Scene &scene, const RendererDebugStats &stats) {
     LightEnvironment &lights = scene.GetLights();
 
-    int dirSh = (lights.HasDirectionalLight() &&
-                 lights.GetDirectionalLight().shadow.castShadow)
-                    ? 1
-                    : 0;
+    const int dirSh = (lights.HasDirectionalLight() &&
+                       lights.GetDirectionalLight().shadow.castShadow)
+                          ? 1
+                          : 0;
     int ptSh = 0;
     for (const auto &pl: lights.GetPointLights())
         if (pl.shadow.castShadow) ++ptSh;
@@ -705,10 +737,11 @@ void RendererUI::DrawTabShadow(Scene &scene, const RendererDebugStats &stats) {
     }
 
     if (lights.HasDirectionalLight()) {
-        if (SectionHeader("Directional Shadow", false)) {
+        if (SectionHeader("Directional Shadow", /*defaultOpen=*/false)) {
             DrawShadowParams(lights.GetDirectionalLight().shadow,
                              "Far / extent",
-                             "Resolution is live for directional shadow-map generation.", true);
+                             "Resolution is live for directional shadow-map generation.",
+                             /*dirNote=*/true);
             ImGui::Spacing();
         }
     }
@@ -716,46 +749,42 @@ void RendererUI::DrawTabShadow(Scene &scene, const RendererDebugStats &stats) {
     auto &pls = lights.GetPointLights();
     for (std::size_t i = 0; i < pls.size(); ++i) {
         ImGui::PushID(static_cast<int>(i));
-        const std::string hdr = "Point Shadow " + std::to_string(i + 1) + "##psh";
-        if (SectionHeader(hdr.c_str(), false)) {
+        char hdr[48];
+        std::snprintf(hdr, sizeof(hdr), "Point Shadow %zu##psh", i + 1);
+        if (SectionHeader(hdr, /*defaultOpen=*/false)) {
             DrawShadowParams(pls[i].shadow, "Far plane",
-                             "Point-light shadow params.", false);
+                             "Point-light shadow params.", /*dirNote=*/false);
             ImGui::Spacing();
         }
         ImGui::PopID();
     }
 
-    if (SectionHeader("Cascade Preview", false)) {
+    if (SectionHeader("Cascade Preview", /*defaultOpen=*/false)) {
         if (stats.shadowMapPreviewAvailable) {
-            ImGui::Text("Res/cascade: %u x %u", stats.shadowMapWidth, stats.shadowMapHeight);
+            ImGui::Text("Res/cascade: %u x %u",
+                        stats.shadowMapWidth, stats.shadowMapHeight);
 
-            // Adapt to floating panel width (roughly 320 - padding)
-            const float pw = (320.0f - 40.0f) * 0.5f;
+            const float pw = (kSidebarWidth - 40.0f) * 0.5f;
             for (std::size_t i = 0; i < stats.cascadePreviewTextureIds.size(); ++i) {
                 const uint32_t tex = stats.cascadePreviewTextureIds[i];
                 const float sn = (i == 0) ? 0.f : stats.cascadeSplitDistances[i - 1];
                 const float sf = stats.cascadeSplitDistances[i];
+
                 ImGui::BeginGroup();
-                ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextDim);
-                ImGui::Text("C%zu [%.0f–%.0f]", i, sn, sf);
-                ImGui::PopStyleColor();
+                ImGui::TextColored(Pal::TextDim, "C%zu [%.0f–%.0f]", i, sn, sf);
                 if (tex)
                     ImGui::Image(reinterpret_cast<ImTextureID>(
                                      static_cast<intptr_t>(tex)),
                                  ImVec2(pw, pw), {0, 1}, {1, 0});
                 else {
                     ImGui::Dummy({pw, pw});
-                    ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextFaint);
-                    ImGui::TextUnformatted("no view");
-                    ImGui::PopStyleColor();
+                    ImGui::TextColored(Pal::TextFaint, "no view");
                 }
                 ImGui::EndGroup();
                 if ((i % 2) == 0) ImGui::SameLine(0, 4);
             }
         } else {
-            ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextFaint);
-            ImGui::TextUnformatted("Cascade preview not available.");
-            ImGui::PopStyleColor();
+            ImGui::TextColored(Pal::TextFaint, "Cascade preview not available.");
         }
         ImGui::Spacing();
     }
@@ -778,7 +807,8 @@ void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats
         ImGui::PopStyleColor();
         ImGui::Spacing();
     }
-    if (SectionHeader("  Light Counts")) {
+
+    if (SectionHeader("Light Counts")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
         ImGui::Text("Directional   : %u", stats.directionalLightCount);
         ImGui::Text("Point lights  : %u", stats.pointLightCount);
@@ -786,7 +816,8 @@ void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats
         ImGui::PopStyleColor();
         ImGui::Spacing();
     }
-    if (SectionHeader("  Resource Cache")) {
+
+    if (SectionHeader("Resource Cache")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
         ImGui::Text("Total         : %zu", cs.TotalCount());
         ImGui::Text("Shaders       : %zu", cs.shaderCount);
@@ -801,26 +832,31 @@ void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats
 // ─────────────────────────────────────────────────────────────────────────────
 // Help window
 // ─────────────────────────────────────────────────────────────────────────────
-void RendererUI::DrawHelpWindow(int fbW, int fbH, bool /*lookMode*/) {
-    const float w = 380.0f;
-    const float h = 500.0f;
+void RendererUI::DrawHelpWindow(int fbW, int fbH) {
+    constexpr float w = 380.0f;
+    constexpr float h = 500.0f;
     ImGui::SetNextWindowPos({(fbW - w) * 0.5f, (fbH - h) * 0.5f}, ImGuiCond_Always);
     ImGui::SetNextWindowSize({w, h}, ImGuiCond_Always);
 
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+    // NoScrollbar removed — let ImGui show the bar only when content overflows,
+    // matching the sidebar content child behaviour.
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse |
+                             ImGuiWindowFlags_NoResize |
+                             ImGuiWindowFlags_NoSavedSettings |
+                             ImGuiWindowFlags_NoScrollbar |
+                             ImGuiWindowFlags_NoScrollWithMouse; // scroll via keyboard/drag only
 
     ImGui::PushStyleColor(ImGuiCol_TitleBgActive, Pal::Accent);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, Pal::Bg1); // ← translucent, matches sidebar
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(20, 20));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, kRounding); // ← rounded corners
+
 
     if (ImGui::Begin("Keyboard Shortcuts", &showHelpWindow, flags)) {
         auto KeyRow = [](const char *key, const char *desc) {
-            ImGui::PushStyleColor(ImGuiCol_Text, Pal::Accent);
-            ImGui::Text("%-12s", key);
-            ImGui::PopStyleColor();
+            ImGui::TextColored(Pal::Accent, "%-12s", key);
             ImGui::SameLine(100);
-            ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
-            ImGui::TextWrapped("%s", desc);
-            ImGui::PopStyleColor();
+            ImGui::TextColored(Pal::TextMid, "%s", desc);
             ImGui::Spacing();
         };
 
@@ -850,15 +886,11 @@ void RendererUI::DrawHelpWindow(int fbW, int fbH, bool /*lookMode*/) {
         KeyRow("Z", "Wireframe mode");
         KeyRow("H", "Help window");
 
-        ImGui::Spacing();
-        ImGui::Spacing();
-
         ImGui::Dummy(ImVec2(0.0f, ImGui::GetContentRegionAvail().y - 30.0f));
-        if (ImGui::Button("Close", ImVec2(-1, 30))) {
+        if (ImGui::Button("Close", ImVec2(-1, 30)))
             showHelpWindow = false;
-        }
     }
     ImGui::End();
-    ImGui::PopStyleVar();
-    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(2); // ← WindowRounding + WindowPadding
+    ImGui::PopStyleColor(2); // ← WindowBg + TitleBgActive
 }
