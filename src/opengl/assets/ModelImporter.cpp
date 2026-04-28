@@ -162,6 +162,61 @@ static std::string ResolveDiffusePath(
 }
 
 // ---------------------------------------------------------------------------
+//  ClassifyTangentSource
+//
+//  Inspects a single aiMesh after import and returns a human-readable string
+//  describing where its tangent data came from (or why it is absent).
+//
+//  Rules:
+//   - "file"      — the source asset contained tangent data; Assimp loaded it
+//                   directly. aiProcess_CalcTangentSpace will have been a no-op
+//                   for this mesh if the asset already had them.
+//   - "generated" — the source asset had no tangents, but Assimp calculated
+//                   them from normals + UVs via aiProcess_CalcTangentSpace.
+//   - "unavailable" — the mesh has no UV channel (channel 0 is missing), so
+//                   aiProcess_CalcTangentSpace could not produce tangents and
+//                   normal mapping will not be possible for this mesh.
+//
+//  We cannot distinguish "file" from "generated" with 100% certainty from the
+//  aiMesh alone (Assimp does not expose a flag for this), so we use a
+//  conservative heuristic: if the mesh has tangents AND the source file
+//  extension is a format that commonly embeds precomputed tangents (glTF/GLB,
+//  FBX) we call it "file"; otherwise "generated".  The logging is informational
+//  only — the runtime behaviour is identical in both cases.
+// ---------------------------------------------------------------------------
+
+enum class TangentSource { File, Generated, Unavailable };
+
+static TangentSource ClassifyTangentSource(const aiMesh* mesh,
+                                           const std::string& modelPath)
+{
+    if (!mesh->mTextureCoords[0])
+    {
+        // No UV channel → CalcTangentSpace had nothing to work with.
+        return TangentSource::Unavailable;
+    }
+
+    if (!mesh->mTangents || !mesh->mBitangents)
+    {
+        // UVs present but still no tangents — this should not happen when
+        // aiProcess_CalcTangentSpace is requested, but guard it anyway.
+        return TangentSource::Unavailable;
+    }
+
+    // Both UVs and tangents are present. Guess the origin by extension.
+    const std::string ext = [&]() {
+        std::string e = fs::path(modelPath).extension().string();
+        for (char& c : e) c = static_cast<char>(::tolower(c));
+        return e;
+    }();
+
+    const bool likelyHasNativeTangents =
+        ext == ".gltf" || ext == ".glb" || ext == ".fbx";
+
+    return likelyHasNativeTangents ? TangentSource::File : TangentSource::Generated;
+}
+
+// ---------------------------------------------------------------------------
 //  ImportModelFromFile
 // ---------------------------------------------------------------------------
 
@@ -169,12 +224,27 @@ ModelData ImportModelFromFile(const std::string& path)
 {
     Assimp::Importer importer;
 
+    // aiProcess_CalcTangentSpace — compute per-vertex tangent and bitangent
+    // vectors required for normal mapping.
+    //
+    // Behaviour:
+    //   • If the source asset already contains tangent data (e.g. a well-authored
+    //     glTF/GLB), Assimp preserves the existing data and this flag is a no-op
+    //     for those meshes.
+    //   • If the asset has normals and UVs but no tangents (common with OBJ),
+    //     Assimp generates per-vertex tangents by differentiating the UV mapping
+    //     across triangle edges (MikkTSpace-compatible algorithm).
+    //   • If a mesh has no UV channel, tangent generation is impossible for that
+    //     mesh. Assimp leaves mTangents null for it. The shader must fall back
+    //     to the interpolated vertex normal in this case (handled via the
+    //     u_HasNormalMap uniform flag — the material system already supports this).
     const aiScene* scene = importer.ReadFile(path,
         aiProcess_Triangulate           |
         aiProcess_GenSmoothNormals      |
+        aiProcess_CalcTangentSpace      |   // ← tangent/bitangent generation
         aiProcess_JoinIdenticalVertices |
-        aiProcess_PreTransformVertices  |  // bake node transforms → static city
-        aiProcess_FixInfacingNormals);     // fix normals flipped by negative-scale nodes
+        aiProcess_PreTransformVertices  |   // bake node transforms → static city
+        aiProcess_FixInfacingNormals);      // fix normals flipped by negative-scale nodes
 
     if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || !scene->mRootNode)
     {
@@ -194,6 +264,49 @@ ModelData ImportModelFromFile(const std::string& path)
     // Extract embedded textures first so ResolveDiffusePath can map
     // "*0" → real file path for every material below.
     const auto embeddedMap = ExtractEmbeddedTextures(scene, path);
+
+    // -----------------------------------------------------------------------
+    //  Tally tangent availability across all meshes for a single summary log.
+    //  This avoids spamming one line per submesh for large models.
+    // -----------------------------------------------------------------------
+    uint32_t meshesWithTangents    = 0;
+    uint32_t meshesGenerated       = 0;
+    uint32_t meshesNoUV            = 0;
+
+    for (uint32_t m = 0; m < scene->mNumMeshes; ++m)
+    {
+        const aiMesh* mesh = scene->mMeshes[m];
+        if (mesh->mNumFaces == 0 || mesh->mNumVertices == 0)
+            continue;
+
+        switch (ClassifyTangentSource(mesh, path))
+        {
+        case TangentSource::File:
+            ++meshesWithTangents;
+            spdlog::debug("[ModelImporter]   mesh[{}] '{}': tangents from file",
+                          m, mesh->mName.C_Str());
+            break;
+
+        case TangentSource::Generated:
+            ++meshesGenerated;
+            spdlog::debug("[ModelImporter]   mesh[{}] '{}': tangents generated by Assimp",
+                          m, mesh->mName.C_Str());
+            break;
+
+        case TangentSource::Unavailable:
+            ++meshesNoUV;
+            spdlog::warn("[ModelImporter]   mesh[{}] '{}': no UV channel — "
+                         "tangent generation skipped; normal mapping unavailable for this submesh",
+                         m, mesh->mName.C_Str());
+            break;
+        }
+    }
+
+    // One-line summary at info level so it always shows in the startup log.
+    spdlog::info("[ModelImporter] Tangent summary for '{}': "
+                 "{} from file, {} generated, {} unavailable (no UV)",
+                 fs::path(path).filename().string(),
+                 meshesWithTangents, meshesGenerated, meshesNoUV);
 
     // -----------------------------------------------------------------------
     //  Build a compact material table.
