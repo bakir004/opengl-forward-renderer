@@ -1,6 +1,7 @@
 #include "core/shadows/CascadedShadowMap.h"
 
 #include <spdlog/spdlog.h>
+#include <utility>
 
 CascadedShadowMap::CascadedShadowMap(uint32_t width, uint32_t height)
     : m_width(width)
