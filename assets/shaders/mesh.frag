@@ -83,11 +83,33 @@ vec3 GetEmissive()
 
 vec3 ResolveWorldNormal()
 {
-    // Tangent-space normal mapping lands in Task 3.
-    // For now, keep using the interpolated vertex normal even if a normal map is present.
-    if (u_HasNormalMap)
-        return normalize(v_Normal);
-    return normalize(v_Normal);
+    vec3 worldNormal = normalize(v_Normal);
+
+    // T6 scaffold: normal-map decode + tangent->world transform.
+    // This works today with a generated placeholder basis and is structured so
+    // T5 can plug in a real vertex-provided TBN with minimal changes.
+    if (!u_HasNormalMap)
+        return worldNormal;
+
+    // 1) Sample normal map in tangent space and remap [0,1] -> [-1,1].
+    vec3 tangentNormal = texture(u_NormalMap, v_UV).xyz;
+    tangentNormal = tangentNormal * 2.0 - 1.0;
+    tangentNormal = normalize(tangentNormal);
+
+    // 2) Placeholder TBN path until T5 provides per-fragment TBN.
+    // Future T5 hookup (preferred):
+    //   - add `in mat3 v_TBN;` from vertex shader
+    //   - optional uniform: `uniform float u_NormalScale = 1.0;`
+    //   - then replace the block below with:
+    //       vec3 ts = normalize(vec3(tangentNormal.xy * u_NormalScale, tangentNormal.z));
+    //       return normalize(v_TBN * ts);
+    vec3 up = (abs(worldNormal.y) < 0.999) ? vec3(0.0, 1.0, 0.0)
+                                            : vec3(1.0, 0.0, 0.0);
+    vec3 tangent   = normalize(cross(up, worldNormal));
+    vec3 bitangent = normalize(cross(worldNormal, tangent));
+    mat3 tbn       = mat3(tangent, bitangent, worldNormal);
+
+    return normalize(tbn * tangentNormal);
 }
 
 // Picks the tightest cascade that still covers this fragment's view-space depth.
