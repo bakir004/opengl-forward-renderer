@@ -38,7 +38,8 @@ struct Mesh::Impl {
         VertexLayout layout({
             { 0, 3, GL_FLOAT, GL_FALSE },  // position
             { 1, 3, GL_FLOAT, GL_FALSE },  // normal
-            { 2, 2, GL_FLOAT, GL_FALSE },  // uv
+            { 2, 2, GL_FLOAT, GL_FALSE }, //uv
+            { 3, 4, GL_FLOAT, GL_FALSE }  // tangent
         });
 
         vao.Bind();
