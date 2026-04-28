@@ -102,7 +102,7 @@ int SelectCascade(float viewDepth)
 
 // Fraction of each cascade's range used as a blend zone into the next cascade.
 // Inside this zone we sample both cascades and lerp; outside, only one.
-const float CASCADE_BLEND_FRACTION = 0.15;
+const float CASCADE_BLEND_FRACTION = 0.7;
 
 // Samples one cascade with PCF. Returns [0,1] occlusion where 1 is fully shadowed.
 // The normal is used for normal-offset bias: the world position is shifted
@@ -361,5 +361,10 @@ void main()
     Lo += PointLighting(albedo, v_WorldPos, N, V, metallic, roughness);
     Lo += SpotLighting(albedo, v_WorldPos, N, V, metallic, roughness);
 
+<<<<<<< HEAD
     FragColor = vec4(ambient + Lo + emissive, alpha);
+=======
+    vec3 litColor = ambient + directional + point + spot;
+    FragColor = vec4(litColor, texel.a);
+>>>>>>> f0dab1b (fix: removed unnecessary scene files)
 }
