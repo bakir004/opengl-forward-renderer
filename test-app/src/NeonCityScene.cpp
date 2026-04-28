@@ -28,8 +28,6 @@ bool NeonCityScene::Setup()
     // One shared base Material (shader + default params).
     m_cityBaseMaterial = std::make_shared<Material>(meshShader);
     m_cityBaseMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
-    m_cityBaseMaterial->SetFloat("u_Shininess", 96.0f);
-    m_cityBaseMaterial->SetFloat("u_SpecularStrength", 0.6f);
 
     // One MaterialInstance per unique material, each with its own diffuse texture.
     auto whiteFallback = std::make_shared<Texture2D>(

@@ -45,8 +45,6 @@ bool JapanScene::Setup()
     // ── Base Material (shared across all submeshes) ───────────────────────────
     m_castleBaseMaterial = std::make_shared<Material>(meshShader);
     m_castleBaseMaterial->SetVec4("u_TintColor", {1, 1, 1, 1});
-    m_castleBaseMaterial->SetFloat("u_Shininess", 64.0f);
-    m_castleBaseMaterial->SetFloat("u_SpecularStrength", 0.4f);
 
     auto whiteFallback = std::make_shared<Texture2D>(
         Texture2D::CreateFallback(200, 200, 200, 255));
@@ -182,8 +180,6 @@ m_sekiroModel = AssetImporter::LoadModel("assets/models/gltf/low-poly_sekiro/sce
 
 m_sekiroMaterial = std::make_shared<Material>(meshShader);
 m_sekiroMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
-m_sekiroMaterial->SetFloat("u_Shininess", 64.0f);
-m_sekiroMaterial->SetFloat("u_SpecularStrength", 0.4f);
 
 // Build one MaterialInstance per GLTF material, using vertex colors (no texture needed)
 auto whiteFallbackSekiro = std::make_shared<Texture2D>(

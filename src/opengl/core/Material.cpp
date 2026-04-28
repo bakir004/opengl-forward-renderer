@@ -1,7 +1,49 @@
 #include "core/Material.h"
 #include "core/ShaderProgram.h"
 #include "core/Texture2D.h"
+#include <glad/glad.h>
 #include <spdlog/spdlog.h>
+
+namespace {
+
+constexpr glm::vec3 kDefaultPbrAlbedoColor(0.5f, 0.5f, 0.5f);
+constexpr float kDefaultPbrMetallicValue = 0.0f;
+constexpr float kDefaultPbrRoughnessValue = 0.5f;
+
+void SetOptionalIntUniform(GLuint programId, const char* name, int value)
+{
+    const GLint location = glGetUniformLocation(programId, name);
+    if (location != -1)
+        glUniform1i(location, value);
+}
+
+void SetOptionalFloatUniform(GLuint programId, const char* name, float value)
+{
+    const GLint location = glGetUniformLocation(programId, name);
+    if (location != -1)
+        glUniform1f(location, value);
+}
+
+void SetOptionalVec3Uniform(GLuint programId, const char* name, const glm::vec3& value)
+{
+    const GLint location = glGetUniformLocation(programId, name);
+    if (location != -1)
+        glUniform3f(location, value.x, value.y, value.z);
+}
+
+void ApplyPbrFallbackUniformDefaults(const ShaderProgram& shader)
+{
+    const GLuint programId = shader.GetID();
+    if (programId == 0)
+        return;
+
+    SetOptionalVec3Uniform(programId, "u_AlbedoColor", kDefaultPbrAlbedoColor);
+    SetOptionalFloatUniform(programId, "u_MetallicValue", kDefaultPbrMetallicValue);
+    SetOptionalFloatUniform(programId, "u_RoughnessValue", kDefaultPbrRoughnessValue);
+    SetOptionalIntUniform(programId, "u_HasAlbedoMap", 0);
+}
+
+} // namespace
 
 // ---------------------------------------------------------------------------
 //  Material
@@ -35,6 +77,7 @@ Material& Material::SetTexture(const std::string& slotName, std::shared_ptr<Text
 void Material::Bind() const {
     if (!m_shader) return;
     m_shader->Bind();
+    ApplyPbrFallbackUniformDefaults(*m_shader);
 
     for (const auto& [name, val] : m_floats)  m_shader->SetUniform(name, val);
     for (const auto& [name, val] : m_vec3s)   m_shader->SetUniform(name, val);
@@ -45,6 +88,8 @@ void Material::Bind() const {
         if (tex && tex->IsValid()) {
             tex->Bind(unit);
             m_shader->SetUniform(slotName, static_cast<int>(unit));
+            if (slotName == TextureSlot::Albedo)
+                SetOptionalIntUniform(m_shader->GetID(), "u_HasAlbedoMap", 1);
             ++unit;
         }
     }
@@ -104,6 +149,8 @@ void MaterialInstance::Bind() const {
         if (tex && tex->IsValid()) {
             tex->Bind(unit);
             shader->SetUniform(slotName, static_cast<int>(unit));
+            if (slotName == TextureSlot::Albedo)
+                SetOptionalIntUniform(shader->GetID(), "u_HasAlbedoMap", 1);
             ++unit;
         }
     }
