@@ -377,6 +377,19 @@ ModelData ImportModelFromFile(const std::string& path)
             if (mesh->mTextureCoords[0])
                 vtx.uv = { mesh->mTextureCoords[0][v].x,
                            mesh->mTextureCoords[0][v].y };
+            // After filling uv:
+            if (mesh->mTangents && mesh->mTextureCoords[0])
+            {
+                // Compute handedness via triple product
+                const aiVector3D& t = mesh->mTangents[v];
+                const aiVector3D& b = mesh->mBitangents[v];
+                const aiVector3D& n = mesh->mNormals[v];
+                const float w = ((n.x*(b.y*t.z - b.z*t.y)
+                                - n.y*(b.x*t.z - b.z*t.x)
+                                + n.z*(b.x*t.y - b.y*t.x)) < 0.0f) ? -1.0f : 1.0f;
+                vtx.tangent = { t.x, t.y, t.z, w };
+            }
+            // else tangent stays at default {1,0,0,1}  
             vertices.push_back(vtx);
         }
 
