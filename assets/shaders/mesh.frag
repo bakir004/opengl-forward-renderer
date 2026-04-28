@@ -17,32 +17,77 @@ layout(std140, binding = 0) uniform Camera {
 #include "pbr_helpers.glsl"
 
 uniform sampler2D      u_AlbedoMap;
+uniform sampler2D      u_NormalMap;
+uniform sampler2D      u_MetallicMap;
+uniform sampler2D      u_RoughnessMap;
+uniform sampler2D      u_AOMap;
+uniform sampler2D      u_EmissiveMap;
 uniform sampler2DArray u_CascadeShadowMaps;
 uniform mat4           u_CascadeViewProj[NUM_CASCADES];
 uniform float          u_CascadeSplits[NUM_CASCADES];
 uniform int            u_PCFRadius = 1;
 uniform int            u_ReceiveShadow = 1;
-uniform int            u_HasAlbedoMap = 0;
+uniform bool           u_HasAlbedoMap = false;
+uniform bool           u_HasNormalMap = false;
+uniform bool           u_HasMetallicMap = false;
+uniform bool           u_HasRoughnessMap = false;
+uniform bool           u_HasAoMap = false;
+uniform bool           u_HasEmissiveMap = false;
 uniform vec4           u_TintColor = vec4(1.0);
-uniform vec3           u_AlbedoColor = vec3(0.5);
+uniform vec3           u_AlbedoColor = vec3(1.0);
 uniform float          u_MetallicValue = 0.0;
 uniform float          u_RoughnessValue = 0.5;
+uniform vec3           u_EmissiveColor = vec3(0.0);
 
 out vec4 FragColor;
 
-vec3 FallbackAlbedoColor()
+vec4 GetAlbedoSample()
 {
-    return u_AlbedoColor;
+    if (u_HasAlbedoMap)
+        return texture(u_AlbedoMap, v_UV);
+    return vec4(u_AlbedoColor, 1.0);
 }
 
-float MaterialMetallic()
+vec3 GetAlbedo()
 {
+    return GetAlbedoSample().rgb;
+}
+
+float GetMetallic()
+{
+    if (u_HasMetallicMap)
+        return texture(u_MetallicMap, v_UV).r;
     return clamp(u_MetallicValue, 0.0, 1.0);
 }
 
-float MaterialRoughness()
+float GetRoughness()
 {
+    if (u_HasRoughnessMap)
+        return texture(u_RoughnessMap, v_UV).r;
     return clamp(u_RoughnessValue, 0.04, 1.0);
+}
+
+float GetAO()
+{
+    if (u_HasAoMap)
+        return texture(u_AOMap, v_UV).r;
+    return 1.0;
+}
+
+vec3 GetEmissive()
+{
+    if (u_HasEmissiveMap)
+        return texture(u_EmissiveMap, v_UV).rgb * u_EmissiveColor;
+    return u_EmissiveColor;
+}
+
+vec3 ResolveWorldNormal()
+{
+    // Tangent-space normal mapping lands in Task 3.
+    // For now, keep using the interpolated vertex normal even if a normal map is present.
+    if (u_HasNormalMap)
+        return normalize(v_Normal);
+    return normalize(v_Normal);
 }
 
 // Picks the tightest cascade that still covers this fragment's view-space depth.
@@ -298,22 +343,23 @@ vec3 SpotLighting(vec3 albedo,
 
 void main()
 {
-    // Use the bound albedo texture when present; otherwise fall back to the uniform base color.
-    vec4 sampledAlbedo = texture(u_AlbedoMap, v_UV);
-    vec3 albedo = ((u_HasAlbedoMap != 0) ? sampledAlbedo.rgb : FallbackAlbedoColor()) * u_TintColor.rgb;
-    float alpha = ((u_HasAlbedoMap != 0) ? sampledAlbedo.a : 1.0) * u_TintColor.a;
-    float metallic = MaterialMetallic();
-    float roughness = MaterialRoughness();
+    vec4 albedoSample = GetAlbedoSample();
+    vec3 albedo = GetAlbedo() * u_TintColor.rgb;
+    float alpha = albedoSample.a * u_TintColor.a;
+    float metallic = GetMetallic();
+    float roughness = GetRoughness();
+    float ao = GetAO();
+    vec3 emissive = GetEmissive();
 
     // Use normalized world-space normal and the fragment-to-camera view vector for BRDF evaluation.
-    vec3 N = normalize(v_Normal);
+    vec3 N = ResolveWorldNormal();
     vec3 V = normalize(cameraPos - v_WorldPos);
 
     // Existing scene ambient stays in place; Lo collects direct-light BRDF contributions.
-    vec3 ambient = albedo * u_AmbientColor * u_AmbientIntensity;
+    vec3 ambient = albedo * u_AmbientColor * u_AmbientIntensity * ao;
     vec3 Lo = DirectionalLighting(albedo, N, V, metallic, roughness);
     Lo += PointLighting(albedo, v_WorldPos, N, V, metallic, roughness);
     Lo += SpotLighting(albedo, v_WorldPos, N, V, metallic, roughness);
 
-    FragColor = vec4(ambient + Lo, alpha);
+    FragColor = vec4(ambient + Lo + emissive, alpha);
 }

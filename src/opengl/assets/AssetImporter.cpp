@@ -278,8 +278,14 @@ std::shared_ptr<MeshBuffer> AssetImporter::LoadMesh(const std::string& path) {
 //      "u_MetallicMap":  { "path": "assets/textures/metallic.png",  "colorSpace": "Linear" },
 //      "u_RoughnessMap": { "path": "assets/textures/roughness.png", "colorSpace": "Linear" }
 //    },
-//    "floats": { "u_Metallic": 0.0, "u_Roughness": 0.5 },
-//    "vec3s":  { "u_AlbedoColor": [1.0, 1.0, 1.0] }
+//    "floats": {
+//      "u_MetallicValue": 0.0,
+//      "u_RoughnessValue": 0.5
+//    },
+//    "vec3s":  {
+//      "u_AlbedoColor": [1.0, 1.0, 1.0],
+//      "u_EmissiveColor": [0.0, 0.0, 0.0]
+//    }
 //  }
 // ---------------------------------------------------------------------------
 

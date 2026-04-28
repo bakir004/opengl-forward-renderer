@@ -4,6 +4,7 @@
 #include "core/MeshBuffer.h"
 #include "core/Mesh.h"
 #include "core/Material.h"
+#include "core/Texture2D.h"
 #include "scene/RenderItem.h"
 #include <glad/glad.h>
 #include <glm/glm.hpp>
@@ -15,9 +16,10 @@
 
 namespace {
 
-constexpr glm::vec3 kDefaultPbrAlbedoColor(0.5f, 0.5f, 0.5f);
+constexpr glm::vec3 kDefaultPbrAlbedoColor(1.0f, 1.0f, 1.0f);
 constexpr float kDefaultPbrMetallicValue = 0.0f;
 constexpr float kDefaultPbrRoughnessValue = 0.5f;
+constexpr glm::vec3 kDefaultPbrEmissiveColor(0.0f, 0.0f, 0.0f);
 
 void SetOptionalIntUniform(GLuint programId, const char* name, int value)
 {
@@ -46,10 +48,22 @@ void ApplyPbrFallbackUniformDefaults(const ShaderProgram& shader)
     if (programId == 0)
         return;
 
+    SetOptionalIntUniform(programId, TextureSlot::Albedo, MaterialTextureUnit::Albedo);
+    SetOptionalIntUniform(programId, TextureSlot::Normal, MaterialTextureUnit::Normal);
+    SetOptionalIntUniform(programId, TextureSlot::Metallic, MaterialTextureUnit::Metallic);
+    SetOptionalIntUniform(programId, TextureSlot::Roughness, MaterialTextureUnit::Roughness);
+    SetOptionalIntUniform(programId, TextureSlot::AO, MaterialTextureUnit::AO);
+    SetOptionalIntUniform(programId, TextureSlot::Emissive, MaterialTextureUnit::Emissive);
     SetOptionalVec3Uniform(programId, "u_AlbedoColor", kDefaultPbrAlbedoColor);
     SetOptionalFloatUniform(programId, "u_MetallicValue", kDefaultPbrMetallicValue);
     SetOptionalFloatUniform(programId, "u_RoughnessValue", kDefaultPbrRoughnessValue);
+    SetOptionalVec3Uniform(programId, "u_EmissiveColor", kDefaultPbrEmissiveColor);
     SetOptionalIntUniform(programId, "u_HasAlbedoMap", 0);
+    SetOptionalIntUniform(programId, "u_HasNormalMap", 0);
+    SetOptionalIntUniform(programId, "u_HasMetallicMap", 0);
+    SetOptionalIntUniform(programId, "u_HasRoughnessMap", 0);
+    SetOptionalIntUniform(programId, "u_HasAoMap", 0);
+    SetOptionalIntUniform(programId, "u_HasEmissiveMap", 0);
 }
 
 } // namespace
@@ -193,6 +207,12 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
             {
                 item.shader->Bind();
                 ApplyPbrFallbackUniformDefaults(*item.shader);
+                Texture2D::Unbind(MaterialTextureUnit::Albedo);
+                Texture2D::Unbind(MaterialTextureUnit::Normal);
+                Texture2D::Unbind(MaterialTextureUnit::Metallic);
+                Texture2D::Unbind(MaterialTextureUnit::Roughness);
+                Texture2D::Unbind(MaterialTextureUnit::AO);
+                Texture2D::Unbind(MaterialTextureUnit::Emissive);
                 lastShader = item.shader;
                 lastMaterial = nullptr;
             }
