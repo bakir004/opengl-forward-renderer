@@ -265,6 +265,14 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
         {
             if (item.subMeshIndex >= item.meshMulti->SubMeshCount())
                 continue;
+            // Guard: if this submesh has no tangent data (no UV channel), disable
+            // normal map sampling so the TBN is never applied on bad geometry.
+            if (activeShader)
+            {
+                const SubMesh& sm = item.meshMulti->GetSubMesh(item.subMeshIndex);
+                if (!sm.hasTangents)
+                    SetOptionalIntUniform(activeShader->GetID(), "u_HasNormalMap", 0);
+            }
             item.meshMulti->DrawSubMesh(item.subMeshIndex);
             ++stats.processedItemCount;
             ++stats.drawCallCount;

@@ -362,6 +362,7 @@ ModelData ImportModelFromFile(const std::string& path)
         sm.baseVertex      = static_cast<int32_t>(vertices.size());
         sm.indexByteOffset = static_cast<uint32_t>(indices.size() * sizeof(uint32_t));
         sm.materialIndex   = GetOrAddMaterial(mesh->mMaterialIndex);
+        sm.hasTangents     = (mesh->mTextureCoords[0] && mesh->mTangents && mesh->mBitangents);
 
         // --- vertices ---
         vertices.reserve(vertices.size() + mesh->mNumVertices);
