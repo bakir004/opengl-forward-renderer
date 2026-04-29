@@ -33,4 +33,9 @@ struct SubMesh {
     /// Human-readable name from the source file (e.g. "Legs_Wood", "Handle_Metal").
     /// Optional — empty string is valid. Used for debugging and scene-graph lookup.
     std::string name;
+
+    /// True if this submesh has per-vertex tangent data (UV channel present and
+    /// aiProcess_CalcTangentSpace succeeded). False for meshes without a UV channel.
+    /// When false the renderer will skip normal map sampling for this submesh.
+    bool hasTangents = true;
 };
