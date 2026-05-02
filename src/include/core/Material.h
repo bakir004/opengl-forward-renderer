@@ -90,6 +90,7 @@ private:
     float     m_metallicValue  = 0.0f;
     float     m_roughnessValue = 0.5f;
     glm::vec3 m_emissiveColor{0.0f, 0.0f, 0.0f};
+    float     m_normalScale    = 1.0f;
 
     bool m_hasAlbedoMap    = false;
     bool m_hasNormalMap    = false;
@@ -148,6 +149,7 @@ private:
     std::optional<float>     m_metallicValue;
     std::optional<float>     m_roughnessValue;
     std::optional<glm::vec3> m_emissiveColor;
+    std::optional<float>     m_normalScale;
 
     std::unordered_map<std::string, float>      m_floats;
     std::unordered_map<std::string, glm::vec3>  m_vec3s;

@@ -44,6 +44,7 @@ struct MaterialSchemaState {
     float metallicValue = kDefaultPbrMetallicValue;
     float roughnessValue = kDefaultPbrRoughnessValue;
     glm::vec3 emissiveColor = kDefaultPbrEmissiveColor;
+    float normalScale = 1.0f;
     bool hasAlbedoMap = false;
     bool hasNormalMap = false;
     bool hasMetallicMap = false;
@@ -90,6 +91,7 @@ void BindMaterialSchema(const ShaderProgram& shader, const MaterialSchemaState& 
     shader.SetUniform("u_MetallicValue", state.metallicValue);
     shader.SetUniform("u_RoughnessValue", state.roughnessValue);
     shader.SetUniform("u_EmissiveColor", state.emissiveColor);
+    shader.SetUniform("u_NormalScale", state.normalScale);
 }
 
 void ApplyPbrFallbackUniformDefaults(const ShaderProgram& shader)
@@ -108,6 +110,7 @@ void ApplyPbrFallbackUniformDefaults(const ShaderProgram& shader)
     SetOptionalFloatUniform(programId, "u_MetallicValue", kDefaultPbrMetallicValue);
     SetOptionalFloatUniform(programId, "u_RoughnessValue", kDefaultPbrRoughnessValue);
     SetOptionalVec3Uniform(programId, "u_EmissiveColor", kDefaultPbrEmissiveColor);
+    SetOptionalFloatUniform(programId, "u_NormalScale", 1.0f);
     SetOptionalIntUniform(programId, "u_HasAlbedoMap", 0);
     SetOptionalIntUniform(programId, "u_HasNormalMap", 0);
     SetOptionalIntUniform(programId, "u_HasMetallicMap", 0);
@@ -166,6 +169,10 @@ Material& Material::SetFloat(const std::string& name, float value) {
     }
     if (name == "u_RoughnessValue" || name == "u_Roughness") {
         m_roughnessValue = value;
+        return *this;
+    }
+    if (name == "u_NormalScale") {
+        m_normalScale = value;
         return *this;
     }
     m_floats[name] = value;
@@ -241,6 +248,7 @@ void Material::Bind() const {
     state.metallicValue = m_metallicValue;
     state.roughnessValue = m_roughnessValue;
     state.emissiveColor = m_emissiveColor;
+    state.normalScale = m_normalScale;
     state.hasAlbedoMap = m_hasAlbedoMap;
     state.hasNormalMap = m_hasNormalMap;
     state.hasMetallicMap = m_hasMetallicMap;
@@ -274,6 +282,10 @@ MaterialInstance& MaterialInstance::SetFloat(const std::string& name, float valu
     }
     if (name == "u_RoughnessValue" || name == "u_Roughness") {
         m_roughnessValue = value;
+        return *this;
+    }
+    if (name == "u_NormalScale") {
+        m_normalScale = value;
         return *this;
     }
     m_floats[name] = value;
@@ -347,6 +359,7 @@ void MaterialInstance::Bind() const {
     state.metallicValue = m_parent->m_metallicValue;
     state.roughnessValue = m_parent->m_roughnessValue;
     state.emissiveColor = m_parent->m_emissiveColor;
+    state.normalScale = m_parent->m_normalScale;
     state.hasAlbedoMap = m_parent->m_hasAlbedoMap;
     state.hasNormalMap = m_parent->m_hasNormalMap;
     state.hasMetallicMap = m_parent->m_hasMetallicMap;
@@ -386,6 +399,8 @@ void MaterialInstance::Bind() const {
         state.roughnessValue = *m_roughnessValue;
     if (m_emissiveColor.has_value())
         state.emissiveColor = *m_emissiveColor;
+    if (m_normalScale.has_value())
+        state.normalScale = *m_normalScale;
 
     BindMaterialSchema(*shader, state);
 
