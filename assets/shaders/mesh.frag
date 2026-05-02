@@ -39,6 +39,7 @@ uniform vec3           u_AlbedoColor = vec3(1.0);
 uniform float          u_MetallicValue = 0.0;
 uniform float          u_RoughnessValue = 0.5;
 uniform vec3           u_EmissiveColor = vec3(0.0);
+uniform float          u_NormalScale = 1.0;
 
 out vec4 FragColor;
 
@@ -88,8 +89,9 @@ vec3 ResolveWorldNormal()
     if (!u_HasNormalMap)
         return worldNormal;
 
-    vec3 tangentNormal = texture(u_NormalMap, v_UV).xyz;
-    tangentNormal = tangentNormal * 2.0 - 1.0;
+    vec3 tangentNormal = texture(u_NormalMap, v_UV).xyz * 2.0 - 1.0;
+    tangentNormal.xy *= u_NormalScale;
+    tangentNormal.z = sqrt(max(1.0 - dot(tangentNormal.xy, tangentNormal.xy), 0.0));
     tangentNormal = normalize(tangentNormal);
 
     return normalize(v_TBN * tangentNormal);
