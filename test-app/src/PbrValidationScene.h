@@ -7,7 +7,6 @@
 class Mesh;
 class Material;
 class MaterialInstance;
-class Texture2D;
 
 class PbrValidationScene : public Scene
 {

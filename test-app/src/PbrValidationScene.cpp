@@ -147,44 +147,72 @@ bool PbrValidationScene::Setup()
     m_gridBaseMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
 
     m_planeMaterial = std::make_shared<Material>(meshShader);
-    m_planeMaterial->SetVec3("u_AlbedoColor", {0.22f, 0.22f, 0.24f});
+    m_planeMaterial->SetVec3("u_AlbedoColor", {0.19f, 0.20f, 0.22f});
     m_planeMaterial->SetFloat("u_MetallicValue", 0.0f);
     m_planeMaterial->SetFloat("u_RoughnessValue", 1.0f);
     m_planeMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
 
     Camera cam;
-    cam.SetPosition({0.0f, 3.0f, 10.5f});
-    cam.SetOrientation(-90.0f, -12.0f);
+    cam.SetPosition({0.0f, 3.4f, 11.6f});
+    cam.SetOrientation(-90.0f, -13.5f);
     SetCamera(cam);
     SetFirstPersonEyeHeight(1.7f);
-    SetClearColor({0.14f, 0.145f, 0.16f, 1.0f});
+    SetClearColor({0.125f, 0.13f, 0.145f, 1.0f});
 
-    SetAmbientLight({0.24f, 0.24f, 0.24f}, 0.85f);
+    SetAmbientLight({0.12f, 0.13f, 0.14f}, 0.42f);
     auto& lights = GetLights();
     lights.GetPointLights().clear();
     lights.GetSpotLights().clear();
     lights.SetDirectionalLight(
         DirectionalLightBuilder()
-            .Direction({-0.08f, -0.72f, -1.0f})
+            .Direction({-0.32f, -0.78f, -0.54f})
             .Color({1.0f, 0.99f, 0.975f})
-            .Intensity(18.0f)
+            .Intensity(10.5f)
             .CastShadow(false)
             .Name("ValidationSun")
             .Build());
 
-    auto planeInst = std::make_unique<MaterialInstance>(m_planeMaterial);
-    RenderItem plane;
-    plane.meshMulti = m_planeMesh.get();
-    plane.subMeshIndex = 0;
-    plane.material = planeInst.get();
-    plane.transform.SetTranslation({0.0f, -1.2f, 0.0f});
-    plane.flags.castShadow = false;
-    plane.flags.receiveShadow = false;
-    m_materials.push_back(std::move(planeInst));
-    AddObject(plane);
+    auto floorInst = std::make_unique<MaterialInstance>(m_planeMaterial);
+    RenderItem floor;
+    floor.meshMulti = m_planeMesh.get();
+    floor.subMeshIndex = 0;
+    floor.material = floorInst.get();
+    floor.transform.SetTranslation({0.0f, -1.22f, 0.5f});
+    floor.transform.SetScale({0.70f, 1.0f, 0.44f});
+    floor.flags.castShadow = false;
+    floor.flags.receiveShadow = false;
+    m_materials.push_back(std::move(floorInst));
+    AddObject(floor);
+
+    auto wallInst = std::make_unique<MaterialInstance>(m_planeMaterial);
+    wallInst->SetVec3("u_AlbedoColor", {0.17f, 0.18f, 0.20f});
+    RenderItem wall;
+    wall.meshMulti = m_planeMesh.get();
+    wall.subMeshIndex = 0;
+    wall.material = wallInst.get();
+    wall.transform.SetTranslation({0.0f, 3.3f, -3.2f});
+    wall.transform.SetRotationEulerDegrees({90.0f, 0.0f, 0.0f});
+    wall.transform.SetScale({0.62f, 1.0f, 0.30f});
+    wall.flags.castShadow = false;
+    wall.flags.receiveShadow = false;
+    m_materials.push_back(std::move(wallInst));
+    AddObject(wall);
+
+    auto podiumInst = std::make_unique<MaterialInstance>(m_planeMaterial);
+    podiumInst->SetVec3("u_AlbedoColor", {0.24f, 0.24f, 0.26f});
+    RenderItem podium;
+    podium.meshMulti = m_planeMesh.get();
+    podium.subMeshIndex = 0;
+    podium.material = podiumInst.get();
+    podium.transform.SetTranslation({0.0f, -1.05f, 0.9f});
+    podium.transform.SetScale({0.22f, 1.0f, 0.08f});
+    podium.flags.castShadow = false;
+    podium.flags.receiveShadow = false;
+    m_materials.push_back(std::move(podiumInst));
+    AddObject(podium);
 
     constexpr int gridSize = 5;
-    constexpr float spacing = 1.55f;
+    constexpr float spacing = 1.52f;
     constexpr glm::vec3 baseAlbedo(0.5f, 0.5f, 0.5f);
 
     int sphereCount = 0;
@@ -203,8 +231,8 @@ bool PbrValidationScene::Setup()
             sphere.material = material.get();
             sphere.transform.SetTranslation({
                 (static_cast<float>(x) - 2.0f) * spacing,
-                (static_cast<float>(y) - 2.0f) * spacing + 1.8f,
-                0.0f
+                (static_cast<float>(y) - 2.0f) * spacing + 1.95f,
+                0.15f
             });
             sphere.flags.castShadow = false;
             sphere.flags.receiveShadow = false;
@@ -220,7 +248,8 @@ bool PbrValidationScene::Setup()
     goldSphere.meshMulti = m_sphereMesh.get();
     goldSphere.subMeshIndex = 0;
     goldSphere.material = goldMaterial.get();
-    goldSphere.transform.SetTranslation({-5.0f, -0.35f, 0.8f});
+    goldSphere.transform.SetTranslation({-5.2f, -0.34f, 0.7f});
+    goldSphere.transform.SetScale({1.08f, 1.08f, 1.08f});
     goldSphere.flags.castShadow = false;
     goldSphere.flags.receiveShadow = false;
     m_materials.push_back(std::move(goldMaterial));
@@ -231,7 +260,8 @@ bool PbrValidationScene::Setup()
     redSphere.meshMulti = m_sphereMesh.get();
     redSphere.subMeshIndex = 0;
     redSphere.material = redMaterial.get();
-    redSphere.transform.SetTranslation({5.0f, -0.35f, 0.8f});
+    redSphere.transform.SetTranslation({5.2f, -0.34f, 0.7f});
+    redSphere.transform.SetScale({1.08f, 1.08f, 1.08f});
     redSphere.flags.castShadow = false;
     redSphere.flags.receiveShadow = false;
     m_materials.push_back(std::move(redMaterial));
