@@ -214,6 +214,8 @@ bool PbrValidationScene::Setup()
     constexpr int gridSize = 5;
     constexpr float spacing = 1.52f;
     constexpr glm::vec3 baseAlbedo(0.5f, 0.5f, 0.5f);
+    constexpr float gridCenterZ = 0.15f;
+    constexpr float gridCenterY = 1.95f;
 
     int sphereCount = 0;
     for (int y = 0; y < gridSize; ++y)
@@ -231,8 +233,8 @@ bool PbrValidationScene::Setup()
             sphere.material = material.get();
             sphere.transform.SetTranslation({
                 (static_cast<float>(x) - 2.0f) * spacing,
-                (static_cast<float>(y) - 2.0f) * spacing + 1.95f,
-                0.15f
+                (static_cast<float>(y) - 2.0f) * spacing + gridCenterY,
+                gridCenterZ
             });
             sphere.flags.castShadow = false;
             sphere.flags.receiveShadow = false;

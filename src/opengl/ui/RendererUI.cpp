@@ -73,6 +73,34 @@ static std::string FormatCompact(uint64_t v) {
     return std::to_string(v);
 }
 
+static bool ProjectWorldToViewport(const Camera &camera,
+                                   const glm::vec3 &world,
+                                   float viewportWidth,
+                                   float viewportHeight,
+                                   ImVec2 &outScreen) {
+    const glm::vec4 clip = camera.GetViewProjection() * glm::vec4(world, 1.0f);
+    if (clip.w <= 0.0001f) return false;
+
+    const glm::vec3 ndc = glm::vec3(clip) / clip.w;
+    if (ndc.z < -1.0f || ndc.z > 1.0f) return false;
+
+    outScreen.x = (ndc.x * 0.5f + 0.5f) * viewportWidth;
+    outScreen.y = (1.0f - (ndc.y * 0.5f + 0.5f)) * viewportHeight;
+    return true;
+}
+
+static void DrawCenteredOverlayText(ImDrawList *drawList,
+                                    const ImVec2 &pos,
+                                    ImU32 color,
+                                    const char *text) {
+    const ImVec2 size = ImGui::CalcTextSize(text);
+    const ImVec2 min(pos.x - size.x * 0.5f - 8.0f, pos.y - size.y * 0.5f - 4.0f);
+    const ImVec2 max(pos.x + size.x * 0.5f + 8.0f, pos.y + size.y * 0.5f + 4.0f);
+    drawList->AddRectFilled(min, max, IM_COL32(12, 14, 18, 190), 6.0f);
+    drawList->AddRect(min, max, IM_COL32(255, 255, 255, 28), 6.0f);
+    drawList->AddText(ImVec2(pos.x - size.x * 0.5f, pos.y - size.y * 0.5f), color, text);
+}
+
 static bool MiniBadgeButton(const char *label, bool danger = false, bool add = false) {
     if (danger) {
         ImGui::PushStyleColor(ImGuiCol_Button, Pal::RedBg);
@@ -542,6 +570,42 @@ void RendererUI::DrawViewport(int fbW, int fbH,
             CameraMode m = static_cast<CameraMode>(
                 (static_cast<int>(cam.GetMode()) + 1) % 3);
             cam.SetMode(m);
+        }
+
+        if (scene.GetName() == "PBR Validation" && frame.camera) {
+            ImDrawList *drawList = ImGui::GetWindowDrawList();
+
+            ImVec2 roughLeft, roughRight, roughLabel;
+            ImVec2 metalBottom, metalTop, metalLabel;
+
+            const bool haveRoughLeft = ProjectWorldToViewport(*frame.camera, {-3.04f, -1.15f, 0.95f}, vpW, vpH, roughLeft);
+            const bool haveRoughRight = ProjectWorldToViewport(*frame.camera, {3.04f, -1.15f, 0.95f}, vpW, vpH, roughRight);
+            const bool haveRoughLabel = ProjectWorldToViewport(*frame.camera, {0.0f, -1.65f, 1.10f}, vpW, vpH, roughLabel);
+            const bool haveMetalBottom = ProjectWorldToViewport(*frame.camera, {-4.35f, -1.09f, 0.25f}, vpW, vpH, metalBottom);
+            const bool haveMetalTop = ProjectWorldToViewport(*frame.camera, {-4.35f, 4.99f, 0.25f}, vpW, vpH, metalTop);
+            const bool haveMetalLabel = ProjectWorldToViewport(*frame.camera, {-5.55f, 1.95f, 0.60f}, vpW, vpH, metalLabel);
+
+            if (haveRoughLeft && haveRoughRight) {
+                drawList->AddLine(roughLeft, roughRight, IM_COL32(155, 178, 255, 180), 2.0f);
+                drawList->AddCircleFilled(roughLeft, 4.0f, IM_COL32(180, 200, 255, 235));
+                drawList->AddCircleFilled(roughRight, 4.0f, IM_COL32(255, 255, 255, 235));
+                DrawCenteredOverlayText(drawList, ImVec2(roughLeft.x, roughLeft.y + 18.0f), IM_COL32(225, 232, 255, 255), "0.0");
+                DrawCenteredOverlayText(drawList, ImVec2(roughRight.x, roughRight.y + 18.0f), IM_COL32(225, 232, 255, 255), "1.0");
+            }
+
+            if (haveMetalBottom && haveMetalTop) {
+                drawList->AddLine(metalBottom, metalTop, IM_COL32(255, 198, 132, 180), 2.0f);
+                drawList->AddCircleFilled(metalBottom, 4.0f, IM_COL32(255, 224, 190, 235));
+                drawList->AddCircleFilled(metalTop, 4.0f, IM_COL32(255, 244, 224, 235));
+                DrawCenteredOverlayText(drawList, ImVec2(metalBottom.x - 28.0f, metalBottom.y), IM_COL32(255, 238, 214, 255), "0.0");
+                DrawCenteredOverlayText(drawList, ImVec2(metalTop.x - 28.0f, metalTop.y), IM_COL32(255, 238, 214, 255), "1.0");
+            }
+
+            if (haveRoughLabel)
+                DrawCenteredOverlayText(drawList, roughLabel, IM_COL32(225, 232, 255, 255), "Roughness");
+
+            if (haveMetalLabel)
+                DrawCenteredOverlayText(drawList, metalLabel, IM_COL32(255, 238, 214, 255), "Metallic");
         }
 
         // ── Bottom-left gizmo row ──────────────────────────────────────────────
