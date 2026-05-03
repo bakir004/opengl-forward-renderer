@@ -7,6 +7,7 @@
 #include "JapanScene.h"
 #include "NeonCityScene.h"
 #include "PbrValidationScene.h"
+#include "NormalMapScene.h"
 
 int main() {
     spdlog::info("[TestApp] Starting");
@@ -41,10 +42,14 @@ int main() {
     if (!pbrValidationScene.Setup())
         spdlog::warn("[TestApp] PbrValidationScene::Setup() failed");
 
-    spdlog::info(
-        "[TestApp] Press 1 for SampleScene | Press 2 for SolarSystemScene | Press 3 for DioramaScene | Press 4 for NeonCityScene | Press 5 for JapanScene | Press 6 for PbrValidationScene");
+    NormalMapScene normalMapScene;
+    if (!normalMapScene.Setup())
+        spdlog::warn("[TestApp] NormalMapScene::Setup() failed");
 
-    app.Run({&sampleScene, &solarSystemScene, &dioramaScene, &neonCityScene, &japanScene, &pbrValidationScene}, 0);
+    spdlog::info(
+        "[TestApp] Press 1 for SampleScene | Press 2 for SolarSystemScene | Press 3 for DioramaScene | Press 4 for NeonCityScene | Press 5 for JapanScene | Press 6 for PbrValidationScene | Press 7 for NormalMapScene");
+
+    app.Run({&sampleScene, &solarSystemScene, &dioramaScene, &neonCityScene, &japanScene, &pbrValidationScene, &normalMapScene}, 0);
 
     spdlog::info("[TestApp] Shutting down");
     return 0;
