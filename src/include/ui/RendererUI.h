@@ -13,8 +13,9 @@ struct FrameSubmission;
 enum class UITab : int {
     Scene = 0,
     Lights = 1,
-    Shadow = 2,
-    Stats = 3,
+    Materials = 2,
+    Shadow = 3,
+    Stats = 4,
 };
 
 class RendererUI {
@@ -86,6 +87,9 @@ private:
 
     void DrawTabLights(Scene &scene, const RendererDebugStats &stats,
                        const FrameSubmission &frame);
+
+    void DrawTabMaterials(Scene &scene, const RendererDebugStats &stats,
+                          const FrameSubmission &frame);
 
     void DrawTabShadow(Scene &scene, const RendererDebugStats &stats);
 

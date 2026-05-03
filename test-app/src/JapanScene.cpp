@@ -50,6 +50,7 @@ bool JapanScene::Setup() {
     // ── Material Instances (1 per GLTF material) ─────────────────────────────
     for (const ModelMaterialInfo &matInfo: m_castleModel.materials) {
         auto inst = std::make_unique<MaterialInstance>(m_castleBaseMaterial);
+        inst->SetName(matInfo.name);
 
         std::shared_ptr<Texture2D> tex;
         if (!matInfo.diffusePath.empty())
@@ -57,10 +58,35 @@ bool JapanScene::Setup() {
 
         inst->SetTexture(TextureSlot::Albedo, tex ? tex : whiteFallback);
 
+        if (!matInfo.normalPath.empty()) {
+            auto normalTex = AssetImporter::LoadTexture(matInfo.normalPath, TextureColorSpace::Linear);
+            if (normalTex) inst->SetTexture(TextureSlot::Normal, normalTex);
+        }
+
+        if (!matInfo.metallicRoughnessPath.empty()) {
+            auto mrTex = AssetImporter::LoadTexture(matInfo.metallicRoughnessPath, TextureColorSpace::Linear);
+            if (mrTex) {
+                inst->SetTexture(TextureSlot::Metallic, mrTex);
+                inst->SetTexture(TextureSlot::Roughness, mrTex);
+            }
+        }
+
+        if (!matInfo.aoPath.empty()) {
+            auto aoTex = AssetImporter::LoadTexture(matInfo.aoPath, TextureColorSpace::Linear);
+            if (aoTex) inst->SetTexture(TextureSlot::AO, aoTex);
+        }
+
+        if (!matInfo.emissivePath.empty()) {
+            auto emissiveTex = AssetImporter::LoadTexture(matInfo.emissivePath, TextureColorSpace::sRGB);
+            if (emissiveTex) inst->SetTexture(TextureSlot::Emissive, emissiveTex);
+        }
+
         // Apply PBR properties from GLTF if available
         inst->SetVec3("u_AlbedoColor", matInfo.albedoColor);
         inst->SetFloat("u_MetallicValue", matInfo.metallicValue);
         inst->SetFloat("u_RoughnessValue", matInfo.roughnessValue);
+        inst->SetVec3("u_EmissiveColor", matInfo.emissiveColor);
+        inst->SetFloat("u_NormalScale", matInfo.normalScale);
 
         m_castleMatInstances.push_back(std::move(inst));
     }
@@ -95,7 +121,7 @@ bool JapanScene::Setup() {
             .baseColor = {1.0f, 0.6f, 0.8f} // pink
         }).CreateMeshBuffer());
 
-    constexpr int PETAL_COUNT = 1000;
+    constexpr int PETAL_COUNT = 500;
 
     for (int i = 0; i < PETAL_COUNT; ++i) {
         Petal p;
@@ -217,8 +243,16 @@ bool JapanScene::Setup() {
 
     for (const ModelMaterialInfo &matInfo: m_sekiroModel.materials) {
         auto inst = std::make_unique<MaterialInstance>(m_sekiroMaterial);
-        inst->SetTexture(TextureSlot::Albedo, whiteFallback); // bind something so the slot isn't empty
+        inst->SetName(matInfo.name);
+        inst->SetTexture(TextureSlot::Albedo, whiteFallbackSekiro); // bind something so the slot isn't empty
 
+        // Apply PBR properties from GLTF
+        inst->SetVec3("u_AlbedoColor", matInfo.albedoColor);
+        inst->SetFloat("u_MetallicValue", matInfo.metallicValue);
+        inst->SetFloat("u_RoughnessValue", matInfo.roughnessValue);
+        inst->SetVec3("u_EmissiveColor", matInfo.emissiveColor);
+
+        // Sekiro model uses a custom tint color in its specific setup, keep it for backward compatibility
         auto it = kSekiroColors.find(matInfo.name);
         if (it != kSekiroColors.end())
             inst->SetVec4("u_TintColor", it->second);

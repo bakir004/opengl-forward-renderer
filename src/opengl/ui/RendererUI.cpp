@@ -6,6 +6,7 @@
 #include "scene/Scene.h"
 #include "scene/LightEnvironment.h"
 #include "scene/FrameSubmission.h"
+#include "core/Material.h"
 #include "assets/AssetImporter.h"
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -36,9 +37,9 @@ namespace Pal {
 static constexpr float kPanelPadding = 12.0f;
 static constexpr float kRounding = 10.0f;
 static constexpr float kTopbarHeight = 44.0f;
-static constexpr float kSidebarWidth = 320.0f;
-static constexpr int kTabCount = 4;
-static const char *kTabLabels[] = {"Scene", "Lights", "Shadow", "Stats"};
+static constexpr float kSidebarWidth = 360.0f;
+static constexpr int kTabCount = 5;
+static const char *kTabLabels[] = {"Scene", "Lights", "Materials", "Shadow", "Stats"};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ApplyTheme — call once after ImGui::CreateContext(), NOT inside a frame.
@@ -444,10 +445,13 @@ void RendererUI::DrawSidebar(int fbH,
                                                      : Pal::TextDim);
             ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 18.0f);
 
+            // Add some horizontal padding for the text inside the button
+            ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.5f, 0.5f));
+
             if (ImGui::Button(kTabLabels[i], ImVec2(tabW, 30)))
                 m_activeTab = static_cast<UITab>(i);
 
-            ImGui::PopStyleVar();
+            ImGui::PopStyleVar(2);
             ImGui::PopStyleColor(4);
             if (i < kTabCount - 1) ImGui::SameLine(0, 0);
         }
@@ -466,6 +470,8 @@ void RendererUI::DrawSidebar(int fbH,
             case UITab::Scene: DrawTabScene(scene, stats, frame);
                 break;
             case UITab::Lights: DrawTabLights(scene, stats, frame);
+                break;
+            case UITab::Materials: DrawTabMaterials(scene, stats, frame);
                 break;
             case UITab::Shadow: DrawTabShadow(scene, stats);
                 break;
@@ -733,6 +739,12 @@ void RendererUI::DrawTabLights(Scene &scene, const RendererDebugStats & /*stats*
                                const FrameSubmission &frame) {
     LightEnvironment &lights = scene.GetLights();
 
+    if (SectionHeader("Global Ambient")) {
+        ImGui::ColorEdit3("Ambient Color", &lights.ambientColor.x);
+        ImGui::SliderFloat("Ambient Intensity", &lights.ambientIntensity, 0.0f, 5.0f);
+        ImGui::Spacing();
+    }
+
     if (SectionHeader("Directional Light")) {
         if (lights.HasDirectionalLight())
             DrawDirectionalLight(lights.GetDirectionalLight());
@@ -773,6 +785,116 @@ void RendererUI::DrawTabLights(Scene &scene, const RendererDebugStats & /*stats*
                     rm = static_cast<int>(i);
 
             if (rm >= 0) pls.erase(pls.begin() + rm);
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tab: Materials
+// ─────────────────────────────────────────────────────────────────────────────
+void RendererUI::DrawTabMaterials(Scene &scene, const RendererDebugStats &stats,
+                                  const FrameSubmission &frame) {
+    if (frame.objects.empty()) {
+        ImGui::TextColored(Pal::TextDim, "No renderable objects in current frame.");
+        return;
+    }
+
+    // Identify unique MaterialInstances in the submission
+    std::vector<const MaterialInstance *> uniqueMats;
+    for (const auto &item : frame.objects) {
+        if (item.material) {
+            bool found = false;
+            for (auto m : uniqueMats) {
+                if (m == item.material) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) uniqueMats.push_back(item.material);
+        }
+    }
+
+    if (uniqueMats.empty()) {
+        ImGui::TextColored(Pal::TextDim, "No material instances found in objects.");
+        return;
+    }
+
+    ImGui::Text("   %zu Material Instances found", uniqueMats.size());
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    for (size_t i = 0; i < uniqueMats.size(); ++i) {
+        MaterialInstance *inst = const_cast<MaterialInstance *>(uniqueMats[i]);
+
+        char label[256];
+        snprintf(label, sizeof(label), "%s##%p", inst->GetName().c_str(), (void*)inst);
+
+        if (SectionHeader(label, /*defaultOpen=*/false)) {
+            ImGui::PushID(static_cast<int>(i));
+
+            ImGui::Indent();
+
+            ImGui::Separator();
+
+            // Albedo
+            glm::vec3 albedo = inst->GetVec3("u_AlbedoColor", glm::vec3(1.0f));
+            if (ImGui::ColorEdit3("Albedo Color", &albedo.x, ImGuiColorEditFlags_NoInputs))
+                inst->SetVec3("u_AlbedoColor", albedo);
+
+            // Metallic
+            float metallic = inst->GetFloat("u_MetallicValue", 0.0f);
+            if (ImGui::SliderFloat("Metallic", &metallic, 0.0f, 1.0f))
+                inst->SetFloat("u_MetallicValue", metallic);
+
+            // Roughness
+            float roughness = inst->GetFloat("u_RoughnessValue", 0.5f);
+            if (ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f))
+                inst->SetFloat("u_RoughnessValue", roughness);
+
+            // AO
+            float aoStrength = inst->GetFloat("u_AoStrength", 1.0f);
+            if (ImGui::SliderFloat("AO Strength", &aoStrength, 0.0f, 1.0f))
+                inst->SetFloat("u_AoStrength", aoStrength);
+
+            // Emissive
+            glm::vec3 emissive = inst->GetVec3("u_EmissiveColor", glm::vec3(0.0f));
+            if (ImGui::ColorEdit3("Emissive Color", &emissive.x, ImGuiColorEditFlags_NoInputs))
+                inst->SetVec3("u_EmissiveColor", emissive);
+            
+            float emissiveStr = inst->GetFloat("u_EmissiveStrength", 1.0f);
+            if (ImGui::SliderFloat("Emissive Strength", &emissiveStr, 0.0f, 20.0f))
+                inst->SetFloat("u_EmissiveStrength", emissiveStr);
+
+            ImGui::Separator();
+
+            // Normal Mapping
+            bool useNormalMap = inst->GetUseNormalMap();
+            if (ImGui::Checkbox("Use Normal Map", &useNormalMap))
+                inst->SetUseNormalMap(useNormalMap);
+
+            if (useNormalMap) {
+                float normalScale = inst->GetFloat("u_NormalScale", 1.0f);
+                if (ImGui::SliderFloat("Normal Scale", &normalScale, 0.0f, 2.0f))
+                    inst->SetFloat("u_NormalScale", normalScale);
+            }
+
+            ImGui::Spacing();
+            if (ImGui::Button("Reset to Defaults")) {
+                // Clear overrides in the instance by setting them to parent's values or nullopt
+                // Since we don't have a 'Clear' API yet, we can just set them to standard defaults
+                inst->SetVec3("u_AlbedoColor", {1, 1, 1});
+                inst->SetFloat("u_MetallicValue", 0.0f);
+                inst->SetFloat("u_RoughnessValue", 0.5f);
+                inst->SetVec3("u_EmissiveColor", {0, 0, 0});
+                inst->SetFloat("u_EmissiveStrength", 1.0f);
+                inst->SetFloat("u_AoStrength", 1.0f);
+                inst->SetFloat("u_NormalScale", 1.0f);
+                inst->SetUseNormalMap(true);
+            }
+
+            ImGui::Unindent();
+            ImGui::PopID();
+            ImGui::Spacing();
         }
     }
 }

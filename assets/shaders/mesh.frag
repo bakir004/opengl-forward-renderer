@@ -34,11 +34,14 @@ uniform bool           u_HasMetallicMap = false;
 uniform bool           u_HasRoughnessMap = false;
 uniform bool           u_HasAoMap = false;
 uniform bool           u_HasEmissiveMap = false;
+uniform bool           u_UseNormalMap = true;
 uniform vec4           u_TintColor = vec4(1.0);
 uniform vec3           u_AlbedoColor = vec3(1.0);
 uniform float          u_MetallicValue = 0.0;
 uniform float          u_RoughnessValue = 0.5;
+uniform float          u_AoStrength = 1.0;
 uniform vec3           u_EmissiveColor = vec3(0.0);
+uniform float          u_EmissiveStrength = 1.0;
 uniform float          u_NormalScale = 1.0;
 uniform float          u_FlipNormalMapY = 0.0; // 1.0 = DirectX-convention normal map (green channel inverted)
 
@@ -58,36 +61,40 @@ vec3 GetAlbedo()
 
 float GetMetallic()
 {
+    float metallic = u_MetallicValue;
     if (u_HasMetallicMap)
-        return texture(u_MetallicMap, v_UV).r;
-    return clamp(u_MetallicValue, 0.0, 1.0);
+        metallic *= texture(u_MetallicMap, v_UV).r;
+    return clamp(metallic, 0.0, 1.0);
 }
 
 float GetRoughness()
 {
+    float roughness = u_RoughnessValue;
     if (u_HasRoughnessMap)
-        return texture(u_RoughnessMap, v_UV).r;
-    return clamp(u_RoughnessValue, 0.04, 1.0);
+        roughness *= texture(u_RoughnessMap, v_UV).r;
+    return clamp(roughness, 0.04, 1.0);
 }
 
 float GetAO()
 {
+    float ao = 1.0;
     if (u_HasAoMap)
-        return texture(u_AOMap, v_UV).r;
-    return 1.0;
+        ao = texture(u_AOMap, v_UV).r;
+    return mix(1.0, ao, u_AoStrength);
 }
 
 vec3 GetEmissive()
 {
+    vec3 emissive = u_EmissiveColor;
     if (u_HasEmissiveMap)
-        return texture(u_EmissiveMap, v_UV).rgb * u_EmissiveColor;
-    return u_EmissiveColor;
+        emissive *= texture(u_EmissiveMap, v_UV).rgb;
+    return emissive * u_EmissiveStrength;
 }
 
 vec3 ResolveWorldNormal()
 {
     vec3 worldNormal = normalize(v_Normal);
-    if (!u_HasNormalMap)
+    if (!u_HasNormalMap || !u_UseNormalMap)
         return worldNormal;
 
     vec3 tangentNormal = texture(u_NormalMap, v_UV).xyz * 2.0 - 1.0;
