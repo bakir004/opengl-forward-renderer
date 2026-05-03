@@ -44,7 +44,10 @@ struct MaterialSchemaState {
     float metallicValue = kDefaultPbrMetallicValue;
     float roughnessValue = kDefaultPbrRoughnessValue;
     glm::vec3 emissiveColor = kDefaultPbrEmissiveColor;
+    float emissiveStrength = 1.0f;
+    float aoStrength = 1.0f;
     float normalScale = 1.0f;
+    bool useNormalMap = true;
     bool hasAlbedoMap = false;
     bool hasNormalMap = false;
     bool hasMetallicMap = false;
@@ -91,7 +94,10 @@ void BindMaterialSchema(const ShaderProgram& shader, const MaterialSchemaState& 
     shader.SetUniform("u_MetallicValue", state.metallicValue);
     shader.SetUniform("u_RoughnessValue", state.roughnessValue);
     shader.SetUniform("u_EmissiveColor", state.emissiveColor);
+    shader.SetUniform("u_EmissiveStrength", state.emissiveStrength);
+    shader.SetUniform("u_AoStrength", state.aoStrength);
     shader.SetUniform("u_NormalScale", state.normalScale);
+    shader.SetUniform("u_UseNormalMap", state.useNormalMap);
 }
 
 void ApplyPbrFallbackUniformDefaults(const ShaderProgram& shader)
@@ -110,7 +116,10 @@ void ApplyPbrFallbackUniformDefaults(const ShaderProgram& shader)
     SetOptionalFloatUniform(programId, "u_MetallicValue", kDefaultPbrMetallicValue);
     SetOptionalFloatUniform(programId, "u_RoughnessValue", kDefaultPbrRoughnessValue);
     SetOptionalVec3Uniform(programId, "u_EmissiveColor", kDefaultPbrEmissiveColor);
+    SetOptionalFloatUniform(programId, "u_EmissiveStrength", 1.0f);
+    SetOptionalFloatUniform(programId, "u_AoStrength", 1.0f);
     SetOptionalFloatUniform(programId, "u_NormalScale", 1.0f);
+    SetOptionalIntUniform(programId, "u_UseNormalMap", 1);
     SetOptionalIntUniform(programId, "u_HasAlbedoMap", 0);
     SetOptionalIntUniform(programId, "u_HasNormalMap", 0);
     SetOptionalIntUniform(programId, "u_HasMetallicMap", 0);
@@ -151,17 +160,6 @@ std::shared_ptr<Material> Material::CreateMetalMaterial(std::shared_ptr<ShaderPr
     return material;
 }
 
-std::shared_ptr<Material> Material::CreateDielectricMaterial(std::shared_ptr<ShaderProgram> shader,
-                                                             glm::vec3 color,
-                                                             float roughness)
-{
-    auto material = std::make_shared<Material>(std::move(shader));
-    material->m_albedoColor = color;
-    material->m_metallicValue = 0.0f;
-    material->m_roughnessValue = roughness;
-    return material;
-}
-
 Material& Material::SetFloat(const std::string& name, float value) {
     if (name == "u_MetallicValue" || name == "u_Metallic") {
         m_metallicValue = value;
@@ -173,6 +171,14 @@ Material& Material::SetFloat(const std::string& name, float value) {
     }
     if (name == "u_NormalScale") {
         m_normalScale = value;
+        return *this;
+    }
+    if (name == "u_EmissiveStrength") {
+        m_emissiveStrength = value;
+        return *this;
+    }
+    if (name == "u_AoStrength") {
+        m_aoStrength = value;
         return *this;
     }
     m_floats[name] = value;
@@ -248,6 +254,8 @@ void Material::Bind() const {
     state.metallicValue = m_metallicValue;
     state.roughnessValue = m_roughnessValue;
     state.emissiveColor = m_emissiveColor;
+    state.emissiveStrength = m_emissiveStrength;
+    state.aoStrength = m_aoStrength;
     state.normalScale = m_normalScale;
     state.hasAlbedoMap = m_hasAlbedoMap;
     state.hasNormalMap = m_hasNormalMap;
@@ -286,6 +294,14 @@ MaterialInstance& MaterialInstance::SetFloat(const std::string& name, float valu
     }
     if (name == "u_NormalScale") {
         m_normalScale = value;
+        return *this;
+    }
+    if (name == "u_EmissiveStrength") {
+        m_emissiveStrength = value;
+        return *this;
+    }
+    if (name == "u_AoStrength") {
+        m_aoStrength = value;
         return *this;
     }
     m_floats[name] = value;
@@ -339,6 +355,37 @@ MaterialInstance& MaterialInstance::SetTexture(const std::string& slotName,
     return *this;
 }
 
+float MaterialInstance::GetFloat(const std::string& name, float defaultValue) const {
+    if (name == "u_MetallicValue") return m_metallicValue.value_or(m_parent->m_metallicValue);
+    if (name == "u_RoughnessValue") return m_roughnessValue.value_or(m_parent->m_roughnessValue);
+    if (name == "u_NormalScale") return m_normalScale.value_or(m_parent->m_normalScale);
+    if (name == "u_EmissiveStrength") return m_emissiveStrength.value_or(m_parent->m_emissiveStrength);
+    if (name == "u_AoStrength") return m_aoStrength.value_or(m_parent->m_aoStrength);
+    auto it = m_floats.find(name);
+    if (it != m_floats.end()) return it->second;
+    it = m_parent->m_floats.find(name);
+    if (it != m_parent->m_floats.end()) return it->second;
+    return defaultValue;
+}
+
+glm::vec3 MaterialInstance::GetVec3(const std::string& name, glm::vec3 defaultValue) const {
+    if (name == "u_AlbedoColor") return m_albedoColor.value_or(m_parent->m_albedoColor);
+    if (name == "u_EmissiveColor") return m_emissiveColor.value_or(m_parent->m_emissiveColor);
+    auto it = m_vec3s.find(name);
+    if (it != m_vec3s.end()) return it->second;
+    it = m_parent->m_vec3s.find(name);
+    if (it != m_parent->m_vec3s.end()) return it->second;
+    return defaultValue;
+}
+
+bool MaterialInstance::GetUseNormalMap() const {
+    return m_useNormalMap.value_or(m_parent->m_useNormalMap);
+}
+
+void MaterialInstance::SetUseNormalMap(bool use) {
+    m_useNormalMap = use;
+}
+
 void MaterialInstance::Bind() const {
     if (!m_parent) return;
 
@@ -359,7 +406,10 @@ void MaterialInstance::Bind() const {
     state.metallicValue = m_parent->m_metallicValue;
     state.roughnessValue = m_parent->m_roughnessValue;
     state.emissiveColor = m_parent->m_emissiveColor;
+    state.emissiveStrength = m_parent->m_emissiveStrength;
+    state.aoStrength = m_parent->m_aoStrength;
     state.normalScale = m_parent->m_normalScale;
+    state.useNormalMap = m_parent->m_useNormalMap;
     state.hasAlbedoMap = m_parent->m_hasAlbedoMap;
     state.hasNormalMap = m_parent->m_hasNormalMap;
     state.hasMetallicMap = m_parent->m_hasMetallicMap;
@@ -399,8 +449,14 @@ void MaterialInstance::Bind() const {
         state.roughnessValue = *m_roughnessValue;
     if (m_emissiveColor.has_value())
         state.emissiveColor = *m_emissiveColor;
+    if (m_emissiveStrength.has_value())
+        state.emissiveStrength = *m_emissiveStrength;
+    if (m_aoStrength.has_value())
+        state.aoStrength = *m_aoStrength;
     if (m_normalScale.has_value())
         state.normalScale = *m_normalScale;
+    if (m_useNormalMap.has_value())
+        state.useNormalMap = *m_useNormalMap;
 
     BindMaterialSchema(*shader, state);
 

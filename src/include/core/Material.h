@@ -66,6 +66,9 @@ public:
     /// Assigns a texture to a named slot (e.g. TextureSlot::Albedo).
     Material& SetTexture(const std::string& slotName, std::shared_ptr<Texture2D> texture);
 
+    void               SetName(const std::string& name) { m_name = name; }
+    [[nodiscard]] const std::string& GetName() const { return m_name; }
+
     [[nodiscard]] const ShaderProgram* GetShader() const { return m_shader.get(); }
     [[nodiscard]] ShaderProgram*       GetShader()       { return m_shader.get(); }
 
@@ -90,7 +93,10 @@ private:
     float     m_metallicValue  = 0.0f;
     float     m_roughnessValue = 0.5f;
     glm::vec3 m_emissiveColor{0.0f, 0.0f, 0.0f};
+    float     m_emissiveStrength = 1.0f;
+    float     m_aoStrength     = 1.0f;
     float     m_normalScale    = 1.0f;
+    bool      m_useNormalMap   = true;
 
     bool m_hasAlbedoMap    = false;
     bool m_hasNormalMap    = false;
@@ -102,6 +108,8 @@ private:
     std::unordered_map<std::string, float>      m_floats;
     std::unordered_map<std::string, glm::vec3>  m_vec3s;
     std::unordered_map<std::string, glm::vec4>  m_vec4s;
+
+    std::string m_name;
 
     friend class MaterialInstance;
 };
@@ -127,9 +135,17 @@ public:
     /// Overrides a texture slot for this instance.
     MaterialInstance& SetTexture(const std::string& slotName, std::shared_ptr<Texture2D> texture);
 
+    [[nodiscard]] float     GetFloat(const std::string& name, float defaultValue = 0.0f) const;
+    [[nodiscard]] glm::vec3 GetVec3(const std::string& name, glm::vec3 defaultValue = glm::vec3(0.0f)) const;
+    [[nodiscard]] bool      GetUseNormalMap() const;
+    void                    SetUseNormalMap(bool use);
+
     /// Binds the parent material then applies instance overrides.
     /// Assigns GL texture units 0..N in slot insertion order.
     void Bind() const;
+
+    void               SetName(const std::string& name) { m_name = name; }
+    [[nodiscard]] const std::string& GetName() const { return m_name.empty() ? m_parent->GetName() : m_name; }
 
     /// Returns the underlying shader (from parent).
     [[nodiscard]] const ShaderProgram* GetShader() const;
@@ -149,9 +165,14 @@ private:
     std::optional<float>     m_metallicValue;
     std::optional<float>     m_roughnessValue;
     std::optional<glm::vec3> m_emissiveColor;
+    std::optional<float>     m_emissiveStrength;
+    std::optional<float>     m_aoStrength;
     std::optional<float>     m_normalScale;
+    std::optional<bool>      m_useNormalMap;
 
     std::unordered_map<std::string, float>      m_floats;
     std::unordered_map<std::string, glm::vec3>  m_vec3s;
     std::unordered_map<std::string, glm::vec4>  m_vec4s;
+
+    std::string m_name;
 };

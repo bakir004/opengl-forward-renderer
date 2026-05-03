@@ -127,16 +127,14 @@ ExtractEmbeddedTextures(const aiScene* scene, const std::string& modelPath)
 //  - External file references: joined with modelDir as before.
 // ---------------------------------------------------------------------------
 
-static std::string ResolveDiffusePath(
+static std::string ResolveTexturePath(
     const aiMaterial*                                      mat,
+    aiTextureType                                          type,
     const std::string&                                     modelDir,
     const std::unordered_map<std::string, std::string>&    embeddedMap)
 {
-    // GLTF2 PBR base color comes through as BASE_COLOR in newer Assimp builds,
-    // but older builds and other formats use DIFFUSE. Try both.
     aiString aiPath;
-    if (mat->GetTexture(aiTextureType_BASE_COLOR, 0, &aiPath) == AI_SUCCESS
-        || mat->GetTexture(aiTextureType_DIFFUSE, 0, &aiPath) == AI_SUCCESS)
+    if (mat->GetTexture(type, 0, &aiPath) == AI_SUCCESS)
     {
         const std::string raw = aiPath.C_Str();
         if (raw.empty())
@@ -159,6 +157,20 @@ static std::string ResolveDiffusePath(
         return full.lexically_normal().string();
     }
     return {};
+}
+
+static std::string ResolveDiffusePath(
+    const aiMaterial*                                      mat,
+    const std::string&                                     modelDir,
+    const std::unordered_map<std::string, std::string>&    embeddedMap)
+{
+    // GLTF2 PBR base color comes through as BASE_COLOR in newer Assimp builds,
+    // but older builds and other formats use DIFFUSE. Try both.
+    std::string path = ResolveTexturePath(mat, aiTextureType_BASE_COLOR, modelDir, embeddedMap);
+    if (path.empty())
+        path = ResolveTexturePath(mat, aiTextureType_DIFFUSE, modelDir, embeddedMap);
+
+    return path;
 }
 
 // ---------------------------------------------------------------------------
@@ -334,6 +346,16 @@ ModelData ImportModelFromFile(const std::string& path)
             aiMat->Get(AI_MATKEY_NAME, matName);
             info.name        = matName.C_Str();
             info.diffusePath = ResolveDiffusePath(aiMat, modelDir, embeddedMap);
+            info.normalPath  = ResolveTexturePath(aiMat, aiTextureType_NORMALS, modelDir, embeddedMap);
+            if (info.normalPath.empty()) {
+                info.normalPath = ResolveTexturePath(aiMat, aiTextureType_HEIGHT, modelDir, embeddedMap);
+            }
+            info.metallicRoughnessPath = ResolveTexturePath(aiMat, aiTextureType_UNKNOWN, modelDir, embeddedMap); // GLTF2 MR
+            info.aoPath       = ResolveTexturePath(aiMat, aiTextureType_AMBIENT_OCCLUSION, modelDir, embeddedMap);
+            if (info.aoPath.empty()) {
+                info.aoPath = ResolveTexturePath(aiMat, aiTextureType_AMBIENT, modelDir, embeddedMap);
+            }
+            info.emissivePath = ResolveTexturePath(aiMat, aiTextureType_EMISSIVE, modelDir, embeddedMap);
 
             aiColor3D color(1.f, 1.f, 1.f);
             if (aiMat->Get(AI_MATKEY_BASE_COLOR, color) == AI_SUCCESS ||
@@ -349,6 +371,16 @@ ModelData ImportModelFromFile(const std::string& path)
             float roughness = 0.5f;
             if (aiMat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness) == AI_SUCCESS) {
                 info.roughnessValue = roughness;
+            }
+
+            aiColor3D emissive(0.f, 0.f, 0.f);
+            if (aiMat->Get(AI_MATKEY_COLOR_EMISSIVE, emissive) == AI_SUCCESS) {
+                info.emissiveColor = {emissive.r, emissive.g, emissive.b};
+            }
+
+            float normalScale = 1.0f;
+            if (aiMat->Get(AI_MATKEY_BUMPSCALING, normalScale) == AI_SUCCESS) {
+                info.normalScale = normalScale;
             }
         }
         materials.push_back(std::move(info));
