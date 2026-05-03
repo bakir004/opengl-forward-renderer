@@ -11,6 +11,10 @@
 struct ModelMaterialInfo {
     std::string diffusePath;
     std::string name;
+
+    glm::vec3 albedoColor{1.0f, 1.0f, 1.0f};
+    float metallicValue = 0.0f;
+    float roughnessValue = 0.5f;
 };
 
 /// Result of AssetImporter::LoadModel.

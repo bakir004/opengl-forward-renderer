@@ -334,6 +334,22 @@ ModelData ImportModelFromFile(const std::string& path)
             aiMat->Get(AI_MATKEY_NAME, matName);
             info.name        = matName.C_Str();
             info.diffusePath = ResolveDiffusePath(aiMat, modelDir, embeddedMap);
+
+            aiColor3D color(1.f, 1.f, 1.f);
+            if (aiMat->Get(AI_MATKEY_BASE_COLOR, color) == AI_SUCCESS ||
+                aiMat->Get(AI_MATKEY_COLOR_DIFFUSE, color) == AI_SUCCESS) {
+                info.albedoColor = {color.r, color.g, color.b};
+            }
+
+            float metallic = 0.0f;
+            if (aiMat->Get(AI_MATKEY_METALLIC_FACTOR, metallic) == AI_SUCCESS) {
+                info.metallicValue = metallic;
+            }
+
+            float roughness = 0.5f;
+            if (aiMat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness) == AI_SUCCESS) {
+                info.roughnessValue = roughness;
+            }
         }
         materials.push_back(std::move(info));
         return idx;

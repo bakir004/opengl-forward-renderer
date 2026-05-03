@@ -14,6 +14,10 @@ struct Petal {
     glm::vec3 pos;
     float speed;
     float swayPhase;
+
+    glm::vec3 rotAxis;
+    float rotSpeed;
+    float baseScale;
 };
 
 class JapanScene : public Scene {
@@ -39,4 +43,13 @@ private:
     // ── Player state ──────────────────────────────────────────────────────────
     glm::vec3 m_playerPosition = {8.74f, 1.20f, -8.90f};
     size_t    m_playerCubeIdx  = (size_t)-1;
+
+    // ── Wind System ───────────────────────────────────────────────────────────
+    float m_windTimer = 0.0f;
+    float m_windInterval = 5.0f;     // time between gusts
+    float m_windDuration = 1.5f;     // how long gust lasts
+    bool  m_windActive = false;
+
+    glm::vec3 m_windDir = {1.0f, 0.0f, 0.0f};
+    float m_windStrength = 5.0f;
 };

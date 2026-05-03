@@ -14,16 +14,14 @@
 // Small utility: random float in range [min, max]
 // Keeps code cleaner and avoids repeated rand() boilerplate
 // ─────────────────────────────────────────────────────────────────────────────
-static float Rand(float min, float max)
-{
-    return min + (max - min) * ((float)(rand() % 100) / 100.0f);
+static float Rand(float min, float max) {
+    return min + (max - min) * ((float) (rand() % 100) / 100.0f);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Setup
 // ─────────────────────────────────────────────────────────────────────────────
-bool JapanScene::Setup()
-{
+bool JapanScene::Setup() {
     spdlog::info("[JapanScene] Setting up");
     SetSceneName("Japan");
 
@@ -50,8 +48,7 @@ bool JapanScene::Setup()
         Texture2D::CreateFallback(200, 200, 200, 255));
 
     // ── Material Instances (1 per GLTF material) ─────────────────────────────
-    for (const ModelMaterialInfo& matInfo : m_castleModel.materials)
-    {
+    for (const ModelMaterialInfo &matInfo: m_castleModel.materials) {
         auto inst = std::make_unique<MaterialInstance>(m_castleBaseMaterial);
 
         std::shared_ptr<Texture2D> tex;
@@ -59,24 +56,28 @@ bool JapanScene::Setup()
             tex = AssetImporter::LoadTexture(matInfo.diffusePath, TextureColorSpace::sRGB);
 
         inst->SetTexture(TextureSlot::Albedo, tex ? tex : whiteFallback);
+
+        // Apply PBR properties from GLTF if available
+        inst->SetVec3("u_AlbedoColor", matInfo.albedoColor);
+        inst->SetFloat("u_MetallicValue", matInfo.metallicValue);
+        inst->SetFloat("u_RoughnessValue", matInfo.roughnessValue);
+
         m_castleMatInstances.push_back(std::move(inst));
     }
 
     // ── Render Items (one per submesh) ───────────────────────────────────────
-    if (m_castleModel.IsValid())
-    {
+    if (m_castleModel.IsValid()) {
         const uint32_t subMeshCount = m_castleModel.mesh->SubMeshCount();
 
-        for (uint32_t i = 0; i < subMeshCount; ++i)
-        {
-            const SubMesh& sm = m_castleModel.mesh->GetSubMesh(i);
+        for (uint32_t i = 0; i < subMeshCount; ++i) {
+            const SubMesh &sm = m_castleModel.mesh->GetSubMesh(i);
 
             RenderItem item;
-            item.meshMulti    = m_castleModel.mesh.get();
+            item.meshMulti = m_castleModel.mesh.get();
             item.subMeshIndex = i;
-            item.material     = m_castleMatInstances[sm.materialIndex].get();
+            item.material = m_castleMatInstances[sm.materialIndex].get();
             item.transform.SetScale({0.01f, 0.01f, 0.01f});
-            item.flags.castShadow    = true;
+            item.flags.castShadow = true;
             item.flags.receiveShadow = true;
 
             AddObject(item);
@@ -96,8 +97,7 @@ bool JapanScene::Setup()
 
     constexpr int PETAL_COUNT = 1000;
 
-    for (int i = 0; i < PETAL_COUNT; ++i)
-    {
+    for (int i = 0; i < PETAL_COUNT; ++i) {
         Petal p;
 
         // Random spawn in a box above the scene
@@ -107,16 +107,25 @@ bool JapanScene::Setup()
             Rand(-20.0f, 20.0f)
         };
 
-        p.speed     = Rand(1.0f, 3.0f);   // falling speed
-        p.swayPhase = Rand(0.0f, 6.28f);  // initial phase offset
+        p.speed = Rand(1.0f, 5.0f); // falling speed
+        p.swayPhase = Rand(0.0f, 6.28f); // initial phase offset
+
+        p.rotAxis = glm::normalize(glm::vec3(
+            Rand(-1.0f, 1.0f),
+            Rand(-1.0f, 1.0f),
+            Rand(-1.0f, 1.0f)
+        ));
+
+        p.rotSpeed = Rand(0.5f, 2.0f);
+        p.baseScale = Rand(0.05f, 0.15f);
 
         RenderItem item;
-        item.mesh   = m_petalMesh.get();
+        item.mesh = m_petalMesh.get();
         item.shader = meshShader.get();
         item.transform.SetScale({0.1f, 0.02f, 0.1f});
         item.transform.SetTranslation(p.pos);
 
-        item.flags.castShadow    = false; // too many → expensive
+        item.flags.castShadow = false; // too many → expensive
         item.flags.receiveShadow = false;
 
         p.idx = AddObject(item);
@@ -135,80 +144,78 @@ bool JapanScene::Setup()
     // ── Lighting ─────────────────────────────────────────────────────────────
     SetAmbientLight({0.18f, 0.20f, 0.24f}, 0.25f);
 
-    auto& lights = GetLights();
+    auto &lights = GetLights();
 
     // Main sunlight
     lights.SetDirectionalLight(
         DirectionalLightBuilder()
-            .Direction({-0.35f, -1.0f, -0.25f})
-            .Color({1.0f, 0.98f, 0.92f})
-            .Intensity(1.4f)
-            .CastShadow(true)
-            .ShadowResolution(2048, 2048)
-            .Name("JapanSun")
-            .Build());
+        .Direction({-0.35f, -1.0f, -0.25f})
+        .Color({1.0f, 0.98f, 0.92f})
+        .Intensity(3.5f)
+        .CastShadow(true)
+        .ShadowResolution(2048, 2048)
+        .Name("JapanSun")
+        .Build());
 
     // Helper lambda to reduce repetition for point lights
-    auto AddLight = [&](glm::vec3 pos, glm::vec3 color, float intensity, const char* name)
-    {
+    auto AddLight = [&](glm::vec3 pos, glm::vec3 color, float intensity, const char *name) {
         lights.AddPointLight(
             PointLightBuilder()
-                .Position(pos)
-                .Color(color)
-                .Intensity(intensity)
-                .Radius(20.0f)
-                .Name(name)
-                .Build());
+            .Position(pos)
+            .Color(color)
+            .Intensity(intensity)
+            .Radius(20.0f)
+            .Name(name)
+            .Build());
     };
 
     // Scene lighting accents
-    AddLight({ 9.18f, 5.58f,  9.12f}, {1,0,0}, 10, "Red 1");
-    AddLight({ 9.24f, 5.70f, -9.28f}, {1,0,0}, 10, "Red 2");
+    AddLight({9.18f, 5.58f, 9.12f}, {1, 0, 0}, 10, "Red 1");
+    AddLight({9.24f, 5.70f, -9.28f}, {1, 0, 0}, 10, "Red 2");
 
-    AddLight({ 5.66f,14.65f,  5.61f}, {1.0f,0.47f,0.47f}, 10, "Pink 1");
-    AddLight({ 5.59f,14.63f, -5.64f}, {1.0f,0.47f,0.47f}, 10, "Pink 2");
-    AddLight({-5.56f,14.69f,  5.62f}, {1.0f,0.47f,0.47f}, 10, "Pink 3");
+    AddLight({5.66f, 14.65f, 5.61f}, {1.0f, 0.47f, 0.47f}, 10, "Pink 1");
+    AddLight({5.59f, 14.63f, -5.64f}, {1.0f, 0.47f, 0.47f}, 10, "Pink 2");
+    AddLight({-5.56f, 14.69f, 5.62f}, {1.0f, 0.47f, 0.47f}, 10, "Pink 3");
 
-    AddLight({ 9.08f, 5.48f,  9.13f}, {1,1,1}, 3, "White 1");
-    AddLight({ 9.11f, 5.44f, -9.16f}, {1,1,1}, 3, "White 2");
+    AddLight({9.08f, 5.48f, 9.13f}, {1, 1, 1}, 3, "White 1");
+    AddLight({9.11f, 5.44f, -9.16f}, {1, 1, 1}, 3, "White 2");
 
-    AddLight({19.86f,-0.10f, -3.21f}, {1.0f,0.73f,0.01f}, 3, "Warm 1");
-    AddLight({19.77f,-0.01f,  3.12f}, {1.0f,0.73f,0.01f}, 3, "Warm 2");
+    AddLight({19.86f, -0.10f, -3.21f}, {1.0f, 0.73f, 0.01f}, 3, "Warm 1");
+    AddLight({19.77f, -0.01f, 3.12f}, {1.0f, 0.73f, 0.01f}, 3, "Warm 2");
 
     // ── Sekiro player model ───────────────────────────────────────────────────
-m_sekiroModel = AssetImporter::LoadModel("assets/models/gltf/low-poly_sekiro/scene.gltf");
+    m_sekiroModel = AssetImporter::LoadModel("assets/models/gltf/low-poly_sekiro/scene.gltf");
 
-m_sekiroMaterial = std::make_shared<Material>(meshShader);
-m_sekiroMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
+    m_sekiroMaterial = std::make_shared<Material>(meshShader);
+    m_sekiroMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
 
-// Build one MaterialInstance per GLTF material, using vertex colors (no texture needed)
-auto whiteFallbackSekiro = std::make_shared<Texture2D>(
-    Texture2D::CreateFallback(200, 200, 200, 255));
+    // Build one MaterialInstance per GLTF material, using vertex colors (no texture needed)
+    auto whiteFallbackSekiro = std::make_shared<Texture2D>(
+        Texture2D::CreateFallback(200, 200, 200, 255));
 
     // Lookup table matching every GLTF material name → its baseColorFactor (linear RGB)
     static const std::unordered_map<std::string, glm::vec4> kSekiroColors = {
-        { "Dark_red",     { 0.0467f, 0.0301f, 0.0533f, 1.0f } },
-        { "Grey",         { 0.0510f, 0.0510f, 0.0510f, 1.0f } },
-        { "light_grey",   { 0.135f,  0.135f,  0.135f,  1.0f } },
-        { "Scarf",        { 0.800f,  0.490f,  0.274f,  1.0f } },
-        { "Face",         { 0.800f,  0.424f,  0.306f,  1.0f } },
-        { "Hair",         { 0.025f,  0.024f,  0.024f,  1.0f } },
-        { "Bandages",     { 0.482f,  0.262f,  0.153f,  1.0f } },
-        { "Metal",        { 0.393f,  0.393f,  0.393f,  1.0f } },
-        { "Bone",         { 0.471f,  0.325f,  0.118f,  1.0f } },
-        { "Bone_light",   { 0.624f,  0.428f,  0.298f,  1.0f } },
-        { "New_Coat",     { 0.554f,  0.219f,  0.096f,  1.0f } },
-        { "Pants",        { 0.155f,  0.094f,  0.069f,  1.0f } },
-        { "material",     { 0.093f,  0.006f,  0.006f,  1.0f } },
-        { "Material.003", { 0.058f,  0.035f,  0.022f,  1.0f } },
-        { "Black",        { 0.012f,  0.011f,  0.011f,  1.0f } },
-        { "Bronze",       { 0.285f,  0.264f,  0.157f,  1.0f } },
-        { "Sword_red",    { 0.203f,  0.043f,  0.029f,  1.0f } },
-        { "Red_Metal",    { 0.187f,  0.085f,  0.085f,  1.0f } },
+        {"Dark_red", {0.0467f, 0.0301f, 0.0533f, 1.0f}},
+        {"Grey", {0.0510f, 0.0510f, 0.0510f, 1.0f}},
+        {"light_grey", {0.135f, 0.135f, 0.135f, 1.0f}},
+        {"Scarf", {0.800f, 0.490f, 0.274f, 1.0f}},
+        {"Face", {0.800f, 0.424f, 0.306f, 1.0f}},
+        {"Hair", {0.025f, 0.024f, 0.024f, 1.0f}},
+        {"Bandages", {0.482f, 0.262f, 0.153f, 1.0f}},
+        {"Metal", {0.393f, 0.393f, 0.393f, 1.0f}},
+        {"Bone", {0.471f, 0.325f, 0.118f, 1.0f}},
+        {"Bone_light", {0.624f, 0.428f, 0.298f, 1.0f}},
+        {"New_Coat", {0.554f, 0.219f, 0.096f, 1.0f}},
+        {"Pants", {0.155f, 0.094f, 0.069f, 1.0f}},
+        {"material", {0.093f, 0.006f, 0.006f, 1.0f}},
+        {"Material.003", {0.058f, 0.035f, 0.022f, 1.0f}},
+        {"Black", {0.012f, 0.011f, 0.011f, 1.0f}},
+        {"Bronze", {0.285f, 0.264f, 0.157f, 1.0f}},
+        {"Sword_red", {0.203f, 0.043f, 0.029f, 1.0f}},
+        {"Red_Metal", {0.187f, 0.085f, 0.085f, 1.0f}},
     };
 
-    for (const ModelMaterialInfo& matInfo : m_sekiroModel.materials)
-    {
+    for (const ModelMaterialInfo &matInfo: m_sekiroModel.materials) {
         auto inst = std::make_unique<MaterialInstance>(m_sekiroMaterial);
         inst->SetTexture(TextureSlot::Albedo, whiteFallback); // bind something so the slot isn't empty
 
@@ -221,34 +228,33 @@ auto whiteFallbackSekiro = std::make_shared<Texture2D>(
         m_sekiroMatInstances.push_back(std::move(inst));
     }
 
-if (m_sekiroModel.IsValid())
-{
-    const uint32_t subMeshCount = m_sekiroModel.mesh->SubMeshCount();
+    if (m_sekiroModel.IsValid()) {
+        const uint32_t subMeshCount = m_sekiroModel.mesh->SubMeshCount();
 
-    for (uint32_t i = 0; i < subMeshCount; ++i)
-    {
-        const SubMesh& sm = m_sekiroModel.mesh->GetSubMesh(i);
+        for (uint32_t i = 0; i < subMeshCount; ++i) {
+            const SubMesh &sm = m_sekiroModel.mesh->GetSubMesh(i);
 
-        RenderItem item;
-        item.meshMulti    = m_sekiroModel.mesh.get();
-        item.subMeshIndex = i;
-        item.material     = m_sekiroMatInstances[sm.materialIndex].get();
-        item.transform.SetTranslation(m_playerPosition);
-        item.transform.SetScale({0.01f, 0.01f, 0.01f});
-        item.flags.castShadow    = true;
-        item.flags.receiveShadow = true;
+            RenderItem item;
+            item.meshMulti = m_sekiroModel.mesh.get();
+            item.subMeshIndex = i;
+            item.material = m_sekiroMatInstances[sm.materialIndex].get();
+            item.transform.SetTranslation(m_playerPosition);
+            item.transform.SetScale({0.01f, 0.01f, 0.01f});
+            item.flags.castShadow = true;
+            item.flags.receiveShadow = true;
 
-        size_t idx = AddObject(item);
+            size_t idx = AddObject(item);
 
-        // Store only the first submesh index as the "primary" handle;
-        // we'll drive all parts together via m_sekiroSubMeshIndices
-        m_sekiroSubMeshIndices.push_back(idx);
-        if (m_playerCubeIdx == (size_t)-1)
-            m_playerCubeIdx = idx;
+            // Store only the first submesh index as the "primary" handle;
+            // we'll drive all parts together via m_sekiroSubMeshIndices
+            m_sekiroSubMeshIndices.push_back(idx);
+            if (m_playerCubeIdx == (size_t) -1)
+                m_playerCubeIdx = idx;
+        }
+
+        spdlog::info("[JapanScene] Added {} player model submeshes", subMeshCount);
     }
 
-    spdlog::info("[JapanScene] Added {} player model submeshes", subMeshCount);
-}
 
     spdlog::info("[JapanScene] Setup complete");
     return true;
@@ -257,22 +263,59 @@ if (m_sekiroModel.IsValid())
 // ─────────────────────────────────────────────────────────────────────────────
 // Update
 // ─────────────────────────────────────────────────────────────────────────────
-void JapanScene::OnUpdate(float deltaTime, IInputProvider& input)
-{
+void JapanScene::OnUpdate(float deltaTime, IInputProvider &input) {
+    // ── Wind mechanism ───────────────────────────────────────────────────────
+    m_windTimer += deltaTime;
+
+    if (!m_windActive && m_windTimer > m_windInterval) {
+        m_windActive = true;
+        m_windTimer = 0.0f;
+
+        // Random horizontal direction
+        m_windDir = glm::normalize(glm::vec3(
+            Rand(-1.0f, 1.0f),
+            0.0f,
+            Rand(-1.0f, 1.0f)
+        ));
+
+        m_windStrength = Rand(4.0f, 8.0f); // vary intensity
+    } else if (m_windActive && m_windTimer > m_windDuration) {
+        m_windActive = false;
+        m_windTimer = 0.0f;
+    }
+
     // ── Cherry blossom animation ─────────────────────────────────────────────
-    for (auto& p : m_petals)
-    {
+    for (auto &p: m_petals) {
+        // ── Base motion ───────────────────────────────────────────────
+
         // Vertical fall
         p.pos.y -= p.speed * deltaTime;
 
-        // Wind drift (sinusoidal motion)
+        // Phase update
         p.swayPhase += deltaTime;
+
+        // Gentle ambient drift
         p.pos.x += std::sin(p.swayPhase) * 0.3f * deltaTime;
         p.pos.z += std::cos(p.swayPhase * 0.7f) * 0.2f * deltaTime;
 
-        // Respawn above a scene when hitting ground
-        if (p.pos.y < 0.0f)
-        {
+        // ── Wind gust (smooth impulse) ───────────────────────────────
+
+        float windFactor = 0.0f;
+
+        if (m_windActive) {
+            // Smooth fade-in/out using sine curve
+            float t = m_windTimer / m_windDuration; // 0 → 1
+            windFactor = std::sin(t * 3.1415926f); // 0 → 1 → 0
+        }
+
+        // Optional: stronger effect higher in the air (feels more natural)
+        float heightFactor = glm::clamp(p.pos.y / 20.0f, 0.2f, 1.0f);
+
+        p.pos += m_windDir * m_windStrength * windFactor * heightFactor * deltaTime;
+
+        // ── Respawn ──────────────────────────────────────────────────
+
+        if (p.pos.y < 0.0f) {
             p.pos = {
                 Rand(-20.0f, 20.0f),
                 Rand(10.0f, 20.0f),
@@ -280,20 +323,38 @@ void JapanScene::OnUpdate(float deltaTime, IInputProvider& input)
             };
         }
 
-        auto& t = GetObject(p.idx).transform;
-        t.SetTranslation(p.pos);
+        // ── Transform update ─────────────────────────────────────────
 
-        // Subtle spin
-        t.SetRotation(glm::angleAxis(p.swayPhase, glm::vec3(0, 1, 0)));
+        auto &t = GetObject(p.idx).transform;
+
+        // Flutter (scale oscillation)
+        float flutter = std::sin(p.swayPhase * 5.0f) * 0.2f + 1.0f;
+
+        glm::vec3 scale = {
+            p.baseScale * flutter,
+            p.baseScale * 0.2f,
+            p.baseScale
+        };
+
+        t.SetScale(scale);
+
+        // Rotation (free axis)
+        t.SetRotation(glm::angleAxis(
+            p.swayPhase * p.rotSpeed,
+            p.rotAxis
+        ));
+
+        t.SetTranslation(p.pos);
     }
 
+
     // ── Camera + player controller ───────────────────────────────────────────
-    Camera& cam = GetCamera();
+    Camera &cam = GetCamera();
 
     // Hide Sekiro mesh in first-person so it doesn't clip into the camera
-    if (m_sekiroModel.IsValid() && m_playerCubeIdx != (size_t)-1)
+    if (m_sekiroModel.IsValid() && m_playerCubeIdx != (size_t) -1)
         GetObject(m_playerCubeIdx).flags.visible =
-            (cam.GetMode() != CameraMode::FirstPerson);
+                (cam.GetMode() != CameraMode::FirstPerson);
 
     glm::vec3 moveDirXZ;
     UpdateStandardCameraAndPlayer(deltaTime, input,
@@ -301,16 +362,14 @@ void JapanScene::OnUpdate(float deltaTime, IInputProvider& input)
 
     // Sync transform and face the direction of movement
     // Replace the single-index player transform block with this:
-    for (size_t idx : m_sekiroSubMeshIndices)
-    {
-        RenderItem& item = GetObject(idx);
+    for (size_t idx: m_sekiroSubMeshIndices) {
+        RenderItem &item = GetObject(idx);
         item.flags.visible = (cam.GetMode() != CameraMode::FirstPerson);
 
-        auto& t = item.transform;
+        auto &t = item.transform;
         t.SetTranslation(m_playerPosition);
 
-        if (glm::length(moveDirXZ) > 0.001f)
-        {
+        if (glm::length(moveDirXZ) > 0.001f) {
             const glm::vec3 d = glm::normalize(moveDirXZ);
             const float yawRad = std::atan2(d.x, d.z);
             t.SetRotation(glm::angleAxis(yawRad, glm::vec3(0.0f, 1.0f, 0.0f)));
