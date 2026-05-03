@@ -40,6 +40,7 @@ uniform float          u_MetallicValue = 0.0;
 uniform float          u_RoughnessValue = 0.5;
 uniform vec3           u_EmissiveColor = vec3(0.0);
 uniform float          u_NormalScale = 1.0;
+uniform float          u_FlipNormalMapY = 0.0; // 1.0 = DirectX-convention normal map (green channel inverted)
 
 out vec4 FragColor;
 
@@ -90,6 +91,12 @@ vec3 ResolveWorldNormal()
         return worldNormal;
 
     vec3 tangentNormal = texture(u_NormalMap, v_UV).xyz * 2.0 - 1.0;
+
+    // DirectX normal maps store Y inverted relative to OpenGL convention.
+    // Flip green channel when loading NormalDX assets (e.g. Poly Haven textures).
+    if (u_FlipNormalMapY > 0.5)
+        tangentNormal.y = -tangentNormal.y;
+
     tangentNormal.xy *= u_NormalScale;
     tangentNormal.z = sqrt(max(1.0 - dot(tangentNormal.xy, tangentNormal.xy), 0.0));
     tangentNormal = normalize(tangentNormal);

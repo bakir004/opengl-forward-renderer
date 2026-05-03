@@ -17,6 +17,8 @@ add_executable(${PROJECT_NAME}
         src/JapanScene.cpp
         src/PbrValidationScene.h
         src/PbrValidationScene.cpp
+        src/NormalMapScene.h
+        src/NormalMapScene.cpp
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
