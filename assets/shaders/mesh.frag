@@ -363,7 +363,10 @@ void main()
     vec3 V = normalize(cameraPos - v_WorldPos);
 
     // Existing scene ambient stays in place; Lo collects direct-light BRDF contributions.
-    vec3 ambient = albedo * u_AmbientColor * u_AmbientIntensity * ao;
+    vec3 F0 = mix(vec3(0.04), albedo, metallic);
+    vec3 kS = FresnelSchlick(max(dot(N, V), 0.0), F0);
+    vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
+    vec3 ambient = kD * albedo * u_AmbientColor * u_AmbientIntensity * ao;
     vec3 Lo = DirectionalLighting(albedo, N, V, metallic, roughness);
     Lo += PointLighting(albedo, v_WorldPos, N, V, metallic, roughness);
     Lo += SpotLighting(albedo, v_WorldPos, N, V, metallic, roughness);
