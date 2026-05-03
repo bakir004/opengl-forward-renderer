@@ -14,57 +14,58 @@
 #include <string>
 #include <spdlog/spdlog.h>
 
-namespace {
-
-constexpr glm::vec3 kDefaultPbrAlbedoColor(1.0f, 1.0f, 1.0f);
-constexpr float kDefaultPbrMetallicValue = 0.0f;
-constexpr float kDefaultPbrRoughnessValue = 0.5f;
-constexpr glm::vec3 kDefaultPbrEmissiveColor(0.0f, 0.0f, 0.0f);
-
-void SetOptionalIntUniform(GLuint programId, const char* name, int value)
+namespace
 {
-    const GLint location = glGetUniformLocation(programId, name);
-    if (location != -1)
-        glUniform1i(location, value);
-}
 
-void SetOptionalFloatUniform(GLuint programId, const char* name, float value)
-{
-    const GLint location = glGetUniformLocation(programId, name);
-    if (location != -1)
-        glUniform1f(location, value);
-}
+    constexpr glm::vec3 kDefaultPbrAlbedoColor(1.0f, 1.0f, 1.0f);
+    constexpr float kDefaultPbrMetallicValue = 0.0f;
+    constexpr float kDefaultPbrRoughnessValue = 0.5f;
+    constexpr glm::vec3 kDefaultPbrEmissiveColor(0.0f, 0.0f, 0.0f);
 
-void SetOptionalVec3Uniform(GLuint programId, const char* name, const glm::vec3& value)
-{
-    const GLint location = glGetUniformLocation(programId, name);
-    if (location != -1)
-        glUniform3f(location, value.x, value.y, value.z);
-}
+    void SetOptionalIntUniform(GLuint programId, const char *name, int value)
+    {
+        const GLint location = glGetUniformLocation(programId, name);
+        if (location != -1)
+            glUniform1i(location, value);
+    }
 
-void ApplyPbrFallbackUniformDefaults(const ShaderProgram& shader)
-{
-    const GLuint programId = shader.GetID();
-    if (programId == 0)
-        return;
+    void SetOptionalFloatUniform(GLuint programId, const char *name, float value)
+    {
+        const GLint location = glGetUniformLocation(programId, name);
+        if (location != -1)
+            glUniform1f(location, value);
+    }
 
-    SetOptionalIntUniform(programId, TextureSlot::Albedo, MaterialTextureUnit::Albedo);
-    SetOptionalIntUniform(programId, TextureSlot::Normal, MaterialTextureUnit::Normal);
-    SetOptionalIntUniform(programId, TextureSlot::Metallic, MaterialTextureUnit::Metallic);
-    SetOptionalIntUniform(programId, TextureSlot::Roughness, MaterialTextureUnit::Roughness);
-    SetOptionalIntUniform(programId, TextureSlot::AO, MaterialTextureUnit::AO);
-    SetOptionalIntUniform(programId, TextureSlot::Emissive, MaterialTextureUnit::Emissive);
-    SetOptionalVec3Uniform(programId, "u_AlbedoColor", kDefaultPbrAlbedoColor);
-    SetOptionalFloatUniform(programId, "u_MetallicValue", kDefaultPbrMetallicValue);
-    SetOptionalFloatUniform(programId, "u_RoughnessValue", kDefaultPbrRoughnessValue);
-    SetOptionalVec3Uniform(programId, "u_EmissiveColor", kDefaultPbrEmissiveColor);
-    SetOptionalIntUniform(programId, "u_HasAlbedoMap", 0);
-    SetOptionalIntUniform(programId, "u_HasNormalMap", 0);
-    SetOptionalIntUniform(programId, "u_HasMetallicMap", 0);
-    SetOptionalIntUniform(programId, "u_HasRoughnessMap", 0);
-    SetOptionalIntUniform(programId, "u_HasAoMap", 0);
-    SetOptionalIntUniform(programId, "u_HasEmissiveMap", 0);
-}
+    void SetOptionalVec3Uniform(GLuint programId, const char *name, const glm::vec3 &value)
+    {
+        const GLint location = glGetUniformLocation(programId, name);
+        if (location != -1)
+            glUniform3f(location, value.x, value.y, value.z);
+    }
+
+    void ApplyPbrFallbackUniformDefaults(const ShaderProgram &shader)
+    {
+        const GLuint programId = shader.GetID();
+        if (programId == 0)
+            return;
+
+        SetOptionalIntUniform(programId, TextureSlot::Albedo, MaterialTextureUnit::Albedo);
+        SetOptionalIntUniform(programId, TextureSlot::Normal, MaterialTextureUnit::Normal);
+        SetOptionalIntUniform(programId, TextureSlot::Metallic, MaterialTextureUnit::Metallic);
+        SetOptionalIntUniform(programId, TextureSlot::Roughness, MaterialTextureUnit::Roughness);
+        SetOptionalIntUniform(programId, TextureSlot::AO, MaterialTextureUnit::AO);
+        SetOptionalIntUniform(programId, TextureSlot::Emissive, MaterialTextureUnit::Emissive);
+        SetOptionalVec3Uniform(programId, "u_AlbedoColor", kDefaultPbrAlbedoColor);
+        SetOptionalFloatUniform(programId, "u_MetallicValue", kDefaultPbrMetallicValue);
+        SetOptionalFloatUniform(programId, "u_RoughnessValue", kDefaultPbrRoughnessValue);
+        SetOptionalVec3Uniform(programId, "u_EmissiveColor", kDefaultPbrEmissiveColor);
+        SetOptionalIntUniform(programId, "u_HasAlbedoMap", 0);
+        SetOptionalIntUniform(programId, "u_HasNormalMap", 0);
+        SetOptionalIntUniform(programId, "u_HasMetallicMap", 0);
+        SetOptionalIntUniform(programId, "u_HasRoughnessMap", 0);
+        SetOptionalIntUniform(programId, "u_HasAoMap", 0);
+        SetOptionalIntUniform(programId, "u_HasEmissiveMap", 0);
+    }
 
 } // namespace
 
@@ -237,9 +238,6 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
 
             activeShader->SetUniform("u_Model", model);
 
-            const glm::mat3 normalMat = glm::transpose(glm::inverse(glm::mat3(model)));
-            activeShader->SetUniform("u_NormalMatrix", normalMat);
-            
             activeShader->SetUniform("u_ReceiveShadow", item.flags.receiveShadow ? 1 : 0);
 
             // ── Cascaded shadow data (directional light only) ─────────────
@@ -249,7 +247,7 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
                 {
                     const std::string idx = "[" + std::to_string(i) + "]";
                     activeShader->SetUniform(("u_CascadeViewProj" + idx).c_str(), m_cascadeViewProj[i]);
-                    activeShader->SetUniform(("u_CascadeSplits"   + idx).c_str(), m_cascadeSplits[i]);
+                    activeShader->SetUniform(("u_CascadeSplits" + idx).c_str(), m_cascadeSplits[i]);
                 }
 
                 // Bind the cascade depth array to texture unit 7.
@@ -269,7 +267,7 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
             // normal map sampling so the TBN is never applied on bad geometry.
             if (activeShader)
             {
-                const SubMesh& sm = item.meshMulti->GetSubMesh(item.subMeshIndex);
+                const SubMesh &sm = item.meshMulti->GetSubMesh(item.subMeshIndex);
                 if (!sm.hasTangents)
                     SetOptionalIntUniform(activeShader->GetID(), "u_HasNormalMap", 0);
             }
@@ -306,12 +304,12 @@ bool RenderQueue::IsEmpty() const
 
 void RenderQueue::SetDirectionalShadowData(
     const std::array<glm::mat4, CascadedShadowMap::kNumCascades> &cascadeViewProj,
-    const std::array<float,     CascadedShadowMap::kNumCascades> &cascadeSplits,
+    const std::array<float, CascadedShadowMap::kNumCascades> &cascadeSplits,
     uint32_t shadowMapTextureArrayId,
     int pcfRadius)
 {
     m_cascadeViewProj = cascadeViewProj;
-    m_cascadeSplits   = cascadeSplits;
+    m_cascadeSplits = cascadeSplits;
     m_shadowMapTextureArrayId = shadowMapTextureArrayId;
     m_pcfRadius = pcfRadius;
     m_hasShadowData = (shadowMapTextureArrayId != 0);
