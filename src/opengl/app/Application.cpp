@@ -7,6 +7,7 @@
 #include "scene/RenderItem.h"
 #include "core/Camera.h"
 #include "utils/Options.h"
+#include "core/Material.h"
 #include "core/Renderer.h"
 #include "core/InputManager.h"
 #include "core/MouseInput.h"
@@ -180,6 +181,9 @@ void Application::RunFrame(Scene &scene,
     for (const auto &item: sub.objects) {
         RenderItem di = item;
         if (m_ui->wireframeOverride) di.drawMode = DrawMode::Wireframe;
+        if (di.material) {
+            const_cast<MaterialInstance*>(di.material)->SetUseNormalMap(m_ui->normalMapOverride);
+        }
         m_renderer->SubmitDraw(di);
     }
     m_renderer->EndFrame();
@@ -194,6 +198,8 @@ void Application::RunFrame(Scene &scene,
         // so the GL viewport stays correct even as the sidebar is resized.
         m_ui->Draw(fbW, fbH, scene, *m_renderer, &m_input->GetMouse(),
                    scenes, activeSceneIndex);
+
+        scene.OnImGuiRender();
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -290,6 +296,11 @@ void Application::RunHotKeys() {
     if (m_input->IsKeyPressed(GLFW_KEY_H)) {
         m_ui->showHelpWindow = !m_ui->showHelpWindow;
         spdlog::debug("[Application] Toggle help window: {}", m_ui->showHelpWindow);
+    }
+
+    if (m_input->IsKeyPressed(GLFW_KEY_N)) {
+        m_ui->normalMapOverride = !m_ui->normalMapOverride;
+        spdlog::debug("[Application] Toggle normal maps: {}", m_ui->normalMapOverride);
     }
 
     if (m_input->IsKeyPressed(GLFW_KEY_C)) {

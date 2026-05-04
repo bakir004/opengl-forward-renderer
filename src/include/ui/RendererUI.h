@@ -46,6 +46,7 @@ public:
 
     // Public toggles
     bool wireframeOverride = false;
+    bool normalMapOverride = true;
     bool showHelpWindow = false;
     bool showSidebar = true;
 

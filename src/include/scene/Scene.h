@@ -32,6 +32,9 @@ public:
     /// Called once per frame. Override to handle input and update scene state.
     virtual void OnUpdate(float deltaTime, IInputProvider& input) {}
 
+    /// Called during the ImGui frame. Override to draw custom debug UI for the scene.
+    virtual void OnImGuiRender() {}
+
 protected:
     /// Replaces the scene camera.
     void SetCamera(Camera camera);

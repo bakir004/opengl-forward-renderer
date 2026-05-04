@@ -3,6 +3,7 @@
 #include "scene/Scene.h"
 #include "core/Material.h"
 #include "assets/AssetImporter.h"
+#include "assets/ModelData.h"
 #include <memory>
 #include <vector>
 
@@ -27,6 +28,10 @@ private:
     // --- Lantern (with full PBR textures incl. normal map + emissive) ---
     std::shared_ptr<MeshBuffer>       m_lantern;
     std::shared_ptr<Material>         m_lanternMat;
+
+    // --- Wooden Kitchen (multi-material GLTF, 29 materials / 98 submeshes) ---
+    ModelData                         m_kitchen;
+    std::vector<std::shared_ptr<Material>> m_kitchenMats;
 
 
     // All MaterialInstance instances kept alive for the scene lifetime

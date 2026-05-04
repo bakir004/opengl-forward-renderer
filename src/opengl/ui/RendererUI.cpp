@@ -651,6 +651,8 @@ void RendererUI::DrawViewport(int fbW, int fbH,
                     [&] { showSidebar = !showSidebar; });
             ToolBtn("W", wireframeOverride, "Z", "Toggle Wireframe",
                     [&] { wireframeOverride = !wireframeOverride; });
+            ToolBtn("N", normalMapOverride, "N", "Toggle Normal Maps",
+                    [&] { normalMapOverride = !normalMapOverride; });
         }
     }
     ImGui::End();
@@ -1070,6 +1072,7 @@ void RendererUI::DrawHelpWindow(int fbW, int fbH) {
         ImGui::Separator();
         KeyRow("X", "Toggle inspector");
         KeyRow("Z", "Wireframe mode");
+        KeyRow("N", "Toggle normal map");
         KeyRow("H", "Help window");
 
         ImGui::Dummy(ImVec2(0.0f, ImGui::GetContentRegionAvail().y - 30.0f));
