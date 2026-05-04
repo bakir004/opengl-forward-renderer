@@ -18,6 +18,7 @@ namespace TextureSlot {
     inline constexpr const char* Roughness = "u_RoughnessMap";
     inline constexpr const char* AO        = "u_AOMap";
     inline constexpr const char* Emissive  = "u_EmissiveMap";
+    inline constexpr const char* SpecularGlossiness = "u_SpecularGlossinessMap";
 }
 
 /// Fixed texture units reserved for the forward PBR material schema.
@@ -35,6 +36,7 @@ namespace MaterialTextureUnit {
     inline constexpr int Roughness = 3;
     inline constexpr int AO        = 4;
     inline constexpr int Emissive  = 5;
+    inline constexpr int SpecularGlossiness = 6;
 }
 
 /// Immutable description of a material type.
@@ -88,6 +90,7 @@ private:
     std::shared_ptr<Texture2D> m_roughnessMap;
     std::shared_ptr<Texture2D> m_aoMap;
     std::shared_ptr<Texture2D> m_emissiveMap;
+    std::shared_ptr<Texture2D> m_specularGlossinessMap;
 
     glm::vec3 m_albedoColor{1.0f, 1.0f, 1.0f};
     float     m_metallicValue  = 0.0f;
@@ -104,8 +107,10 @@ private:
     bool m_hasRoughnessMap = false;
     bool m_hasAoMap        = false;
     bool m_hasEmissiveMap  = false;
+    bool m_hasSpecularGlossinessMap = false;
 
     std::unordered_map<std::string, float>      m_floats;
+    std::unordered_map<std::string, bool>       m_bools;
     std::unordered_map<std::string, glm::vec3>  m_vec3s;
     std::unordered_map<std::string, glm::vec4>  m_vec4s;
 
@@ -131,6 +136,9 @@ public:
 
     /// Overrides a vec4 parameter for this instance.
     MaterialInstance& SetVec4(const std::string& name, glm::vec4 value);
+
+    /// Overrides a boolean parameter for this instance.
+    MaterialInstance& SetBool(const std::string& name, bool value);
 
     /// Overrides a texture slot for this instance.
     MaterialInstance& SetTexture(const std::string& slotName, std::shared_ptr<Texture2D> texture);
@@ -160,6 +168,7 @@ private:
     std::optional<std::shared_ptr<Texture2D>> m_roughnessMap;
     std::optional<std::shared_ptr<Texture2D>> m_aoMap;
     std::optional<std::shared_ptr<Texture2D>> m_emissiveMap;
+    std::optional<std::shared_ptr<Texture2D>> m_specularGlossinessMap;
 
     std::optional<glm::vec3> m_albedoColor;
     std::optional<float>     m_metallicValue;
@@ -171,6 +180,7 @@ private:
     std::optional<bool>      m_useNormalMap;
 
     std::unordered_map<std::string, float>      m_floats;
+    std::unordered_map<std::string, bool>       m_bools;
     std::unordered_map<std::string, glm::vec3>  m_vec3s;
     std::unordered_map<std::string, glm::vec4>  m_vec4s;
 

@@ -40,6 +40,7 @@ struct MaterialSchemaState {
     std::shared_ptr<Texture2D> roughnessMap;
     std::shared_ptr<Texture2D> aoMap;
     std::shared_ptr<Texture2D> emissiveMap;
+    std::shared_ptr<Texture2D> specularGlossinessMap;
     glm::vec3 albedoColor = kDefaultPbrAlbedoColor;
     float metallicValue = kDefaultPbrMetallicValue;
     float roughnessValue = kDefaultPbrRoughnessValue;
@@ -54,6 +55,7 @@ struct MaterialSchemaState {
     bool hasRoughnessMap = false;
     bool hasAoMap = false;
     bool hasEmissiveMap = false;
+    bool hasSpecularGlossinessMap = false;
 };
 
 bool IsTexturePresent(const std::shared_ptr<Texture2D>& texture)
@@ -82,6 +84,10 @@ void BindMaterialSchema(const ShaderProgram& shader, const MaterialSchemaState& 
     BindTextureUnit(shader, TextureSlot::Roughness, MaterialTextureUnit::Roughness, state.roughnessMap);
     BindTextureUnit(shader, TextureSlot::AO, MaterialTextureUnit::AO, state.aoMap);
     BindTextureUnit(shader, TextureSlot::Emissive, MaterialTextureUnit::Emissive, state.emissiveMap);
+    BindTextureUnit(shader, TextureSlot::SpecularGlossiness, MaterialTextureUnit::SpecularGlossiness, state.specularGlossinessMap);
+
+    // Cascaded shadow map array (fixed unit 7)
+    SetOptionalIntUniform(shader.GetID(), "u_CascadeShadowMaps", 7);
 
     shader.SetUniform("u_HasAlbedoMap", state.hasAlbedoMap);
     shader.SetUniform("u_HasNormalMap", state.hasNormalMap);
@@ -89,6 +95,7 @@ void BindMaterialSchema(const ShaderProgram& shader, const MaterialSchemaState& 
     shader.SetUniform("u_HasRoughnessMap", state.hasRoughnessMap);
     shader.SetUniform("u_HasAoMap", state.hasAoMap);
     shader.SetUniform("u_HasEmissiveMap", state.hasEmissiveMap);
+    shader.SetUniform("u_HasSpecularGlossinessMap", state.hasSpecularGlossinessMap);
 
     shader.SetUniform("u_AlbedoColor", state.albedoColor);
     shader.SetUniform("u_MetallicValue", state.metallicValue);
@@ -112,6 +119,8 @@ void ApplyPbrFallbackUniformDefaults(const ShaderProgram& shader)
     SetOptionalIntUniform(programId, TextureSlot::Roughness, MaterialTextureUnit::Roughness);
     SetOptionalIntUniform(programId, TextureSlot::AO, MaterialTextureUnit::AO);
     SetOptionalIntUniform(programId, TextureSlot::Emissive, MaterialTextureUnit::Emissive);
+    SetOptionalIntUniform(programId, TextureSlot::SpecularGlossiness, MaterialTextureUnit::SpecularGlossiness);
+    SetOptionalIntUniform(programId, "u_CascadeShadowMaps", 7);
     SetOptionalVec3Uniform(programId, "u_AlbedoColor", kDefaultPbrAlbedoColor);
     SetOptionalFloatUniform(programId, "u_MetallicValue", kDefaultPbrMetallicValue);
     SetOptionalFloatUniform(programId, "u_RoughnessValue", kDefaultPbrRoughnessValue);
@@ -126,6 +135,7 @@ void ApplyPbrFallbackUniformDefaults(const ShaderProgram& shader)
     SetOptionalIntUniform(programId, "u_HasRoughnessMap", 0);
     SetOptionalIntUniform(programId, "u_HasAoMap", 0);
     SetOptionalIntUniform(programId, "u_HasEmissiveMap", 0);
+    SetOptionalIntUniform(programId, "u_HasSpecularGlossinessMap", 0);
 }
 
 } // namespace
@@ -235,6 +245,11 @@ Material& Material::SetTexture(const std::string& slotName, std::shared_ptr<Text
         m_hasEmissiveMap = present;
         return *this;
     }
+    if (slotName == TextureSlot::SpecularGlossiness) {
+        m_specularGlossinessMap = std::move(texture);
+        m_hasSpecularGlossinessMap = present;
+        return *this;
+    }
     return *this;
 }
 
@@ -250,6 +265,7 @@ void Material::Bind() const {
     state.roughnessMap = m_roughnessMap;
     state.aoMap = m_aoMap;
     state.emissiveMap = m_emissiveMap;
+    state.specularGlossinessMap = m_specularGlossinessMap;
     state.albedoColor = m_albedoColor;
     state.metallicValue = m_metallicValue;
     state.roughnessValue = m_roughnessValue;
@@ -263,9 +279,11 @@ void Material::Bind() const {
     state.hasRoughnessMap = m_hasRoughnessMap;
     state.hasAoMap = m_hasAoMap;
     state.hasEmissiveMap = m_hasEmissiveMap;
+    state.hasSpecularGlossinessMap = m_hasSpecularGlossinessMap;
     BindMaterialSchema(*m_shader, state);
 
     for (const auto& [name, val] : m_floats)  m_shader->SetUniform(name, val);
+    for (const auto& [name, val] : m_bools)   m_shader->SetUniform(name, val);
     for (const auto& [name, val] : m_vec3s)   m_shader->SetUniform(name, val);
     for (const auto& [name, val] : m_vec4s)   m_shader->SetUniform(name, val);
 }
@@ -326,6 +344,11 @@ MaterialInstance& MaterialInstance::SetVec4(const std::string& name, glm::vec4 v
     return *this;
 }
 
+MaterialInstance& MaterialInstance::SetBool(const std::string& name, bool value) {
+    m_bools[name] = value;
+    return *this;
+}
+
 MaterialInstance& MaterialInstance::SetTexture(const std::string& slotName,
                                                 std::shared_ptr<Texture2D> texture) {
     if (slotName == TextureSlot::Albedo) {
@@ -350,6 +373,10 @@ MaterialInstance& MaterialInstance::SetTexture(const std::string& slotName,
     }
     if (slotName == TextureSlot::Emissive) {
         m_emissiveMap = std::move(texture);
+        return *this;
+    }
+    if (slotName == TextureSlot::SpecularGlossiness) {
+        m_specularGlossinessMap = std::move(texture);
         return *this;
     }
     return *this;
@@ -402,6 +429,7 @@ void MaterialInstance::Bind() const {
     state.roughnessMap = m_parent->m_roughnessMap;
     state.aoMap = m_parent->m_aoMap;
     state.emissiveMap = m_parent->m_emissiveMap;
+    state.specularGlossinessMap = m_parent->m_specularGlossinessMap;
     state.albedoColor = m_parent->m_albedoColor;
     state.metallicValue = m_parent->m_metallicValue;
     state.roughnessValue = m_parent->m_roughnessValue;
@@ -416,6 +444,7 @@ void MaterialInstance::Bind() const {
     state.hasRoughnessMap = m_parent->m_hasRoughnessMap;
     state.hasAoMap = m_parent->m_hasAoMap;
     state.hasEmissiveMap = m_parent->m_hasEmissiveMap;
+    state.hasSpecularGlossinessMap = m_parent->m_hasSpecularGlossinessMap;
 
     if (m_albedoMap.has_value()) {
         state.albedoMap = *m_albedoMap;
@@ -441,6 +470,10 @@ void MaterialInstance::Bind() const {
         state.emissiveMap = *m_emissiveMap;
         state.hasEmissiveMap = IsTexturePresent(state.emissiveMap);
     }
+    if (m_specularGlossinessMap.has_value()) {
+        state.specularGlossinessMap = *m_specularGlossinessMap;
+        state.hasSpecularGlossinessMap = IsTexturePresent(state.specularGlossinessMap);
+    }
     if (m_albedoColor.has_value())
         state.albedoColor = *m_albedoColor;
     if (m_metallicValue.has_value())
@@ -461,9 +494,11 @@ void MaterialInstance::Bind() const {
     BindMaterialSchema(*shader, state);
 
     for (const auto& [name, val] : m_parent->m_floats) shader->SetUniform(name, val);
+    for (const auto& [name, val] : m_parent->m_bools)  shader->SetUniform(name, val);
     for (const auto& [name, val] : m_parent->m_vec3s)  shader->SetUniform(name, val);
     for (const auto& [name, val] : m_parent->m_vec4s)  shader->SetUniform(name, val);
     for (const auto& [name, val] : m_floats)  shader->SetUniform(name, val);
+    for (const auto& [name, val] : m_bools)   shader->SetUniform(name, val);
     for (const auto& [name, val] : m_vec3s)   shader->SetUniform(name, val);
     for (const auto& [name, val] : m_vec4s)   shader->SetUniform(name, val);
 }
