@@ -18,6 +18,8 @@
 #include <assimp/scene.h>
 #include <assimp/material.h>
 
+#include <assimp/pbrmaterial.h>
+#include <assimp/GltfMaterial.h>
 #include <spdlog/spdlog.h>
 
 #include <filesystem>
@@ -364,12 +366,14 @@ ModelData ImportModelFromFile(const std::string& path)
             }
 
             float metallic = 0.0f;
-            if (aiMat->Get(AI_MATKEY_METALLIC_FACTOR, metallic) == AI_SUCCESS) {
+            if (aiMat->Get(AI_MATKEY_METALLIC_FACTOR, metallic) == AI_SUCCESS ||
+                aiMat->Get(AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLIC_FACTOR, metallic) == AI_SUCCESS) {
                 info.metallicValue = metallic;
             }
 
             float roughness = 0.5f;
-            if (aiMat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness) == AI_SUCCESS) {
+            if (aiMat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness) == AI_SUCCESS ||
+                aiMat->Get(AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_ROUGHNESS_FACTOR, roughness) == AI_SUCCESS) {
                 info.roughnessValue = roughness;
             }
 
@@ -379,9 +383,10 @@ ModelData ImportModelFromFile(const std::string& path)
             }
 
             float normalScale = 1.0f;
-            if (aiMat->Get(AI_MATKEY_BUMPSCALING, normalScale) == AI_SUCCESS) {
-                info.normalScale = normalScale;
+            if (aiMat->Get(AI_MATKEY_GLTF_TEXTURE_SCALE(aiTextureType_NORMALS, 0), normalScale) != AI_SUCCESS) {
+                aiMat->Get(AI_MATKEY_BUMPSCALING, normalScale);
             }
+            info.normalScale = normalScale;
         }
         materials.push_back(std::move(info));
         return idx;

@@ -1355,13 +1355,15 @@
       "doubleSided": true,
       "name": "roof",
       "normalTexture": {
-        "index": 2
+        "index": 2,
+        "scale": 1.6
       },
       "pbrMetallicRoughness": {
         "baseColorTexture": {
           "index": 0
         },
-        "metallicFactor": 0.0,
+        "metallicFactor": 0.3,
+        "roughnessFactor": 0.3,
         "metallicRoughnessTexture": {
           "index": 1
         }
@@ -1470,13 +1472,15 @@
       "doubleSided": true,
       "name": "floor_plank_wood",
       "normalTexture": {
-        "index": 16
+        "index": 16,
+        "scale": 1.6
       },
       "pbrMetallicRoughness": {
         "baseColorTexture": {
           "index": 14
         },
         "metallicFactor": 0.0,
+        "roughnessFactor": 0.5,
         "metallicRoughnessTexture": {
           "index": 15
         }
