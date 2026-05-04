@@ -76,7 +76,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
         glm::glm
 )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE imgui)
+target_link_libraries(${PROJECT_NAME} PUBLIC imgui)
 
 # stb_image — header-only, expose include dir
 if(TARGET stb)
