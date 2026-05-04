@@ -59,8 +59,15 @@ private:
     std::vector<std::unique_ptr<MaterialInstance>> m_castleMatInstances; ///< Instances per GLTF material
 
     // ── Cherry Blossom System ────────────────────────────────────────────────
-    std::unique_ptr<MeshBuffer> m_petalMesh;                  ///< Reusable mesh for all petals (simple cube)
+    std::unique_ptr<MeshBuffer> m_primitivePetalMesh;         ///< Primitive mesh used for petals
+    std::shared_ptr<Material> m_petalBaseMaterial;            ///< Base material for petals
+    std::vector<std::unique_ptr<MaterialInstance>> m_petalMatInstances; ///< Instances for petal materials
     std::vector<Petal> m_petals;                              ///< Logic state for each individual petal
+
+    // ── Moon ──────────────────────────────────────────────────────────────────
+    ModelData m_moonModel;                                    ///< Raw model data for the moon
+    std::shared_ptr<Material> m_moonBaseMaterial;             ///< Base material for the moon
+    std::vector<std::unique_ptr<MaterialInstance>> m_moonMatInstances; ///< Instances for moon materials
 
     // ── Sekiro player model ───────────────────────────────────────────────────
     ModelData                             m_sekiroModel;       ///< Raw model data for the player character

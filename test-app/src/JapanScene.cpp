@@ -93,25 +93,118 @@ bool JapanScene::Setup() {
             if (emissiveTex) inst->SetTexture(TextureSlot::Emissive, emissiveTex);
         }
 
+        if (!matInfo.specularGlossinessPath.empty()) {
+            auto sgTex = AssetImporter::LoadTexture(matInfo.specularGlossinessPath, TextureColorSpace::sRGB);
+            if (sgTex) inst->SetTexture(TextureSlot::SpecularGlossiness, sgTex);
+        }
+
         // Apply physical properties extracted from the GLTF file
         inst->SetVec3("u_AlbedoColor", matInfo.albedoColor);
         inst->SetFloat("u_MetallicValue", matInfo.metallicValue);
         inst->SetFloat("u_RoughnessValue", matInfo.roughnessValue);
+        inst->SetBool("u_IsSpecularGlossiness", matInfo.isSpecularGlossiness);
+        if (matInfo.isSpecularGlossiness) {
+            inst->SetVec3("u_SpecularFactor", matInfo.specularFactor);
+            inst->SetFloat("u_GlossinessFactor", matInfo.glossinessFactor);
+        }
         inst->SetVec3("u_EmissiveColor", matInfo.emissiveColor);
         inst->SetFloat("u_NormalScale", matInfo.normalScale);
 
         m_castleMatInstances.push_back(std::move(inst));
     }
 
-    // ── Castle Material Tweaks ───────────────────────────────────────────────
-    // Example: Override specific material properties from the source file.
-    // This addresses the user's request for a way to tweak things in source.
-    for (auto& inst : m_castleMatInstances) {
-        if (inst->GetName() == "roof") {
-            inst->SetFloat("u_NormalScale", 1.6f); 
-            inst->SetFloat("u_MetallicValue", 0.3f);
-            inst->SetFloat("u_RoughnessValue", 0.3f);
-            spdlog::info("[JapanScene] Tweaked 'roof' material: normalScale=1.6, metallic=0.3, roughness=0.3");
+    // ── Petal Model (Primitive path) ─────────────────────────────────────────
+    auto petalData = GenerateCube({.colorMode = ColorMode::Solid, .baseColor = {1.0f, 0.75f, 0.79f}}); // Pinkish
+    m_primitivePetalMesh = std::make_unique<MeshBuffer>(petalData.CreateMeshBuffer());
+
+    m_petalBaseMaterial = std::make_shared<Material>(meshShader);
+    auto inst = std::make_unique<MaterialInstance>(m_petalBaseMaterial);
+    inst->SetName("PrimitivePetalMaterial");
+    inst->SetVec3("u_AlbedoColor", {1.0f, 0.75f, 0.79f});
+    inst->SetFloat("u_RoughnessValue", 0.8f);
+    inst->SetTexture(TextureSlot::Albedo, whiteFallback);
+    m_petalMatInstances.push_back(std::move(inst));
+
+    // ── Moon Model ───────────────────────────────────────────────────────────
+    m_moonModel = AssetImporter::LoadModel(
+        "assets/models/gltf/moon/scene.gltf");
+
+    if (!m_moonModel.IsValid())
+        spdlog::warn("[JapanScene] Moon model failed to load");
+
+    m_moonBaseMaterial = std::make_shared<Material>(meshShader);
+    m_moonBaseMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
+
+    for (const ModelMaterialInfo &matInfo: m_moonModel.materials) {
+        auto inst = std::make_unique<MaterialInstance>(m_moonBaseMaterial);
+        inst->SetName(matInfo.name);
+
+        std::shared_ptr<Texture2D> tex;
+        if (!matInfo.diffusePath.empty())
+            tex = AssetImporter::LoadTexture(matInfo.diffusePath, TextureColorSpace::sRGB);
+        inst->SetTexture(TextureSlot::Albedo, tex ? tex : whiteFallback);
+
+        if (!matInfo.normalPath.empty()) {
+            auto normalTex = AssetImporter::LoadTexture(matInfo.normalPath, TextureColorSpace::Linear);
+            if (normalTex) inst->SetTexture(TextureSlot::Normal, normalTex);
+        }
+
+        if (!matInfo.metallicRoughnessPath.empty()) {
+            auto mrTex = AssetImporter::LoadTexture(matInfo.metallicRoughnessPath, TextureColorSpace::Linear);
+            if (mrTex) {
+                inst->SetTexture(TextureSlot::Metallic, mrTex);
+                inst->SetTexture(TextureSlot::Roughness, mrTex);
+            }
+        }
+
+        inst->SetVec3("u_AlbedoColor", matInfo.albedoColor);
+        inst->SetFloat("u_MetallicValue", matInfo.metallicValue);
+        inst->SetFloat("u_RoughnessValue", matInfo.roughnessValue);
+        inst->SetBool("u_IsSpecularGlossiness", matInfo.isSpecularGlossiness);
+        if (matInfo.isSpecularGlossiness) {
+            inst->SetVec3("u_SpecularFactor", matInfo.specularFactor);
+            inst->SetFloat("u_GlossinessFactor", matInfo.glossinessFactor);
+        }
+
+        // The moon should glow. We use its diffuse texture as the emissive source
+        // to keep crater details, with a slight warm tint and increased strength.
+        if (tex) {
+            inst->SetTexture(TextureSlot::Emissive, tex);
+            inst->SetVec3("u_EmissiveColor", {0.6f, 0.0f, 0.0f});
+            inst->SetFloat("u_EmissiveStrength", 2.0f);
+        } else {
+            inst->SetVec3("u_EmissiveColor", matInfo.emissiveColor);
+            inst->SetFloat("u_EmissiveStrength", 2.0f);
+        }
+
+        if (!matInfo.specularGlossinessPath.empty()) {
+            auto sgTex = AssetImporter::LoadTexture(matInfo.specularGlossinessPath, TextureColorSpace::sRGB);
+            if (sgTex) inst->SetTexture(TextureSlot::SpecularGlossiness, sgTex);
+        }
+
+        m_moonMatInstances.push_back(std::move(inst));
+    }
+
+    // ── Moon Render Item ─────────────────────────────────────────────────────
+    if (m_moonModel.IsValid()) {
+        const uint32_t subMeshCount = m_moonModel.mesh->SubMeshCount();
+        for (uint32_t i = 0; i < subMeshCount; ++i) {
+            const SubMesh &sm = m_moonModel.mesh->GetSubMesh(i);
+            RenderItem item;
+            item.meshMulti = m_moonModel.mesh.get();
+            item.subMeshIndex = i;
+            if (sm.materialIndex < m_moonMatInstances.size())
+                item.material = m_moonMatInstances[sm.materialIndex].get();
+            else
+                item.material = m_moonMatInstances.empty() ? nullptr : m_moonMatInstances[0].get();
+            
+            // Position the moon far away in the sky
+            item.transform.SetTranslation({-120.0f, 250.0f, -200.0f});
+            item.transform.SetScale({0.4f, 0.4f, 0.4f});
+            item.flags.castShadow = false;
+            item.flags.receiveShadow = false;
+            
+            AddObject(item);
         }
     }
 
@@ -128,7 +221,11 @@ bool JapanScene::Setup() {
             item.meshMulti = m_castleModel.mesh.get();
             item.subMeshIndex = i;
             // Map the submesh to its corresponding material instance
-            item.material = m_castleMatInstances[sm.materialIndex].get();
+            if (sm.materialIndex < m_castleMatInstances.size())
+                item.material = m_castleMatInstances[sm.materialIndex].get();
+            else
+                item.material = m_castleMatInstances.empty() ? nullptr : m_castleMatInstances[0].get();
+
             item.transform.SetScale({0.01f, 0.01f, 0.01f});
             item.flags.castShadow = true;
             item.flags.receiveShadow = true;
@@ -140,14 +237,7 @@ bool JapanScene::Setup() {
     }
 
     // ── Cherry Blossom Petals (CPU particle system) ──────────────────────────
-    // We use a simple pink-colored cube as the base mesh for each petal.
-    m_petalMesh = std::make_unique<MeshBuffer>(
-        GenerateCube({
-            .colorMode = ColorMode::Solid,
-            .baseColor = {1.0f, 0.6f, 0.8f} // pink
-        }).CreateMeshBuffer());
-
-    constexpr int PETAL_COUNT = 1000;
+    constexpr int PETAL_COUNT = 1500; // Restored high count for primitive petals
 
     // Initialize individual petals with random properties for variety.
     for (int i = 0; i < PETAL_COUNT; ++i) {
@@ -173,23 +263,23 @@ bool JapanScene::Setup() {
         p.rotSpeed = Rand(0.5f, 2.0f);
         p.baseScale = Rand(0.05f, 0.15f);
 
+        // Primitive path
         RenderItem item;
-        item.mesh = m_petalMesh.get();
-        item.shader = meshShader.get();
-        item.transform.SetScale({0.1f, 0.02f, 0.1f}); // Flatten the cube into a flake/petal
+        item.mesh = m_primitivePetalMesh.get();
+        item.material = m_petalMatInstances[0].get();
+        item.transform.SetScale({0.1f, 0.02f, 0.1f});
         item.transform.SetTranslation(p.pos);
 
-        // Disable shadows for petals to save performance (there are 500 of them)
         item.flags.castShadow = false;
         item.flags.receiveShadow = false;
 
-        p.idx = AddObject(item); // Register with the scene and store the ID
+        p.idx = AddObject(item);
         m_petals.push_back(p);
     }
 
     // ── Camera Configuration ─────────────────────────────────────────────────
     Camera cam;
-    cam.SetPosition({19.0f, 2.0f, 8.0f});
+    cam.SetPosition({20.0f, 0.0f, 10.0f});
     cam.SetOrientation(-150.0f, 32.0f);
     SetCamera(cam);
     SetFirstPersonEyeHeight(2.20f); // Adjusts where the camera sits relative to the player position
@@ -207,7 +297,7 @@ bool JapanScene::Setup() {
         DirectionalLightBuilder()
         .Direction({-0.35f, -1.0f, -0.25f})
         .Color({1.0f, 0.98f, 0.92f})
-        .Intensity(0.0f)
+        .Intensity(0.5f)
         .CastShadow(true)
         .ShadowResolution(2048, 2048)
         .Name("JapanSun")
@@ -232,18 +322,18 @@ bool JapanScene::Setup() {
     AddLight({-9.16f, 5.70f, 9.12f}, {1, 0, 0}, 30, "Floor 0 Red 3");
     AddLight({-9.16f, 5.70f, -9.12f}, {1, 0, 0}, 30, "Floor 0 Red 4");
 
-    AddLight({5.66f, 14.65f, 5.61f}, {1.0f, 0.47f, 0.47f}, 30, "Floor 1 Pink 1");
-    AddLight({5.59f, 14.63f, -5.64f}, {1.0f, 0.47f, 0.47f}, 30, "Floor 1 Pink 2");
-    AddLight({-5.56f, 14.69f, 5.62f}, {1.0f, 0.47f, 0.47f}, 30, "Floor 1 Pink 3");
-    AddLight({-5.56f, 14.69f, -5.62f}, {1.0f, 0.47f, 0.47f}, 30, "Floor 1 Pink 3");
+    AddLight({5.66f, 14.65f, 5.61f}, {1.0f, 0.47f, 0.47f}, 10, "Floor 1 Pink 1");
+    AddLight({5.59f, 14.63f, -5.64f}, {1.0f, 0.47f, 0.47f}, 10, "Floor 1 Pink 2");
+    AddLight({-5.56f, 14.69f, 5.62f}, {1.0f, 0.47f, 0.47f}, 10, "Floor 1 Pink 3");
+    AddLight({-5.56f, 14.69f, -5.62f}, {1.0f, 0.47f, 0.47f}, 10, "Floor 1 Pink 3");
 
     AddLight({9.08f, 5.48f, 9.13f}, {1, 1, 1}, 5, "White 1");
     AddLight({9.11f, 5.44f, -9.16f}, {1, 1, 1}, 5, "White 2");
 
     AddLight({19.86f, -0.10f, -3.21f}, {1.0f, 0.73f, 0.01f}, 10, "Steps Warm 1");
     AddLight({19.77f, -0.01f, 3.12f}, {1.0f, 0.73f, 0.01f}, 10, "Steps Warm 2");
-    AddLight({12.25f, 3.0f, -3.0f}, {1.0f, 0.73f, 0.01f}, 10, "Steps Warm 3");
-    AddLight({12.25f, 3.0f, 3.0f}, {1.0f, 0.73f, 0.01f}, 10, "Steps Warm 4");
+    //AddLight({12.25f, 3.0f, -3.0f}, {1.0f, 0.73f, 0.01f}, 10, "Steps Warm 3");
+    //AddLight({12.25f, 3.0f, 3.0f}, {1.0f, 0.73f, 0.01f}, 10, "Steps Warm 4");
 
     AddLight({0.00f, 32.00f, 0.00f}, {1.0f, 0.47f, 0.47f}, 100, "TopLight");
 
@@ -289,7 +379,17 @@ bool JapanScene::Setup() {
         inst->SetVec3("u_AlbedoColor", matInfo.albedoColor);
         inst->SetFloat("u_MetallicValue", matInfo.metallicValue);
         inst->SetFloat("u_RoughnessValue", matInfo.roughnessValue);
+        inst->SetBool("u_IsSpecularGlossiness", matInfo.isSpecularGlossiness);
+        if (matInfo.isSpecularGlossiness) {
+            inst->SetVec3("u_SpecularFactor", matInfo.specularFactor);
+            inst->SetFloat("u_GlossinessFactor", matInfo.glossinessFactor);
+        }
         inst->SetVec3("u_EmissiveColor", matInfo.emissiveColor);
+
+        if (!matInfo.specularGlossinessPath.empty()) {
+            auto sgTex = AssetImporter::LoadTexture(matInfo.specularGlossinessPath, TextureColorSpace::sRGB);
+            if (sgTex) inst->SetTexture(TextureSlot::SpecularGlossiness, sgTex);
+        }
 
         // Apply our custom color overrides if they match the material name
         auto it = kSekiroColors.find(matInfo.name);
@@ -311,7 +411,11 @@ bool JapanScene::Setup() {
             RenderItem item;
             item.meshMulti = m_sekiroModel.mesh.get();
             item.subMeshIndex = i;
-            item.material = m_sekiroMatInstances[sm.materialIndex].get();
+            if (sm.materialIndex < m_sekiroMatInstances.size())
+                item.material = m_sekiroMatInstances[sm.materialIndex].get();
+            else
+                item.material = m_sekiroMatInstances.empty() ? nullptr : m_sekiroMatInstances[0].get();
+            
             item.transform.SetTranslation(m_playerPosition);
             item.transform.SetScale({0.01f, 0.01f, 0.01f});
             item.flags.castShadow = true;
@@ -404,11 +508,8 @@ void JapanScene::OnUpdate(float deltaTime, IInputProvider &input) {
         // Simulate 'fluttering' by oscillating the scale slightly
         float flutter = std::sin(p.swayPhase * 5.0f) * 0.2f + 1.0f;
 
-        glm::vec3 scale = {
-            p.baseScale * flutter,
-            p.baseScale * 0.2f,
-            p.baseScale
-        };
+        // Apply flattened non-uniform scale (X and Z are wider than Y)
+        glm::vec3 scale = glm::vec3(p.baseScale * flutter, p.baseScale * flutter * 0.2f, p.baseScale * flutter);
 
         t.SetScale(scale);
 

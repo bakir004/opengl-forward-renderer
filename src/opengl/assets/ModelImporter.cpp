@@ -358,11 +358,31 @@ ModelData ImportModelFromFile(const std::string& path)
                 info.aoPath = ResolveTexturePath(aiMat, aiTextureType_AMBIENT, modelDir, embeddedMap);
             }
             info.emissivePath = ResolveTexturePath(aiMat, aiTextureType_EMISSIVE, modelDir, embeddedMap);
+            info.specularGlossinessPath = ResolveTexturePath(aiMat, aiTextureType_SPECULAR, modelDir, embeddedMap);
 
             aiColor3D color(1.f, 1.f, 1.f);
             if (aiMat->Get(AI_MATKEY_BASE_COLOR, color) == AI_SUCCESS ||
                 aiMat->Get(AI_MATKEY_COLOR_DIFFUSE, color) == AI_SUCCESS) {
                 info.albedoColor = {color.r, color.g, color.b};
+            }
+
+            if (aiMat->Get(AI_MATKEY_GLTF_PBRSPECULARGLOSSINESS, info.isSpecularGlossiness) != AI_SUCCESS) {
+                // Some Assimp versions might not set this boolean directly, check for specular factor
+                aiColor3D spec(0.f, 0.f, 0.f);
+                if (aiMat->Get(AI_MATKEY_COLOR_SPECULAR, spec) == AI_SUCCESS) {
+                    // This is a hint it might be spec-gloss if it's a GLTF
+                }
+            }
+
+            if (info.isSpecularGlossiness) {
+                aiColor3D spec(1.f, 1.f, 1.f);
+                if (aiMat->Get(AI_MATKEY_COLOR_SPECULAR, spec) == AI_SUCCESS) {
+                    info.specularFactor = {spec.r, spec.g, spec.b};
+                }
+                float gloss = 1.0f;
+                if (aiMat->Get(AI_MATKEY_GLOSSINESS_FACTOR, gloss) == AI_SUCCESS) {
+                    info.glossinessFactor = gloss;
+                }
             }
 
             float metallic = 0.0f;

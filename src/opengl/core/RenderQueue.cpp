@@ -55,6 +55,8 @@ namespace
         SetOptionalIntUniform(programId, TextureSlot::Roughness, MaterialTextureUnit::Roughness);
         SetOptionalIntUniform(programId, TextureSlot::AO, MaterialTextureUnit::AO);
         SetOptionalIntUniform(programId, TextureSlot::Emissive, MaterialTextureUnit::Emissive);
+        SetOptionalIntUniform(programId, TextureSlot::SpecularGlossiness, MaterialTextureUnit::SpecularGlossiness);
+        SetOptionalIntUniform(programId, "u_CascadeShadowMaps", 7);
         SetOptionalVec3Uniform(programId, "u_AlbedoColor", kDefaultPbrAlbedoColor);
         SetOptionalFloatUniform(programId, "u_MetallicValue", kDefaultPbrMetallicValue);
         SetOptionalFloatUniform(programId, "u_RoughnessValue", kDefaultPbrRoughnessValue);
@@ -65,6 +67,7 @@ namespace
         SetOptionalIntUniform(programId, "u_HasRoughnessMap", 0);
         SetOptionalIntUniform(programId, "u_HasAoMap", 0);
         SetOptionalIntUniform(programId, "u_HasEmissiveMap", 0);
+        SetOptionalIntUniform(programId, "u_HasSpecularGlossinessMap", 0);
     }
 
 } // namespace
@@ -214,6 +217,7 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
                 Texture2D::Unbind(MaterialTextureUnit::Roughness);
                 Texture2D::Unbind(MaterialTextureUnit::AO);
                 Texture2D::Unbind(MaterialTextureUnit::Emissive);
+                Texture2D::Unbind(MaterialTextureUnit::SpecularGlossiness);
                 lastShader = item.shader;
                 lastMaterial = nullptr;
             }
@@ -241,8 +245,10 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
             activeShader->SetUniform("u_ReceiveShadow", item.flags.receiveShadow ? 1 : 0);
 
             // ── Cascaded shadow data (directional light only) ─────────────
-            if (m_hasShadowData && item.flags.receiveShadow)
+            if (m_hasShadowData)
             {
+                // Always set these if shadow data is present, even if this object 
+                // doesn't receive shadows, to ensure u_CascadeShadowMaps stays on unit 7.
                 for (uint32_t i = 0; i < CascadedShadowMap::kNumCascades; ++i)
                 {
                     const std::string idx = "[" + std::to_string(i) + "]";
