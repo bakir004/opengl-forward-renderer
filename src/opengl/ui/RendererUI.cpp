@@ -364,7 +364,7 @@ void RendererUI::DrawTopbar(int fbW,
         ImGui::SameLine(0, 8);
 
         // --- View ---
-        if (MenuButton("View", wireframeOverride || showSidebar, "V"))
+        if (MenuButton("View", wireframeOverride || showSidebar || !skyboxOverride, "V"))
             ImGui::OpenPopup("##viewPopup");
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 12));
@@ -373,6 +373,10 @@ void RendererUI::DrawTopbar(int fbW,
             if (ImGui::MenuItem("Inspector", "S", showSidebar))
                 showSidebar = !showSidebar;
             ImGui::Separator();
+            if (ImGui::MenuItem("Skybox", nullptr, skyboxOverride)) {
+                skyboxOverride = !skyboxOverride;
+                scene.SetSkyboxVisible(skyboxOverride);
+            }
             if (ImGui::MenuItem("Wireframe", "Z", wireframeOverride))
                 wireframeOverride = !wireframeOverride;
             if (ImGui::MenuItem("Shaded", nullptr, !wireframeOverride))
@@ -653,6 +657,11 @@ void RendererUI::DrawViewport(int fbW, int fbH,
                     [&] { wireframeOverride = !wireframeOverride; });
             ToolBtn("N", normalMapOverride, "N", "Toggle Normal Maps",
                     [&] { normalMapOverride = !normalMapOverride; });
+            ToolBtn("S", skyboxOverride, "K", "Toggle Skybox",
+                    [&] {
+                        skyboxOverride = !skyboxOverride;
+                        scene.SetSkyboxVisible(skyboxOverride);
+                    });
         }
     }
     ImGui::End();
@@ -1073,6 +1082,7 @@ void RendererUI::DrawHelpWindow(int fbW, int fbH) {
         KeyRow("X", "Toggle inspector");
         KeyRow("Z", "Wireframe mode");
         KeyRow("N", "Toggle normal map");
+        KeyRow("K", "Toggle skybox");
         KeyRow("H", "Help window");
 
         ImGui::Dummy(ImVec2(0.0f, ImGui::GetContentRegionAvail().y - 30.0f));

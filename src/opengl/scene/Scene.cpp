@@ -13,6 +13,10 @@ void Scene::SetClearColor(glm::vec4 color) {
     m_clearColor = color;
 }
 
+void Scene::SetSkybox(std::shared_ptr<Skybox> skybox) {
+    m_skybox = std::move(skybox);
+}
+
 size_t Scene::AddObject(RenderItem item) {
     if (!item.material && !item.shader)
         spdlog::warn("[Scene] AddObject: RenderItem has no material or shader — will render with error shader");
@@ -52,6 +56,7 @@ void Scene::InternalUpdate(float deltaTime, IInputProvider& input, int fbWidth, 
 
 void Scene::BuildSubmission(FrameSubmission& out) const {
     out.camera                   = &m_camera;
+    out.skybox                   = m_skyboxVisible ? m_skybox.get() : nullptr;
     out.clearInfo.clearColor     = m_clearColor;
     out.clearInfo.clearFlags     = ClearFlags::ColorDepth;
     out.lights                   = m_lights;

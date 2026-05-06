@@ -185,7 +185,23 @@ GLuint ShaderProgram::CompileStage(const string& source, GLenum stageType, const
     glGetIntegerv(GL_MAJOR_VERSION, &major);
     glGetIntegerv(GL_MINOR_VERSION, &minor);
     string versionStr = "#version " + std::to_string(major) + std::to_string(minor) + "0 core\n";
-    const char* sources[] = { versionStr.c_str(), source.c_str() };
+    // Trim leading BOM and whitespace
+    std::string trimmedSource = source;
+    // Remove UTF-8 BOM if present (EF BB BF)
+    if (trimmedSource.size() >= 3 && 
+        (unsigned char)trimmedSource[0] == 0xEF && 
+        (unsigned char)trimmedSource[1] == 0xBB && 
+        (unsigned char)trimmedSource[2] == 0xBF) {
+        trimmedSource.erase(0, 3);
+    }
+    
+    // Trim leading whitespace
+    size_t firstContent = trimmedSource.find_first_not_of(" \t\r\n");
+    if (firstContent != std::string::npos && firstContent > 0) {
+        trimmedSource.erase(0, firstContent);
+    }
+
+    const char* sources[] = { versionStr.c_str(), trimmedSource.c_str() };
 
     GLuint shader = glCreateShader(stageType);
     glShaderSource(shader, 2, sources, nullptr);

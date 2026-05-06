@@ -1,6 +1,7 @@
 #include "assets/AssetImporter.h"
 #include "core/ShaderProgram.h"
 #include "core/Texture2D.h"
+#include "core/TextureCubemap.h"
 #include "core/Material.h"
 #include "core/MeshBuffer.h"
 #include "core/Primitives.h"   // fallback cube geometry
@@ -28,6 +29,7 @@ namespace fs = std::filesystem;
 
 std::unordered_map<std::string, std::shared_ptr<ShaderProgram>> AssetImporter::s_shaders;
 std::unordered_map<std::string, std::shared_ptr<Texture2D>>     AssetImporter::s_textures;
+std::unordered_map<std::string, std::shared_ptr<TextureCubemap>> AssetImporter::s_cubemaps;
 std::unordered_map<std::string, std::shared_ptr<MeshBuffer>>    AssetImporter::s_meshes;
 std::unordered_map<std::string, std::shared_ptr<Material>>      AssetImporter::s_materials;
 std::unordered_map<std::string, ModelData>                      AssetImporter::s_models;
@@ -94,22 +96,24 @@ void AssetImporter::CollectUnused() {
     };
     evict(s_shaders);
     evict(s_textures);
+    evict(s_cubemaps);
     evict(s_meshes);
     evict(s_materials);
-    spdlog::debug("[AssetImporter] CollectUnused — {} shaders, {} textures, {} meshes, {} materials remain",
-                  s_shaders.size(), s_textures.size(), s_meshes.size(), s_materials.size());
+    spdlog::debug("[AssetImporter] CollectUnused — {} shaders, {} textures, {} cubemaps, {} meshes, {} materials remain",
+                  s_shaders.size(), s_textures.size(), s_cubemaps.size(), s_meshes.size(), s_materials.size());
 }
 
 void AssetImporter::Clear() {
     s_shaders.clear();
     s_textures.clear();
+    s_cubemaps.clear();
     s_meshes.clear();
     s_materials.clear();
     spdlog::info("[AssetImporter] All caches cleared");
 }
 
 std::size_t AssetImporter::CachedCount() {
-    return s_shaders.size() + s_textures.size() + s_meshes.size() + s_materials.size();
+    return s_shaders.size() + s_textures.size() + s_cubemaps.size() + s_meshes.size() + s_materials.size();
 }
 
 AssetCacheStats AssetImporter::GetCacheStats() {
@@ -224,6 +228,32 @@ std::shared_ptr<Texture2D> AssetImporter::LoadTexture(const std::string& path,
 
     s_textures[resolved] = tex;
     return tex;
+}
+
+std::shared_ptr<TextureCubemap> AssetImporter::LoadCubemap(const std::array<std::string, 6>& facePaths,
+                                                           TextureColorSpace colorSpace,
+                                                           bool flipY) {
+    std::string key;
+    std::array<std::string, 6> resolvedPaths;
+    for (size_t i = 0; i < 6; ++i) {
+        resolvedPaths[i] = ResolvePath(facePaths[i]);
+        key += resolvedPaths[i] + (i == 5 ? "" : "|");
+    }
+
+    auto it = s_cubemaps.find(key);
+    if (it != s_cubemaps.end()) {
+        spdlog::debug("[AssetImporter] Cubemap cache hit: '{}'", key);
+        return it->second;
+    }
+
+    auto cubemap = std::make_shared<TextureCubemap>(resolvedPaths, colorSpace, flipY);
+    if (!cubemap->IsValid()) {
+        spdlog::error("[AssetImporter] Cubemap load failed: '{}'", key);
+        return nullptr;
+    }
+
+    s_cubemaps[key] = cubemap;
+    return cubemap;
 }
 
 // ---------------------------------------------------------------------------

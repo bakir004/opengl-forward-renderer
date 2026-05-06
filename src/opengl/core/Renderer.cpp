@@ -1,5 +1,6 @@
 #include "core/Renderer.h"
 #include "core/Camera.h"
+#include "core/Skybox.h"
 #include "core/Mesh.h"
 #include "core/MeshBuffer.h"
 #include "core/shadows/CascadedShadowMap.h"
@@ -218,6 +219,9 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
 
     submission.clearInfo.Apply();
     submission.context.Apply(m_currentContext);
+
+    m_currentSkybox = submission.skybox;
+    m_currentCamera = submission.camera;
 }
 
 void Renderer::EndFrame()
@@ -238,6 +242,11 @@ void Renderer::EndFrame()
 
     m_queue.Sort();
     const RenderQueueFrameStats queueStats = m_queue.Flush(m_currentContext);
+    
+    // Render Skybox last (it uses GL_LEQUAL and .xyww to only draw on empty pixels)
+    if (m_currentSkybox && m_currentCamera) {
+        m_currentSkybox->Draw(m_currentCamera->GetProjection(), m_currentCamera->GetView());
+    }
     m_debugStats.processedRenderItemCount = queueStats.processedItemCount;
     m_debugStats.drawCallCount = queueStats.drawCallCount;
     m_debugStats.approxTriangleCount = queueStats.approxTriangleCount;

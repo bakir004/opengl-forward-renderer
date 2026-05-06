@@ -309,7 +309,7 @@ ModelData ImportModelFromFile(const std::string& path)
 
         case TangentSource::Unavailable:
             ++meshesNoUV;
-            spdlog::warn("[ModelImporter]   mesh[{}] '{}': no UV channel — "
+            spdlog::debug("[ModelImporter]   mesh[{}] '{}': no UV channel — "
                          "tangent generation skipped; normal mapping unavailable for this submesh",
                          m, mesh->mName.C_Str());
             break;

@@ -17,7 +17,7 @@ int main() {
         spdlog::error("[TestApp] Application::Initialize() failed — aborting");
         return -1;
     }
-
+/*
     SampleScene sampleScene;
     if (!sampleScene.Setup())
         spdlog::warn("[TestApp] SampleScene::Setup() failed — scene may render incomplete");
@@ -50,6 +50,11 @@ int main() {
         "[TestApp] Press 1 for SampleScene | Press 2 for SolarSystemScene | Press 3 for DioramaScene | Press 4 for NeonCityScene | Press 5 for JapanScene | Press 6 for PbrValidationScene | Press 7 for NormalMapScene");
 
     app.Run({&sampleScene, &solarSystemScene, &dioramaScene, &neonCityScene, &japanScene, &pbrValidationScene, &normalMapScene}, 0);
+*/
+    JapanScene japanScene;
+    if (!japanScene.Setup())
+        spdlog::warn("[TestApp] JapanScene::Setup() failed");
+    app.Run({&japanScene});
 
     spdlog::info("[TestApp] Shutting down");
     return 0;

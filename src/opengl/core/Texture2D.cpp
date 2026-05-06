@@ -47,6 +47,11 @@ Texture2D::Texture2D(const std::string& path,
     spdlog::info("[Texture2D] Loaded '{}' ({}x{}, {} ch, {})",
                  path, m_width, m_height, channels,
                  (colorSpace == TextureColorSpace::sRGB) ? "sRGB" : "Linear");
+
+    if (m_width > 4096 || m_height > 4096) {
+        spdlog::warn("[Texture2D] Large texture detected: {}x{}. This may impact performance and memory.", 
+                     m_width, m_height);
+    }
 }
 
 Texture2D Texture2D::CreateFallback(unsigned char r, unsigned char g,

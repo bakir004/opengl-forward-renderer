@@ -8,9 +8,11 @@
 #include <glm/glm.hpp>
 #include <string>
 #include <vector>
+#include <memory>
 
 class IInputProvider;
 struct FrameSubmission;
+class Skybox;
 
 /// Base class for all scenes.
 ///
@@ -32,6 +34,12 @@ public:
     /// Called once per frame. Override to handle input and update scene state.
     virtual void OnUpdate(float deltaTime, IInputProvider& input) {}
 
+    /// Sets whether the skybox should be rendered.
+    void SetSkyboxVisible(bool visible) { m_skyboxVisible = visible; }
+
+    /// Returns whether the skybox is currently set to be rendered.
+    bool IsSkyboxVisible() const { return m_skyboxVisible; }
+
     /// Called during the ImGui frame. Override to draw custom debug UI for the scene.
     virtual void OnImGuiRender() {}
 
@@ -41,6 +49,9 @@ protected:
 
     /// Sets the background clear colour.
     void SetClearColor(glm::vec4 color);
+
+    /// Sets the scene skybox.
+    void SetSkybox(std::shared_ptr<Skybox> skybox);
 
     /// Adds a render item to the scene.
     /// @return Index that can be passed to GetObject() for per-frame updates.
@@ -92,6 +103,8 @@ private:
 
     Camera               m_camera;
     StandardSceneCameraController m_standardCameraController;
+    std::shared_ptr<Skybox> m_skybox;
+    bool                 m_skyboxVisible = true;
     LightEnvironment     m_lights;
     std::vector<RenderItem> m_objects;
     glm::vec4            m_clearColor = {0.08f, 0.09f, 0.12f, 1.0f};

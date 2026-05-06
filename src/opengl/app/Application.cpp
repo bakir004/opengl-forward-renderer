@@ -182,7 +182,7 @@ void Application::RunFrame(Scene &scene,
         RenderItem di = item;
         if (m_ui->wireframeOverride) di.drawMode = DrawMode::Wireframe;
         if (di.material) {
-            const_cast<MaterialInstance*>(di.material)->SetUseNormalMap(m_ui->normalMapOverride);
+            const_cast<MaterialInstance *>(di.material)->SetUseNormalMap(m_ui->normalMapOverride);
         }
         m_renderer->SubmitDraw(di);
     }
@@ -254,7 +254,7 @@ void Application::Run(const std::vector<Scene *> &scenes, std::size_t initialIdx
     spdlog::info("[Application] Starting at scene {}", m_activeSceneIndex);
 
     while (!glfwWindowShouldClose(m_window)) {
-        Scene* scene = m_scenes[m_activeSceneIndex];
+        Scene *scene = m_scenes[m_activeSceneIndex];
         if (!scene) continue;
 
         RunFrame(*scene, m_scenes, m_activeSceneIndex);
@@ -266,11 +266,10 @@ void Application::Run(const std::vector<Scene *> &scenes, std::size_t initialIdx
 
             if (m_input->IsKeyPressed(GLFW_KEY_1 + static_cast<int>(i)) &&
                 m_activeSceneIndex != i) {
-
                 m_activeSceneIndex = i;
                 spdlog::info("[Application] Switched to scene {} (key {})", i, i + 1);
                 break;
-                }
+            }
         }
 
         RunHotKeys();
@@ -301,6 +300,11 @@ void Application::RunHotKeys() {
     if (m_input->IsKeyPressed(GLFW_KEY_N)) {
         m_ui->normalMapOverride = !m_ui->normalMapOverride;
         spdlog::debug("[Application] Toggle normal maps: {}", m_ui->normalMapOverride);
+    }
+    if (m_input->IsKeyPressed(GLFW_KEY_K)) {
+        m_ui->skyboxOverride = !m_ui->skyboxOverride;
+        m_scenes[m_activeSceneIndex]->SetSkyboxVisible(m_ui->skyboxOverride);
+        spdlog::debug("[Application] Toggle skybox: {}", m_ui->skyboxOverride);
     }
 
     if (m_input->IsKeyPressed(GLFW_KEY_C)) {
