@@ -12,6 +12,8 @@
 
 struct RenderItem;
 struct FrameSubmission;
+class Skybox;
+class Camera;
 
 /// Small per-frame debug snapshot used by the runtime stats UI.
 struct ShadowFrustumDebugInfo
@@ -78,6 +80,8 @@ class Renderer
     std::unique_ptr<ShaderProgram> m_errorShader;
     std::unique_ptr<ShaderProgram> m_shadowDepthShader;
     std::unique_ptr<CascadedShadowMap> m_directionalShadowMap;
+    const Skybox* m_currentSkybox = nullptr;
+    const Camera* m_currentCamera = nullptr;
     std::array<glm::mat4, CascadedShadowMap::kNumCascades> m_cascadeViewProj{};
     std::array<float, CascadedShadowMap::kNumCascades> m_cascadeSplits{};
     int m_shadowPcfRadius = 1;

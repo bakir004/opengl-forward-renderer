@@ -3,6 +3,7 @@
 #include "core/IInputProvider.h"
 #include "core/Primitives.h"
 #include "core/Texture2D.h"
+#include "core/Skybox.h"
 #include "scene/LightBuilder.h"
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
@@ -132,6 +133,19 @@ bool JapanScene::Setup() {
     if (!m_moonModel.IsValid())
         spdlog::warn("[JapanScene] Moon model failed to load");
 
+    // ── Skybox ──────────────────────────────────────────────────────────────
+    // Load the test skybox textures from the assets folder.
+    std::vector<std::string> skyboxFaces = {
+        "assets/skybox/test_skybox/px.png",
+        "assets/skybox/test_skybox/nx.png",
+        "assets/skybox/test_skybox/py.png",
+        "assets/skybox/test_skybox/ny.png",
+        "assets/skybox/test_skybox/pz.png",
+        "assets/skybox/test_skybox/nz.png"
+    };
+    auto skybox = std::make_shared<Skybox>(skyboxFaces);
+    SetSkybox(skybox);
+    
     m_moonBaseMaterial = std::make_shared<Material>(meshShader);
     m_moonBaseMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
 

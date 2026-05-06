@@ -31,6 +31,8 @@ add_library(${PROJECT_NAME} STATIC
         opengl/scene/LightUtils.cpp
         opengl/scene/LightBlock.cpp
         opengl/core/Texture2D.cpp
+        opengl/core/TextureCubemap.cpp
+        opengl/core/Skybox.cpp
         opengl/core/shadows/CascadedShadowMap.cpp
         opengl/core/Material.cpp
         opengl/assets/AssetImporter.cpp
