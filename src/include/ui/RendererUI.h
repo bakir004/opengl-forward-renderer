@@ -48,6 +48,10 @@ public:
     bool wireframeOverride = false;
     bool normalMapOverride = true;
     bool skyboxOverride = true;
+    // After: bool skyboxOverride = true;
+    bool  tonemapEnabled  = true;
+    int   tonemapOperator = 1;   // 0=Reinhard, 1=ACES, 2=Uncharted2
+    float exposure        = 1.0f;
     bool showHelpWindow = false;
     bool showSidebar = true;
 

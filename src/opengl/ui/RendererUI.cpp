@@ -992,6 +992,26 @@ void RendererUI::DrawTabShadow(Scene &scene, const RendererDebugStats &stats) {
 // ─────────────────────────────────────────────────────────────────────────────
 void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats,
                               const AssetCacheStats &cs) {
+                                    
+        if (SectionHeader("Tone Mapping")) {
+        ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
+
+        ImGui::Checkbox("Enabled", &tonemapEnabled);
+
+        if (tonemapEnabled) {
+            // Operator selector — Person 6 will add ACES and Uncharted2 labels
+            static const char* kOps[] = { "Reinhard", "ACES (P6)", "Uncharted2 (P6)" };
+            ImGui::Combo("Operator", &tonemapOperator, kOps, IM_ARRAYSIZE(kOps));
+
+            // Exposure control (Person 5 scope)
+            ImGui::SliderFloat("Exposure", &exposure, 0.1f, 10.0f, "%.2f");
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Multiplier applied to HDR color before tone mapping");
+        }
+
+        ImGui::PopStyleColor();
+        ImGui::Spacing();
+    }
     if (SectionHeader("Performance")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
         ImGui::Text("FPS           : %.1f", stats.fps);
