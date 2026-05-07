@@ -268,9 +268,9 @@ void Application::RenderPostProcess(int x, int y, int width, int height)
 
     m_toneMappingShader->Bind();
     m_toneMappingShader->SetUniform("u_HdrColor", 0);
-    m_toneMappingShader->SetUniform("u_TonemapOperator", 1);
-    m_toneMappingShader->SetUniform("u_Exposure", 1.0f);
-    m_toneMappingShader->SetUniform("u_TonemapEnabled", true);
+    m_toneMappingShader->SetUniform("u_TonemapOperator", m_ui->tonemapOperator);
+    m_toneMappingShader->SetUniform("u_Exposure",        m_ui->exposure);
+    m_toneMappingShader->SetUniform("u_TonemapEnabled",  m_ui->tonemapEnabled);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, stats.hdrColorTextureId);
