@@ -9,6 +9,8 @@ class IInputProvider;
 class InputManager;
 class Scene;
 class RendererUI;
+class ShaderProgram;
+class FullscreenQuad;
 
 /// Top-level application class. Owns the GLFW window and the Renderer.
 /// Manages the full lifetime of the window, GL context, and main loop.
@@ -55,6 +57,8 @@ private:
     std::unique_ptr<Renderer> m_renderer;
     std::unique_ptr<InputManager> m_input;
     std::unique_ptr<RendererUI> m_ui;
+    std::unique_ptr<ShaderProgram> m_toneMappingShader;
+    std::unique_ptr<FullscreenQuad> m_fullscreenQuad;
     float m_lastFrameTime = 0.0f;
     bool m_imguiInitialized = false;
 
@@ -70,6 +74,8 @@ private:
     void RunFrame(Scene &scene,
                   const std::vector<Scene *> &scenes,
                   std::size_t &activeSceneIndex);
+
+    void RenderPostProcess(int x, int y, int width, int height);
 
     void RunHotKeys();
 };

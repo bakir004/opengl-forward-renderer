@@ -9,8 +9,11 @@
 #include "utils/Options.h"
 #include "core/Material.h"
 #include "core/Renderer.h"
+#include "core/ShaderProgram.h"
+#include "core/FullscreenQuad.h"
 #include "core/InputManager.h"
 #include "core/MouseInput.h"
+#include <glad/glad.h>
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl3.h>
@@ -31,13 +34,16 @@
 // because the renderer viewport is a sub-region of the window (sidebar excluded).
 // RendererUI::Draw() calls renderer.Resize(vpW, vpH) each frame instead.
 // We keep the callback only to handle GL context invalidation on some platforms.
-static void framebuffer_size_callback(GLFWwindow * /*window*/, int /*w*/, int /*h*/) {
+static void framebuffer_size_callback(GLFWwindow * /*window*/, int /*w*/, int /*h*/)
+{
     // Intentionally empty — resize is driven by RendererUI each frame.
 }
 
-static void scroll_callback(GLFWwindow *window, double /*xoff*/, double yoff) {
+static void scroll_callback(GLFWwindow *window, double /*xoff*/, double yoff)
+{
     auto *app = static_cast<Application *>(glfwGetWindowUserPointer(window));
-    if (!app || !app->GetInputManager()) return;
+    if (!app || !app->GetInputManager())
+        return;
     app->GetInputManager()->GetMouse().OnScroll(static_cast<float>(yoff));
 }
 
@@ -45,19 +51,25 @@ static void scroll_callback(GLFWwindow *window, double /*xoff*/, double yoff) {
 // Ctor / Dtor
 // ─────────────────────────────────────────────────────────────────────────────
 Application::Application()
-    : m_renderer(std::make_unique<Renderer>())
-      , m_ui(std::make_unique<RendererUI>()) {
+    : m_renderer(std::make_unique<Renderer>()), m_ui(std::make_unique<RendererUI>())
+{
 }
 
-Application::~Application() {
-    if (m_imguiInitialized) {
+Application::~Application()
+{
+    m_fullscreenQuad.reset();
+    m_toneMappingShader.reset();
+
+    if (m_imguiInitialized)
+    {
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
         ImGui::DestroyContext();
         m_imguiInitialized = false;
     }
     m_renderer->Shutdown();
-    if (m_window) {
+    if (m_window)
+    {
         glfwDestroyWindow(m_window);
         m_window = nullptr;
     }
@@ -67,11 +79,13 @@ Application::~Application() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Initialize
 // ─────────────────────────────────────────────────────────────────────────────
-bool Application::Initialize() {
+bool Application::Initialize()
+{
 #ifndef NDEBUG
     spdlog::set_level(spdlog::level::debug);
 #endif
-    if (!glfwInit()) {
+    if (!glfwInit())
+    {
         spdlog::error("[Application] glfwInit() failed");
         return false;
     }
@@ -81,12 +95,14 @@ bool Application::Initialize() {
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 #endif
 
-    struct GLVer {
+    struct GLVer
+    {
         int major, minor;
     };
     const GLVer versions[] = {{4, 6}, {4, 5}, {4, 4}, {4, 3}, {4, 2}, {4, 1}, {4, 0}, {3, 3}};
     int cMaj = 0, cMin = 0;
-    for (const auto &v: versions) {
+    for (const auto &v : versions)
+    {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, v.major);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, v.minor);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -94,13 +110,15 @@ bool Application::Initialize() {
         glfwWindowHint(GLFW_DEPTH_BITS, 24);
         m_window = glfwCreateWindow(options.window.width, options.window.height,
                                     options.window.title.c_str(), nullptr, nullptr);
-        if (m_window) {
+        if (m_window)
+        {
             cMaj = v.major;
             cMin = v.minor;
             break;
         }
     }
-    if (!m_window) {
+    if (!m_window)
+    {
         spdlog::error("[Application] Failed to create GLFW window (tried GL 4.6–3.3)");
         glfwTerminate();
         return false;
@@ -115,7 +133,11 @@ bool Application::Initialize() {
     glfwSwapInterval(options.window.vsync ? 1 : 0);
     spdlog::info("[Application] VSync {}", options.window.vsync ? "on" : "off");
 
-    if (!m_renderer->Initialize()) return false;
+    if (!m_renderer->Initialize())
+        return false;
+    m_toneMappingShader = std::make_unique<ShaderProgram>(
+        "assets/shaders/tone_mapping.vert", "assets/shaders/tone_mapping.frag");
+    m_fullscreenQuad = std::make_unique<FullscreenQuad>();
 
     m_input = std::make_unique<InputManager>(m_window);
 
@@ -124,18 +146,22 @@ bool Application::Initialize() {
     ImGui::StyleColorsDark();
 
     if (!ImGui_ImplGlfw_InitForOpenGL(m_window, true) ||
-        !ImGui_ImplOpenGL3_Init("#version 330")) {
+        !ImGui_ImplOpenGL3_Init("#version 330"))
+    {
         spdlog::warn("[Application] ImGui init failed — UI disabled");
         ImGui_ImplGlfw_Shutdown();
         ImGui::DestroyContext();
-    } else {
+    }
+    else
+    {
         m_imguiInitialized = true;
         spdlog::info("[Application] ImGui initialized");
     }
     return true;
 }
 
-void Application::GetFramebufferSize(int &w, int &h) const {
+void Application::GetFramebufferSize(int &w, int &h) const
+{
     glfwGetFramebufferSize(m_window, &w, &h);
 }
 
@@ -144,7 +170,8 @@ void Application::GetFramebufferSize(int &w, int &h) const {
 // ─────────────────────────────────────────────────────────────────────────────
 void Application::RunFrame(Scene &scene,
                            const std::vector<Scene *> &scenes,
-                           std::size_t &activeSceneIndex) {
+                           std::size_t &activeSceneIndex)
+{
     glfwPollEvents();
     m_input->Update();
 
@@ -174,22 +201,29 @@ void Application::RunFrame(Scene &scene,
     sub.clearInfo.viewport = {
         vpX, 0, // y=0: GL bottom-left origin
         vpW > 0 ? vpW : fbW,
-        vpH > 0 ? vpH : fbH
-    };
+        vpH > 0 ? vpH : fbH};
 
     m_renderer->BeginFrame(sub);
-    for (const auto &item: sub.objects) {
+    for (const auto &item : sub.objects)
+    {
         RenderItem di = item;
-        if (m_ui->wireframeOverride) di.drawMode = DrawMode::Wireframe;
-        if (di.material) {
+        if (m_ui->wireframeOverride)
+            di.drawMode = DrawMode::Wireframe;
+        if (di.material)
+        {
             const_cast<MaterialInstance *>(di.material)->SetUseNormalMap(m_ui->normalMapOverride);
         }
         m_renderer->SubmitDraw(di);
     }
     m_renderer->EndFrame();
+    RenderPostProcess(sub.clearInfo.viewport.x,
+                      sub.clearInfo.viewport.y,
+                      sub.clearInfo.viewport.width,
+                      sub.clearInfo.viewport.height);
 
     // ── ImGui ─────────────────────────────────────────────────────────────────
-    if (m_imguiInitialized) {
+    if (m_imguiInitialized)
+    {
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
@@ -211,7 +245,45 @@ void Application::RunFrame(Scene &scene,
 // ─────────────────────────────────────────────────────────────────────────────
 // Update  (single-scene variant called by external custom loops)
 // ─────────────────────────────────────────────────────────────────────────────
-void Application::Update(Scene &scene) {
+void Application::RenderPostProcess(int x, int y, int width, int height)
+{
+    if (!m_toneMappingShader || !m_toneMappingShader->IsValid() ||
+        !m_fullscreenQuad || width <= 0 || height <= 0)
+    {
+        return;
+    }
+
+    const RendererDebugStats &stats = m_renderer->GetDebugStats();
+    if (stats.hdrColorTextureId == 0)
+    {
+        return;
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(x, y, width, height);
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glDisable(GL_BLEND);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    m_toneMappingShader->Bind();
+    m_toneMappingShader->SetUniform("u_HdrColor", 0);
+    m_toneMappingShader->SetUniform("u_TonemapOperator", 1);
+    m_toneMappingShader->SetUniform("u_Exposure", 1.0f);
+    m_toneMappingShader->SetUniform("u_TonemapEnabled", true);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, stats.hdrColorTextureId);
+    m_fullscreenQuad->Draw();
+    glBindTexture(GL_TEXTURE_2D, 0);
+    ShaderProgram::Unbind();
+
+    glDepthMask(GL_TRUE);
+    glEnable(GL_DEPTH_TEST);
+}
+
+void Application::Update(Scene &scene)
+{
     std::vector<Scene *> sv = {&scene};
     std::size_t idx = 0;
     RunFrame(scene, sv, idx);
@@ -220,10 +292,12 @@ void Application::Update(Scene &scene) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Run (single scene)
 // ─────────────────────────────────────────────────────────────────────────────
-void Application::Run(Scene &scene) {
+void Application::Run(Scene &scene)
+{
     std::vector<Scene *> sv = {&scene};
     std::size_t idx = 0;
-    while (!glfwWindowShouldClose(m_window)) {
+    while (!glfwWindowShouldClose(m_window))
+    {
         RunFrame(scene, sv, idx);
         RunHotKeys();
     }
@@ -232,10 +306,12 @@ void Application::Run(Scene &scene) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Run (multiple scenes, keyboard 1–9 + topbar buttons switch scenes)
 // ─────────────────────────────────────────────────────────────────────────────
-void Application::Run(const std::vector<Scene *> &scenes, std::size_t initialIdx) {
+void Application::Run(const std::vector<Scene *> &scenes, std::size_t initialIdx)
+{
     m_scenes = scenes;
 
-    if (m_scenes.empty()) {
+    if (m_scenes.empty())
+    {
         spdlog::warn("[Application] No scenes");
         return;
     }
@@ -246,26 +322,32 @@ void Application::Run(const std::vector<Scene *> &scenes, std::size_t initialIdx
     while (m_activeSceneIndex < m_scenes.size() && !m_scenes[m_activeSceneIndex])
         ++m_activeSceneIndex;
 
-    if (m_activeSceneIndex >= m_scenes.size()) {
+    if (m_activeSceneIndex >= m_scenes.size())
+    {
         spdlog::warn("[Application] All scenes null");
         return;
     }
 
     spdlog::info("[Application] Starting at scene {}", m_activeSceneIndex);
 
-    while (!glfwWindowShouldClose(m_window)) {
+    while (!glfwWindowShouldClose(m_window))
+    {
         Scene *scene = m_scenes[m_activeSceneIndex];
-        if (!scene) continue;
+        if (!scene)
+            continue;
 
         RunFrame(*scene, m_scenes, m_activeSceneIndex);
 
         // keyboard scene switching
         const std::size_t maxK = std::min<std::size_t>(9, m_scenes.size());
-        for (std::size_t i = 0; i < maxK; ++i) {
-            if (!m_scenes[i]) continue;
+        for (std::size_t i = 0; i < maxK; ++i)
+        {
+            if (!m_scenes[i])
+                continue;
 
             if (m_input->IsKeyPressed(GLFW_KEY_1 + static_cast<int>(i)) &&
-                m_activeSceneIndex != i) {
+                m_activeSceneIndex != i)
+            {
                 m_activeSceneIndex = i;
                 spdlog::info("[Application] Switched to scene {} (key {})", i, i + 1);
                 break;
@@ -276,38 +358,46 @@ void Application::Run(const std::vector<Scene *> &scenes, std::size_t initialIdx
     }
 }
 
-void Application::RunHotKeys() {
-    if (m_input->IsKeyPressed(GLFW_KEY_F11)) {
+void Application::RunHotKeys()
+{
+    if (m_input->IsKeyPressed(GLFW_KEY_F11))
+    {
         ToggleFullscreen();
         spdlog::info("[Application] Toggle fullscreen: {}", m_fullscreen);
     }
 
-    if (m_input->IsKeyPressed(GLFW_KEY_X)) {
+    if (m_input->IsKeyPressed(GLFW_KEY_X))
+    {
         m_ui->showSidebar = !m_ui->showSidebar;
         spdlog::debug("[Application] Toggle sidebar (inspector): {}", m_ui->showSidebar);
     }
 
-    if (m_input->IsKeyPressed(GLFW_KEY_Y)) {
+    if (m_input->IsKeyPressed(GLFW_KEY_Y))
+    {
         m_ui->wireframeOverride = !m_ui->wireframeOverride;
         spdlog::debug("[Application] Toggle wireframe mode: {}", m_ui->wireframeOverride);
     }
 
-    if (m_input->IsKeyPressed(GLFW_KEY_H)) {
+    if (m_input->IsKeyPressed(GLFW_KEY_H))
+    {
         m_ui->showHelpWindow = !m_ui->showHelpWindow;
         spdlog::debug("[Application] Toggle help window: {}", m_ui->showHelpWindow);
     }
 
-    if (m_input->IsKeyPressed(GLFW_KEY_N)) {
+    if (m_input->IsKeyPressed(GLFW_KEY_N))
+    {
         m_ui->normalMapOverride = !m_ui->normalMapOverride;
         spdlog::debug("[Application] Toggle normal maps: {}", m_ui->normalMapOverride);
     }
-    if (m_input->IsKeyPressed(GLFW_KEY_K)) {
+    if (m_input->IsKeyPressed(GLFW_KEY_K))
+    {
         m_ui->skyboxOverride = !m_ui->skyboxOverride;
         m_scenes[m_activeSceneIndex]->SetSkyboxVisible(m_ui->skyboxOverride);
         spdlog::debug("[Application] Toggle skybox: {}", m_ui->skyboxOverride);
     }
 
-    if (m_input->IsKeyPressed(GLFW_KEY_C)) {
+    if (m_input->IsKeyPressed(GLFW_KEY_C))
+    {
         Camera &cam = m_scenes[m_activeSceneIndex]->GetCamera();
 
         CameraMode mode = cam.GetMode();
@@ -318,10 +408,12 @@ void Application::RunHotKeys() {
     }
 }
 
-void Application::ToggleFullscreen() {
+void Application::ToggleFullscreen()
+{
     m_fullscreen = !m_fullscreen;
 
-    if (m_fullscreen) {
+    if (m_fullscreen)
+    {
         // Save windowed position + size
         glfwGetWindowPos(m_window, &m_windowedX, &m_windowedY);
         glfwGetWindowSize(m_window, &m_windowedW, &m_windowedH);
@@ -335,9 +427,10 @@ void Application::ToggleFullscreen() {
             0, 0,
             mode->width,
             mode->height,
-            mode->refreshRate
-        );
-    } else {
+            mode->refreshRate);
+    }
+    else
+    {
         glfwSetWindowMonitor(
             m_window,
             nullptr,
@@ -345,7 +438,6 @@ void Application::ToggleFullscreen() {
             m_windowedY,
             m_windowedW,
             m_windowedH,
-            0
-        );
+            0);
     }
 }
