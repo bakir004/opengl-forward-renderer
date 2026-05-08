@@ -15,11 +15,7 @@ vec3 TonemapReinhard(vec3 hdrColor, float exposure)
 
 vec3 TonemapACES(vec3 hdrColor, float exposure)
 {
-    const float a = 2.51;
-    const float b = 0.03;
-    const float c = 2.43;
-    const float d = 0.59;
-    const float e = 0.14;
+    const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
 
     vec3 color = hdrColor * exposure;
     color = (color * (a * color + b)) / (color * (c * color + d) + e);
@@ -28,14 +24,8 @@ vec3 TonemapACES(vec3 hdrColor, float exposure)
 
 vec3 Uncharted2Curve(vec3 x)
 {
-    const float A = 0.15;
-    const float B = 0.50;
-    const float C = 0.10;
-    const float D = 0.20;
-    const float E = 0.02;
-    const float F = 0.30;
-    return ((x * (A * x + C * B) + D * E) /
-            (x * (A * x + B) + D * F)) - E / F;
+    const float A = 0.15, B = 0.50, C = 0.10, 0.20, E = 0.02, F = 0.30;
+    return ((x * (A * x + C * B) + D * E) / (x * (A * x + B) + D * F)) - E / F;
 }
 
 vec3 TonemapUncharted2(vec3 hdrColor, float exposure)
