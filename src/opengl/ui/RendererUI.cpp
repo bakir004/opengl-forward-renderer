@@ -1000,7 +1000,7 @@ void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats
 
         if (tonemapEnabled) {
             // Operator selector — Person 6 will add ACES and Uncharted2 labels
-            static const char* kOps[] = { "Reinhard", "ACES (P6)", "Uncharted2 (P6)" };
+            static const char* kOps[] = { "Reinhard", "ACES", "Uncharted2" };
             ImGui::Combo("Operator", &tonemapOperator, kOps, IM_ARRAYSIZE(kOps));
 
             // Exposure control (Person 5 scope)
