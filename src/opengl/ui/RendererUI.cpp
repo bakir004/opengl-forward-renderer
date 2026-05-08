@@ -1012,6 +1012,20 @@ void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats
         ImGui::PopStyleColor();
         ImGui::Spacing();
     }
+    if (SectionHeader("Bloom (Bright-Pass Extraction)")) {
+        ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
+
+        ImGui::SliderFloat("Threshold##bloom", &bloomThreshold, 0.0f, 5.0f, "%.2f");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Luminance threshold for bloom extraction. Higher = only brightest pixels bloom.");
+
+        ImGui::SliderFloat("Soft Knee##bloom", &bloomSoftKnee, 0.0f, 1.0f, "%.2f");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Smooth transition around threshold. 0 = hard cut, 0.5 = smooth ramp.");
+
+        ImGui::PopStyleColor();
+        ImGui::Spacing();
+    }
     if (SectionHeader("Performance")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
         ImGui::Text("FPS           : %.1f", stats.fps);

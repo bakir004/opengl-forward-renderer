@@ -52,6 +52,8 @@ public:
     bool  tonemapEnabled  = true;
     int   tonemapOperator = 1;   // 0=Reinhard, 1=ACES, 2=Uncharted2
     float exposure        = 1.0f;
+    float bloomThreshold  = 1.0f;
+    float bloomSoftKnee   = 0.15f;
     bool showHelpWindow = false;
     bool showSidebar = true;
 
