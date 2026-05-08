@@ -60,11 +60,16 @@ private:
     std::unique_ptr<RendererUI> m_ui;
     std::unique_ptr<ShaderProgram> m_toneMappingShader;
     std::unique_ptr<ShaderProgram> m_brightPassShader;
+    std::unique_ptr<ShaderProgram> m_gaussianBlurShader;
     std::unique_ptr<FullscreenQuad> m_fullscreenQuad;
     uint32_t m_brightPassFbo = 0;
     uint32_t m_brightPassTexture = 0;
     uint32_t m_brightPassWidth = 0;
     uint32_t m_brightPassHeight = 0;
+    uint32_t m_blurPingPongFbos[2] = {0, 0};
+    uint32_t m_blurPingPongTextures[2] = {0, 0};
+    uint32_t m_blurWidth = 0;
+    uint32_t m_blurHeight = 0;
     float m_lastFrameTime = 0.0f;
     bool m_imguiInitialized = false;
 

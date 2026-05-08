@@ -60,6 +60,7 @@ Application::~Application()
     m_fullscreenQuad.reset();
     m_toneMappingShader.reset();
     m_brightPassShader.reset();
+    m_gaussianBlurShader.reset();
 
     if (m_brightPassFbo != 0)
     {
@@ -70,6 +71,18 @@ Application::~Application()
     {
         glDeleteTextures(1, &m_brightPassTexture);
         m_brightPassTexture = 0;
+    }
+    if (m_blurPingPongFbos[0] != 0 || m_blurPingPongFbos[1] != 0)
+    {
+        glDeleteFramebuffers(2, m_blurPingPongFbos);
+        m_blurPingPongFbos[0] = 0;
+        m_blurPingPongFbos[1] = 0;
+    }
+    if (m_blurPingPongTextures[0] != 0 || m_blurPingPongTextures[1] != 0)
+    {
+        glDeleteTextures(2, m_blurPingPongTextures);
+        m_blurPingPongTextures[0] = 0;
+        m_blurPingPongTextures[1] = 0;
     }
 
     if (m_imguiInitialized)
@@ -151,6 +164,8 @@ bool Application::Initialize()
         "assets/shaders/tone_mapping.vert", "assets/shaders/tone_mapping.frag");
     m_brightPassShader = std::make_unique<ShaderProgram>(
         "assets/shaders/tone_mapping.vert", "assets/shaders/bright_pass.frag");
+    m_gaussianBlurShader = std::make_unique<ShaderProgram>(
+        "assets/shaders/tone_mapping.vert", "assets/shaders/gaussian_blur.frag");
     m_fullscreenQuad = std::make_unique<FullscreenQuad>();
 
     m_input = std::make_unique<InputManager>(m_window);
@@ -264,6 +279,8 @@ void Application::RunFrame(Scene &scene,
 // ─────────────────────────────────────────────────────────────────────────────
 void Application::RenderPostProcess(int x, int y, int width, int height)
 {
+    static constexpr int kGaussianBlurPassCount = 10;
+
     if (!m_toneMappingShader || !m_toneMappingShader->IsValid() ||
         !m_brightPassShader || !m_brightPassShader->IsValid() ||
         !m_fullscreenQuad || width <= 0 || height <= 0)
@@ -352,8 +369,113 @@ void Application::RenderPostProcess(int x, int y, int width, int height)
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Gaussian blur (Person 8): ping-pong between two floating-point targets
+    // using separable horizontal/vertical passes.
+    // ─────────────────────────────────────────────────────────────────────────
+    if (m_blurWidth != vpW || m_blurHeight != vpH)
+    {
+        if (m_blurPingPongFbos[0] != 0 || m_blurPingPongFbos[1] != 0)
+        {
+            glDeleteFramebuffers(2, m_blurPingPongFbos);
+            m_blurPingPongFbos[0] = 0;
+            m_blurPingPongFbos[1] = 0;
+        }
+        if (m_blurPingPongTextures[0] != 0 || m_blurPingPongTextures[1] != 0)
+        {
+            glDeleteTextures(2, m_blurPingPongTextures);
+            m_blurPingPongTextures[0] = 0;
+            m_blurPingPongTextures[1] = 0;
+        }
+
+        glGenFramebuffers(2, m_blurPingPongFbos);
+        glGenTextures(2, m_blurPingPongTextures);
+
+        bool blurTargetsValid = true;
+        for (int i = 0; i < 2; ++i)
+        {
+            glBindTexture(GL_TEXTURE_2D, m_blurPingPongTextures[i]);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
+                         static_cast<GLsizei>(vpW), static_cast<GLsizei>(vpH),
+                         0, GL_RGBA, GL_FLOAT, nullptr);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+            glBindFramebuffer(GL_FRAMEBUFFER, m_blurPingPongFbos[i]);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                   GL_TEXTURE_2D, m_blurPingPongTextures[i], 0);
+            const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+            if (status != GL_FRAMEBUFFER_COMPLETE)
+            {
+                spdlog::error("[Application] Gaussian blur ping-pong FBO {} incomplete (status=0x{:X})",
+                              i, static_cast<uint32_t>(status));
+                blurTargetsValid = false;
+            }
+        }
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        if (blurTargetsValid)
+        {
+            m_blurWidth = vpW;
+            m_blurHeight = vpH;
+            spdlog::info("[Application] Created Gaussian blur ping-pong FBOs ({}x{})", vpW, vpH);
+        }
+        else
+        {
+            glDeleteFramebuffers(2, m_blurPingPongFbos);
+            glDeleteTextures(2, m_blurPingPongTextures);
+            m_blurPingPongFbos[0] = 0;
+            m_blurPingPongFbos[1] = 0;
+            m_blurPingPongTextures[0] = 0;
+            m_blurPingPongTextures[1] = 0;
+            m_blurWidth = 0;
+            m_blurHeight = 0;
+        }
+    }
+
+    if (m_gaussianBlurShader && m_gaussianBlurShader->IsValid() &&
+        m_blurPingPongFbos[0] != 0 && m_blurPingPongFbos[1] != 0 &&
+        m_blurPingPongTextures[0] != 0 && m_blurPingPongTextures[1] != 0)
+    {
+        bool horizontal = true;
+        bool firstIteration = true;
+
+        glDisable(GL_DEPTH_TEST);
+        glDepthMask(GL_FALSE);
+        glDisable(GL_BLEND);
+
+        m_gaussianBlurShader->Bind();
+        m_gaussianBlurShader->SetUniform("u_Image", 0);
+
+        for (int i = 0; i < kGaussianBlurPassCount; ++i)
+        {
+            const int targetIndex = horizontal ? 0 : 1;
+            glBindFramebuffer(GL_FRAMEBUFFER, m_blurPingPongFbos[targetIndex]);
+            glViewport(0, 0, static_cast<GLsizei>(vpW), static_cast<GLsizei>(vpH));
+            glClear(GL_COLOR_BUFFER_BIT);
+
+            m_gaussianBlurShader->SetUniform("u_Horizontal", horizontal ? 1 : 0);
+
+            const uint32_t sourceTexture = firstIteration
+                                               ? m_brightPassTexture
+                                               : m_blurPingPongTextures[horizontal ? 1 : 0];
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, sourceTexture);
+            m_fullscreenQuad->Draw();
+
+            horizontal = !horizontal;
+            firstIteration = false;
+        }
+
+        glBindTexture(GL_TEXTURE_2D, 0);
+        ShaderProgram::Unbind();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Tone mapping: read HDR color, apply tone curve, gamma
-    // (Later: composite bloom onto HDR before tone mapping for better results)
+    // Person 9 (compositing) intentionally not done here.
     // ─────────────────────────────────────────────────────────────────────────
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(x, y, width, height);
