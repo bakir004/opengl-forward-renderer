@@ -1,5 +1,6 @@
 #pragma once
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -58,7 +59,12 @@ private:
     std::unique_ptr<InputManager> m_input;
     std::unique_ptr<RendererUI> m_ui;
     std::unique_ptr<ShaderProgram> m_toneMappingShader;
+    std::unique_ptr<ShaderProgram> m_brightPassShader;
     std::unique_ptr<FullscreenQuad> m_fullscreenQuad;
+    uint32_t m_brightPassFbo = 0;
+    uint32_t m_brightPassTexture = 0;
+    uint32_t m_brightPassWidth = 0;
+    uint32_t m_brightPassHeight = 0;
     float m_lastFrameTime = 0.0f;
     bool m_imguiInitialized = false;
 

@@ -59,6 +59,18 @@ Application::~Application()
 {
     m_fullscreenQuad.reset();
     m_toneMappingShader.reset();
+    m_brightPassShader.reset();
+
+    if (m_brightPassFbo != 0)
+    {
+        glDeleteFramebuffers(1, &m_brightPassFbo);
+        m_brightPassFbo = 0;
+    }
+    if (m_brightPassTexture != 0)
+    {
+        glDeleteTextures(1, &m_brightPassTexture);
+        m_brightPassTexture = 0;
+    }
 
     if (m_imguiInitialized)
     {
@@ -137,6 +149,8 @@ bool Application::Initialize()
         return false;
     m_toneMappingShader = std::make_unique<ShaderProgram>(
         "assets/shaders/tone_mapping.vert", "assets/shaders/tone_mapping.frag");
+    m_brightPassShader = std::make_unique<ShaderProgram>(
+        "assets/shaders/tone_mapping.vert", "assets/shaders/bright_pass.frag");
     m_fullscreenQuad = std::make_unique<FullscreenQuad>();
 
     m_input = std::make_unique<InputManager>(m_window);
@@ -245,9 +259,13 @@ void Application::RunFrame(Scene &scene,
 // ─────────────────────────────────────────────────────────────────────────────
 // Update  (single-scene variant called by external custom loops)
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// RenderPostProcess: bright-pass extraction + tone mapping
+// ─────────────────────────────────────────────────────────────────────────────
 void Application::RenderPostProcess(int x, int y, int width, int height)
 {
     if (!m_toneMappingShader || !m_toneMappingShader->IsValid() ||
+        !m_brightPassShader || !m_brightPassShader->IsValid() ||
         !m_fullscreenQuad || width <= 0 || height <= 0)
     {
         return;
@@ -259,6 +277,84 @@ void Application::RenderPostProcess(int x, int y, int width, int height)
         return;
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Bright-pass extraction: read HDR color, extract bright contribution
+    // ─────────────────────────────────────────────────────────────────────────
+    const uint32_t vpW = static_cast<uint32_t>(width);
+    const uint32_t vpH = static_cast<uint32_t>(height);
+
+    // Create or resize bright-pass FBO + texture
+    if (m_brightPassWidth != vpW || m_brightPassHeight != vpH)
+    {
+        if (m_brightPassFbo != 0)
+        {
+            glDeleteFramebuffers(1, &m_brightPassFbo);
+            m_brightPassFbo = 0;
+        }
+        if (m_brightPassTexture != 0)
+        {
+            glDeleteTextures(1, &m_brightPassTexture);
+            m_brightPassTexture = 0;
+        }
+
+        // Create floating-point color texture (GL_RGBA16F)
+        glGenTextures(1, &m_brightPassTexture);
+        glBindTexture(GL_TEXTURE_2D, m_brightPassTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
+                     static_cast<GLsizei>(vpW), static_cast<GLsizei>(vpH),
+                     0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        // Create FBO and attach color texture
+        glGenFramebuffers(1, &m_brightPassFbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, m_brightPassFbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                               m_brightPassTexture, 0);
+
+        const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+        if (status != GL_FRAMEBUFFER_COMPLETE)
+        {
+            spdlog::error("[Application] Bright-pass FBO incomplete (status=0x{:X})",
+                          static_cast<uint32_t>(status));
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        m_brightPassWidth = vpW;
+        m_brightPassHeight = vpH;
+        spdlog::info("[Application] Created bright-pass FBO ({}x{})", vpW, vpH);
+    }
+
+    // Render bright-pass to FBO
+    if (m_brightPassFbo != 0)
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, m_brightPassFbo);
+        glViewport(0, 0, static_cast<GLsizei>(vpW), static_cast<GLsizei>(vpH));
+        glDisable(GL_DEPTH_TEST);
+        glDepthMask(GL_FALSE);
+        glDisable(GL_BLEND);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        m_brightPassShader->Bind();
+        m_brightPassShader->SetUniform("u_HdrColor", 0);
+        m_brightPassShader->SetUniform("u_Threshold",  m_ui->bloomThreshold);
+        m_brightPassShader->SetUniform("u_SoftKnee",   m_ui->bloomSoftKnee);
+        m_brightPassShader->SetUniform("u_Exposure",   m_ui->exposure);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, stats.hdrColorTextureId);
+        m_fullscreenQuad->Draw();
+        glBindTexture(GL_TEXTURE_2D, 0);
+        ShaderProgram::Unbind();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Tone mapping: read HDR color, apply tone curve, gamma
+    // (Later: composite bloom onto HDR before tone mapping for better results)
+    // ─────────────────────────────────────────────────────────────────────────
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(x, y, width, height);
     glDisable(GL_DEPTH_TEST);
@@ -281,6 +377,7 @@ void Application::RenderPostProcess(int x, int y, int width, int height)
     glDepthMask(GL_TRUE);
     glEnable(GL_DEPTH_TEST);
 }
+
 
 void Application::Update(Scene &scene)
 {
