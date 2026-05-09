@@ -2,10 +2,14 @@ in vec2 v_TexCoord;
 
 out vec4 FragColor;
 
-uniform sampler2D u_HdrColor;
-uniform int u_TonemapOperator; // 0=Reinhard, 1=ACES, 2=Uncharted2
+uniform sampler2D u_HdrBuffer;
+uniform sampler2D u_BloomBlur;
+uniform float u_BloomStrength;
+uniform bool u_BloomEnabled;
 uniform float u_Exposure;
-uniform bool u_TonemapEnabled;
+uniform bool u_ToneMappingEnabled;
+uniform int u_ToneMappingOperator; // 0=Reinhard, 1=ACES, 2=Uncharted2
+uniform int u_DebugView; // 0=Final, 1=HDR only, 2=Bright-pass, 3=Blurred bloom, 4=No bloom
 
 vec3 TonemapReinhard(vec3 hdrColor, float exposure)
 {
@@ -41,29 +45,51 @@ vec3 TonemapUncharted2(vec3 hdrColor, float exposure)
     return curr / whitePoint;
 }
 
-vec3 ApplyGammaCorrection(vec3 color)
+vec3 ApplyToneMapping(vec3 hdrColor)
 {
-    return pow(max(color, vec3(0.0)), vec3(1.0 / 2.2));
+    if (!u_ToneMappingEnabled)
+        return hdrColor * u_Exposure;
+
+    if (u_ToneMappingOperator == 0)
+        return TonemapReinhard(hdrColor, u_Exposure);
+    if (u_ToneMappingOperator == 1)
+        return TonemapACES(hdrColor, u_Exposure);
+    return TonemapUncharted2(hdrColor, u_Exposure);
 }
 
 void main()
 {
-    vec3 hdrColor = texture(u_HdrColor, v_TexCoord).rgb;
-    vec3 result = hdrColor;
+    vec3 hdrColor = texture(u_HdrBuffer, v_TexCoord).rgb;
+    vec3 bloomColor = texture(u_BloomBlur, v_TexCoord).rgb;
+    vec3 combinedHdr = hdrColor;
+    if (u_BloomEnabled)
+        combinedHdr += bloomColor * u_BloomStrength;
 
-    if (u_TonemapEnabled)
+    vec3 outputColor = vec3(0.0);
+    if (u_DebugView == 0)
     {
-        if (u_TonemapOperator == 0)
-            result = TonemapReinhard(hdrColor, u_Exposure);
-        else if (u_TonemapOperator == 1)
-            result = TonemapACES(hdrColor, u_Exposure);
-        else
-            result = TonemapUncharted2(hdrColor, u_Exposure);
+        outputColor = ApplyToneMapping(combinedHdr);
+    }
+    else if (u_DebugView == 1)
+    {
+        // Inspect scene HDR contribution only.
+        outputColor = ApplyToneMapping(hdrColor);
+    }
+    else if (u_DebugView == 2)
+    {
+        outputColor = ApplyToneMapping(bloomColor);
+    }
+    else if (u_DebugView == 3)
+    {
+        outputColor = ApplyToneMapping(bloomColor);
+    }
+    else if (u_DebugView == 4)
+    {
+        outputColor = ApplyToneMapping(hdrColor);
     }
     else
     {
-        result = hdrColor * u_Exposure;
+        outputColor = ApplyToneMapping(combinedHdr);
     }
-
-    FragColor = vec4(ApplyGammaCorrection(result), 1.0);
+    FragColor = vec4(outputColor, 1.0);
 }

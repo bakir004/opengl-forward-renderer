@@ -49,11 +49,16 @@ public:
     bool normalMapOverride = true;
     bool skyboxOverride = true;
     // After: bool skyboxOverride = true;
-    bool  tonemapEnabled  = true;
-    int   tonemapOperator = 1;   // 0=Reinhard, 1=ACES, 2=Uncharted2
-    float exposure        = 1.0f;
-    float bloomThreshold  = 1.0f;
-    float bloomSoftKnee   = 0.15f;
+    bool  tonemapEnabled        = true;
+    int   tonemapOperator       = 1;   // 0=Reinhard, 1=ACES, 2=Uncharted2
+    float exposure              = 1.0f;
+    bool  bloomEnabled          = true;
+    float bloomStrength         = 1.0f;
+    float bloomThreshold        = 1.0f;
+    bool  bloomSoftThreshold    = true;
+    float bloomSoftKnee         = 0.15f;
+    int   bloomBlurIterations   = 10;
+    int   postFxDebugView       = 0;   // 0=Final, 1=HDR only, 2=Bright-pass, 3=Blurred bloom, 4=No bloom
     bool showHelpWindow = false;
     bool showSidebar = true;
 

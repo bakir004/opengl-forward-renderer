@@ -1004,7 +1004,7 @@ void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats
             ImGui::Combo("Operator", &tonemapOperator, kOps, IM_ARRAYSIZE(kOps));
 
             // Exposure control (Person 5 scope)
-            ImGui::SliderFloat("Exposure", &exposure, 0.1f, 10.0f, "%.2f");
+            ImGui::SliderFloat("Exposure", &exposure, 0.1f, 5.0f, "%.2f");
             if (ImGui::IsItemHovered())
                 ImGui::SetTooltip("Multiplier applied to HDR color before tone mapping");
         }
@@ -1012,16 +1012,25 @@ void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats
         ImGui::PopStyleColor();
         ImGui::Spacing();
     }
-    if (SectionHeader("Bloom (Bright-Pass Extraction)")) {
+    if (SectionHeader("Bloom")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
 
-        ImGui::SliderFloat("Threshold##bloom", &bloomThreshold, 0.0f, 5.0f, "%.2f");
+        ImGui::Checkbox("Enabled##bloom", &bloomEnabled);
+        ImGui::SliderFloat("Strength##bloom", &bloomStrength, 0.0f, 3.0f, "%.2f");
+        ImGui::SliderFloat("Threshold##bloom", &bloomThreshold, 0.0f, 2.0f, "%.2f");
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("Luminance threshold for bloom extraction. Higher = only brightest pixels bloom.");
 
+        ImGui::Checkbox("Soft threshold##bloom", &bloomSoftThreshold);
+        ImGui::BeginDisabled(!bloomSoftThreshold);
         ImGui::SliderFloat("Soft Knee##bloom", &bloomSoftKnee, 0.0f, 1.0f, "%.2f");
+        ImGui::EndDisabled();
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("Smooth transition around threshold. 0 = hard cut, 0.5 = smooth ramp.");
+
+        ImGui::SliderInt("Blur iterations##bloom", &bloomBlurIterations, 1, 10);
+        const char *kDebugViews[] = {"Final", "HDR Only", "Bright-pass", "Blurred Bloom", "No Bloom"};
+        ImGui::Combo("Debug View##postfx", &postFxDebugView, kDebugViews, IM_ARRAYSIZE(kDebugViews));
 
         ImGui::PopStyleColor();
         ImGui::Spacing();

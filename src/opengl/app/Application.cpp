@@ -279,8 +279,6 @@ void Application::RunFrame(Scene &scene,
 // ─────────────────────────────────────────────────────────────────────────────
 void Application::RenderPostProcess(int x, int y, int width, int height)
 {
-    static constexpr int kGaussianBlurPassCount = 10;
-
     if (!m_toneMappingShader || !m_toneMappingShader->IsValid() ||
         !m_brightPassShader || !m_brightPassShader->IsValid() ||
         !m_fullscreenQuad || width <= 0 || height <= 0)
@@ -358,7 +356,8 @@ void Application::RenderPostProcess(int x, int y, int width, int height)
         m_brightPassShader->Bind();
         m_brightPassShader->SetUniform("u_HdrColor", 0);
         m_brightPassShader->SetUniform("u_Threshold",  m_ui->bloomThreshold);
-        m_brightPassShader->SetUniform("u_SoftKnee",   m_ui->bloomSoftKnee);
+        m_brightPassShader->SetUniform("u_SoftKnee",
+                                       m_ui->bloomSoftThreshold ? m_ui->bloomSoftKnee : 0.0f);
         m_brightPassShader->SetUniform("u_Exposure",   m_ui->exposure);
 
         glActiveTexture(GL_TEXTURE0);
@@ -435,6 +434,7 @@ void Application::RenderPostProcess(int x, int y, int width, int height)
         }
     }
 
+    const int blurPassCount = std::clamp(m_ui->bloomBlurIterations, 1, 10);
     if (m_gaussianBlurShader && m_gaussianBlurShader->IsValid() &&
         m_blurPingPongFbos[0] != 0 && m_blurPingPongFbos[1] != 0 &&
         m_blurPingPongTextures[0] != 0 && m_blurPingPongTextures[1] != 0)
@@ -449,7 +449,7 @@ void Application::RenderPostProcess(int x, int y, int width, int height)
         m_gaussianBlurShader->Bind();
         m_gaussianBlurShader->SetUniform("u_Image", 0);
 
-        for (int i = 0; i < kGaussianBlurPassCount; ++i)
+        for (int i = 0; i < blurPassCount; ++i)
         {
             const int targetIndex = horizontal ? 0 : 1;
             glBindFramebuffer(GL_FRAMEBUFFER, m_blurPingPongFbos[targetIndex]);
@@ -473,9 +473,26 @@ void Application::RenderPostProcess(int x, int y, int width, int height)
         ShaderProgram::Unbind();
     }
 
+    const uint32_t blurredBloomTexture = (blurPassCount % 2 == 1)
+                                             ? m_blurPingPongTextures[0]
+                                             : m_blurPingPongTextures[1];
+    const bool hasBlurredBloom = blurredBloomTexture != 0;
+    const bool hasBrightPass = m_brightPassTexture != 0;
+    const int debugView = std::clamp(m_ui->postFxDebugView, 0, 4);
+
+    uint32_t bloomInputForComposite = hasBlurredBloom ? blurredBloomTexture : stats.hdrColorTextureId;
+    if (debugView == 2 && hasBrightPass)
+    {
+        // Bright-pass debug mode uses slot 1 as the inspection source.
+        bloomInputForComposite = m_brightPassTexture;
+    }
+    else if (debugView == 3 && hasBlurredBloom)
+    {
+        bloomInputForComposite = blurredBloomTexture;
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
-    // Tone mapping: read HDR color, apply tone curve, gamma
-    // Person 9 (compositing) intentionally not done here.
+    // Final post-process composite: bloom in HDR + tone mapping to screen.
     // ─────────────────────────────────────────────────────────────────────────
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(x, y, width, height);
@@ -485,14 +502,23 @@ void Application::RenderPostProcess(int x, int y, int width, int height)
     glClear(GL_COLOR_BUFFER_BIT);
 
     m_toneMappingShader->Bind();
-    m_toneMappingShader->SetUniform("u_HdrColor", 0);
-    m_toneMappingShader->SetUniform("u_TonemapOperator", m_ui->tonemapOperator);
-    m_toneMappingShader->SetUniform("u_Exposure",        m_ui->exposure);
-    m_toneMappingShader->SetUniform("u_TonemapEnabled",  m_ui->tonemapEnabled);
+    m_toneMappingShader->SetUniform("u_HdrBuffer",           0);
+    m_toneMappingShader->SetUniform("u_BloomBlur",           1);
+    m_toneMappingShader->SetUniform("u_BloomStrength",       m_ui->bloomStrength);
+    m_toneMappingShader->SetUniform("u_BloomEnabled",        m_ui->bloomEnabled && hasBlurredBloom);
+    m_toneMappingShader->SetUniform("u_ToneMappingOperator", m_ui->tonemapOperator);
+    m_toneMappingShader->SetUniform("u_Exposure",            m_ui->exposure);
+    m_toneMappingShader->SetUniform("u_ToneMappingEnabled",  m_ui->tonemapEnabled);
+    m_toneMappingShader->SetUniform("u_DebugView",           debugView);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, stats.hdrColorTextureId);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, bloomInputForComposite);
     m_fullscreenQuad->Draw();
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, 0);
     ShaderProgram::Unbind();
 
