@@ -1056,6 +1056,7 @@ void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("Smooth transition around threshold. 0 = hard cut, 0.5 = smooth ramp.");
 
+        ImGui::SliderFloat("Radius##bloom", &bloomRadius, 0.1f, 5.0f, "%.2f");
         ImGui::SliderInt("Blur iterations##bloom", &bloomBlurIterations, 1, 10);
         const char *kDebugViews[] = {"Final", "HDR Only", "Bright-pass", "Blurred Bloom", "No Bloom"};
         ImGui::Combo("Debug View##postfx", &postFxDebugView, kDebugViews, IM_ARRAYSIZE(kDebugViews));

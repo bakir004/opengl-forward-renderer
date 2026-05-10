@@ -57,6 +57,7 @@ public:
     float bloomThreshold        = 1.0f;
     bool  bloomSoftThreshold    = true;
     float bloomSoftKnee         = 0.15f;
+    float bloomRadius           = 1.0f;
     int   bloomBlurIterations   = 10;
     int   postFxDebugView       = 0;   // 0=Final, 1=HDR only, 2=Bright-pass, 3=Blurred bloom, 4=No bloom
     bool showHelpWindow = false;
