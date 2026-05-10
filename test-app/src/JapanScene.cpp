@@ -4,12 +4,12 @@
 #include "core/Primitives.h"
 #include "core/Texture2D.h"
 #include "core/Skybox.h"
+#include "core/ShaderProgram.h"
 #include "scene/LightBuilder.h"
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <spdlog/spdlog.h>
-#include "core/ShaderProgram.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Small utility: random float in range [min, max]

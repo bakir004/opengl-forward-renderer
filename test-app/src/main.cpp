@@ -5,6 +5,7 @@
 #include "SolarSystemScene.h"
 #include "DioramaScene.h"
 #include "NeonCityScene.h"
+#include "JapanScene.h"
 #include "PbrValidationScene.h"
 #include "NormalMapScene.h"
 

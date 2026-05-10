@@ -1,6 +1,5 @@
 #include "app/Application.h"
 #include "assets/AssetImporter.h"
-#include "core/MeshBuffer.h"
 #include "scene/Scene.h"
 #include "scene/FrameSubmission.h"
 #include "scene/RenderItem.h"
@@ -12,6 +11,7 @@
 #include "core/FullscreenQuad.h"
 #include "core/InputManager.h"
 #include "core/MouseInput.h"
+#include "ui/RendererUI.h"
 #include <glad/glad.h>
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
@@ -22,7 +22,6 @@
 #include <cstdint>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
-#include <string_view>
 #include <string>
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -151,7 +150,7 @@ bool Application::Initialize()
     }
 
     spdlog::info("[Application] Window created ({}x{}, OpenGL {}.{} Core Profile)",
-        options.window.width, options.window.height, createdMajor, createdMinor);
+        options.window.width, options.window.height, cMaj, cMin);
 
     glfwMakeContextCurrent(m_window);
     glfwSetWindowUserPointer(m_window, this);
@@ -205,8 +204,8 @@ void Application::RunFrame(Scene &scene,
     glfwPollEvents();
     m_input->Update();
 
-    int w = 0, h = 0;
-    GetFramebufferSize(w, h);
+    int fbW = 0, fbH = 0;
+    GetFramebufferSize(fbW, fbH);
 
     const float now = static_cast<float>(glfwGetTime());
     const float dt = (m_lastFrameTime > 0.f) ? (now - m_lastFrameTime) : 0.f;

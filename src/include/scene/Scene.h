@@ -8,6 +8,7 @@
 #include <glm/glm.hpp>
 #include <vector>
 #include <memory>
+#include <string>
 
 class IInputProvider;
 struct FrameSubmission;
@@ -39,6 +40,9 @@ public:
     /// Called during the ImGui frame. Override to draw custom debug UI for the scene.
     virtual void OnImGuiRender() {}
 
+    /// Returns the display name used by UI/logging.
+    const std::string& GetName() const { return m_name; }
+
 protected:
     /// Replaces the scene camera.
     void SetCamera(Camera camera);
@@ -48,6 +52,9 @@ protected:
 
     /// Sets the scene skybox.
     void SetSkybox(std::shared_ptr<Skybox> skybox);
+
+    /// Sets the display name used by UI/logging.
+    void SetSceneName(std::string name) { m_name = std::move(name); }
 
     /// Adds a render item to the scene.
     /// @return Index that can be passed to GetObject() for per-frame updates.
@@ -101,6 +108,7 @@ private:
     LightEnvironment     m_lights;
     std::vector<RenderItem> m_objects;
     glm::vec4            m_clearColor = {0.08f, 0.09f, 0.12f, 1.0f};
+    std::string          m_name = "Scene";
     mutable bool         m_reportedInvalidLights = false;
 
     friend class Application;
