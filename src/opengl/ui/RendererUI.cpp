@@ -302,7 +302,7 @@ void RendererUI::DrawTopbar(int fbW,
                             const std::vector<Scene *> &scenes,
                             std::size_t &activeSceneIndex,
                             bool lookMode) {
-    const float pillWidth = 400.0f;
+    const float pillWidth = 520.0f;
     const float pillHeight = kTopbarHeight;
     const float pillX = (static_cast<float>(fbW) - pillWidth) * 0.5f;
     const float pillY = kPanelPadding;
@@ -381,6 +381,34 @@ void RendererUI::DrawTopbar(int fbW,
                 wireframeOverride = !wireframeOverride;
             if (ImGui::MenuItem("Shaded", nullptr, !wireframeOverride))
                 wireframeOverride = false;
+            ImGui::EndPopup();
+        }
+        ImGui::PopStyleVar(2);
+
+        ImGui::SameLine(0, 8);
+
+        // --- PostFX debug / integration menu ---
+        if (MenuButton("PostFX", tonemapEnabled || bloomEnabled || postFxDebugView != 0, nullptr))
+            ImGui::OpenPopup("##postFxPopup");
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 12));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 8));
+        if (ImGui::BeginPopup("##postFxPopup")) {
+            ImGui::TextColored(Pal::TextDim, "Intermediate View");
+            static const char *kDebugViews[] = {
+                "Final", "HDR Only", "Bright-pass", "Blurred Bloom", "No Bloom"
+            };
+            for (int i = 0; i < IM_ARRAYSIZE(kDebugViews); ++i) {
+                if (ImGui::MenuItem(kDebugViews[i], nullptr, postFxDebugView == i))
+                    postFxDebugView = i;
+            }
+
+            ImGui::Separator();
+            ImGui::MenuItem("Tone Mapping", nullptr, &tonemapEnabled);
+            ImGui::MenuItem("Bloom", nullptr, &bloomEnabled);
+            ImGui::SliderFloat("Exposure", &exposure, 0.1f, 5.0f, "%.2f");
+            ImGui::SliderFloat("Bloom Strength", &bloomStrength, 0.0f, 3.0f, "%.2f");
+            ImGui::SliderFloat("Bloom Threshold", &bloomThreshold, 0.0f, 2.0f, "%.2f");
             ImGui::EndPopup();
         }
         ImGui::PopStyleVar(2);
