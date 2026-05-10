@@ -1,0 +1,11 @@
+Model Information:
+* title:	Japanese Castle
+* source:	https://sketchfab.com/3d-models/japanese-castle-a37d9de4c8dc4f2da25698bb2028b10a
+* author:	Zorodroger (https://sketchfab.com/Zorodroger)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Japanese Castle" (https://sketchfab.com/3d-models/japanese-castle-a37d9de4c8dc4f2da25698bb2028b10a) by Zorodroger (https://sketchfab.com/Zorodroger) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
