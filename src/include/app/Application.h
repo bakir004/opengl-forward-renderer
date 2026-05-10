@@ -1,59 +1,92 @@
 #pragma once
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <vector>
 
 struct GLFWwindow;
 class Renderer;
-class KeyboardInput;
-class MouseInput;
+class IInputProvider;
+class InputManager;
 class Scene;
+class RendererUI;
+class ShaderProgram;
+class FullscreenQuad;
 
 /// Top-level application class. Owns the GLFW window and the Renderer.
 /// Manages the full lifetime of the window, GL context, and main loop.
 class Application {
-    public:
-        Application();
+public:
+    Application();
 
-        /// Destroys the window, terminates GLFW, and shuts down the renderer.
-        ~Application();
+    /// Destroys the window, terminates GLFW, and shuts down the renderer.
+    ~Application();
 
-        /// Creates the GLFW window, sets up the GL context, and initializes the Renderer.
-        /// Reads window settings (size, title, vsync) from config/settings.json via Options.
-        /// @return true on success, false if GLFW or GLAD initialization fails
-        bool Initialize();
+    /// Creates the GLFW window, sets up the GL context, and initializes the Renderer.
+    /// Reads window settings (size, title, vsync) from config/settings.json via Options.
+    /// @return true on success, false if GLFW or GLAD initialization fails
+    bool Initialize();
 
-        /// Runs the main loop, driving the given scene each frame.
-        /// Calls scene.OnUpdate() then renders all objects the scene contains.
-        void Run(Scene& scene);
+    /// Runs the main loop, driving the given scene each frame.
+    /// Calls scene.OnUpdate() then renders all objects the scene contains.
+    void Run(Scene &scene);
 
-        /// Runs the main loop with runtime scene switching.
-        /// Press numeric keys 1..9 to switch to scenes at matching indices.
-        /// @param scenes Ordered list of scene pointers. Null entries are ignored.
-        /// @param initialSceneIndex Index of the scene to start with.
-        void Run(const std::vector<Scene*>& scenes, std::size_t initialSceneIndex = 0);
+    /// Runs the main loop with runtime scene switching.
+    /// Press numeric keys 1..9 to switch to scenes at matching indices.
+    /// @param m_scenes Ordered list of scene pointers. Null entries are ignored.
+    /// @param initialSceneIndex Index of the scene to start with.
+    void Run(const std::vector<Scene *> &m_scenes, std::size_t initialSceneIndex = 0);
 
-        /// Executes one frame: poll events, update input, tick scene, render, swap.
-        /// Run() calls this in a loop; expose it here for custom loop control.
-        void Update(Scene& scene);
+    void ToggleFullscreen();
 
-        /// Returns a non-owning pointer to the active Renderer.
-        /// Used by the framebuffer resize callback to forward resize events.
-        Renderer* GetRenderer() const { return m_renderer.get(); }
+    /// Executes one frame: poll events, update input, tick scene, render, swap.
+    /// Run() calls this in a loop; expose it here for custom loop control.
+    void Update(Scene &scene);
 
-        /// Returns a non-owning pointer to the MouseInput.
-        MouseInput* GetMouseInput() const { return m_mouse.get(); }
+    /// Returns a non-owning pointer to the active Renderer.
+    /// Used by the framebuffer resize callback to forward resize events.
+    Renderer *GetRenderer() const { return m_renderer.get(); }
 
-        /// Returns the current framebuffer dimensions in pixels.
-        void GetFramebufferSize(int& width, int& height) const;
+    /// Returns a non-owning pointer to the InputManager.
+    InputManager *GetInputManager() const { return m_input.get(); }
 
-    private:
-        GLFWwindow* m_window = nullptr;
-        std::unique_ptr<Renderer>      m_renderer;
-        std::unique_ptr<KeyboardInput> m_input;
-        std::unique_ptr<MouseInput>    m_mouse;
-        float                          m_lastFrameTime = 0.0f;
-        bool                           m_imguiInitialized = false;
-        bool                           m_wireframeOverride = false;
-        bool                           m_showHelpWindow = false;
+    /// Returns the current framebuffer dimensions in pixels.
+    void GetFramebufferSize(int &width, int &height) const;
+
+private:
+    GLFWwindow *m_window = nullptr;
+    std::unique_ptr<Renderer> m_renderer;
+    std::unique_ptr<InputManager> m_input;
+    std::unique_ptr<RendererUI> m_ui;
+    std::unique_ptr<ShaderProgram> m_toneMappingShader;
+    std::unique_ptr<ShaderProgram> m_brightPassShader;
+    std::unique_ptr<ShaderProgram> m_gaussianBlurShader;
+    std::unique_ptr<FullscreenQuad> m_fullscreenQuad;
+    uint32_t m_brightPassFbo = 0;
+    uint32_t m_brightPassTexture = 0;
+    uint32_t m_brightPassWidth = 0;
+    uint32_t m_brightPassHeight = 0;
+    uint32_t m_blurPingPongFbos[2] = {0, 0};
+    uint32_t m_blurPingPongTextures[2] = {0, 0};
+    uint32_t m_blurWidth = 0;
+    uint32_t m_blurHeight = 0;
+    float m_lastFrameTime = 0.0f;
+    bool m_imguiInitialized = false;
+
+    bool m_fullscreen = false;
+    int m_windowedX, m_windowedY;
+    int m_windowedW, m_windowedH;
+
+    std::vector<Scene*> m_scenes;
+    std::size_t m_activeSceneIndex = 0;
+
+    /// Runs one complete frame for the given scene and scene list (shared by
+    /// both Run() overloads to avoid code duplication).
+    void RunFrame(Scene &scene,
+                  const std::vector<Scene *> &scenes,
+                  std::size_t &activeSceneIndex);
+
+    void RenderPostProcess(int x, int y, int width, int height);
+
+    void RunHotKeys();
 };

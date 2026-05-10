@@ -10,7 +10,22 @@
 /// AssetImporter::LoadTexture). Empty string means no diffuse texture.
 struct ModelMaterialInfo {
     std::string diffusePath;
+    std::string normalPath;
+    std::string metallicRoughnessPath;
+    std::string aoPath;
+    std::string emissivePath;
+    std::string specularGlossinessPath;
+
     std::string name;
+
+    glm::vec3 albedoColor{1.0f, 1.0f, 1.0f};
+    float metallicValue = 0.0f;
+    float roughnessValue = 0.5f;
+    glm::vec3 emissiveColor{0.0f, 0.0f, 0.0f};
+    float normalScale = 1.0f;
+    bool isSpecularGlossiness = false;
+    glm::vec3 specularFactor{1.0f, 1.0f, 1.0f};
+    float glossinessFactor = 1.0f;
 };
 
 /// Result of AssetImporter::LoadModel.

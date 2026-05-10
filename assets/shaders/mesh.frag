@@ -3,6 +3,7 @@ const int NUM_CASCADES = 4;
 in vec3  v_Normal;
 in vec3  v_WorldPos;
 in vec2  v_UV;
+in mat3  v_TBN;
 in float v_ViewDepth;
 
 layout(std140, binding = 0) uniform Camera {
@@ -14,30 +15,119 @@ layout(std140, binding = 0) uniform Camera {
 };
 
 #include "light_block.glsl"
+#include "pbr_helpers.glsl"
 
 uniform sampler2D      u_AlbedoMap;
+uniform sampler2D      u_NormalMap;
+uniform sampler2D      u_MetallicMap;
+uniform sampler2D      u_RoughnessMap;
+uniform sampler2D      u_AOMap;
+uniform sampler2D      u_EmissiveMap;
+uniform sampler2D      u_SpecularGlossinessMap;
 uniform sampler2DArray u_CascadeShadowMaps;
 uniform mat4           u_CascadeViewProj[NUM_CASCADES];
 uniform float          u_CascadeSplits[NUM_CASCADES];
 uniform int            u_PCFRadius = 1;
 uniform int            u_ReceiveShadow = 1;
+uniform bool           u_HasAlbedoMap = false;
+uniform bool           u_HasNormalMap = false;
+uniform bool           u_HasMetallicMap = false;
+uniform bool           u_HasRoughnessMap = false;
+uniform bool           u_HasAoMap = false;
+uniform bool           u_HasEmissiveMap = false;
+uniform bool           u_HasSpecularGlossinessMap = false;
+uniform bool           u_IsSpecularGlossiness = false;
+uniform bool           u_UseNormalMap = true;
 uniform vec4           u_TintColor = vec4(1.0);
-uniform float          u_Shininess = 64.0;
-uniform float          u_SpecularStrength = 0.35;
+uniform vec3           u_AlbedoColor = vec3(1.0);
+uniform float          u_MetallicValue = 0.0;
+uniform float          u_RoughnessValue = 0.5;
+uniform float          u_AoStrength = 1.0;
+uniform vec3           u_EmissiveColor = vec3(0.0);
+uniform float          u_EmissiveStrength = 1.0;
+uniform vec3           u_SpecularFactor = vec3(1.0);
+uniform float          u_GlossinessFactor = 1.0;
+uniform float          u_NormalScale = 1.0;
+uniform float          u_FlipNormalMapY = 0.0; // 1.0 = DirectX-convention normal map (green channel inverted)
 
 out vec4 FragColor;
 
-float DiffuseTerm(vec3 n, vec3 l)
+vec4 GetAlbedoSample()
 {
-    // Lambert diffuse keeps only front-facing light contribution.
-    return max(dot(n, l), 0.0);
+    if (u_HasAlbedoMap)
+        return texture(u_AlbedoMap, v_UV);
+    return vec4(u_AlbedoColor, 1.0);
 }
 
-float BlinnPhongSpecular(vec3 n, vec3 l, vec3 v, float shininess)
+vec3 GetAlbedo()
 {
-    // Blinn-Phong uses the half-vector for stable highlights.
-    vec3 h = normalize(l + v);
-    return pow(max(dot(n, h), 0.0), shininess);
+    return GetAlbedoSample().rgb;
+}
+
+float GetMetallic()
+{
+    float metallic = u_MetallicValue;
+    if (u_HasMetallicMap)
+        metallic *= texture(u_MetallicMap, v_UV).r;
+    return clamp(metallic, 0.0, 1.0);
+}
+
+float GetRoughness()
+{
+    float roughness = u_RoughnessValue;
+    if (u_HasRoughnessMap)
+        roughness *= texture(u_RoughnessMap, v_UV).r;
+    return clamp(roughness, 0.04, 1.0);
+}
+
+float GetAO()
+{
+    float ao = 1.0;
+    if (u_HasAoMap)
+        ao = texture(u_AOMap, v_UV).r;
+    return mix(1.0, ao, u_AoStrength);
+}
+
+vec3 GetEmissive()
+{
+    vec3 emissive = u_EmissiveColor;
+    if (u_HasEmissiveMap)
+        emissive *= texture(u_EmissiveMap, v_UV).rgb;
+    return emissive * u_EmissiveStrength;
+}
+
+vec3 GetSpecular()
+{
+    if (u_HasSpecularGlossinessMap)
+        return texture(u_SpecularGlossinessMap, v_UV).rgb * u_SpecularFactor;
+    return u_SpecularFactor;
+}
+
+float GetGlossiness()
+{
+    if (u_HasSpecularGlossinessMap)
+        return texture(u_SpecularGlossinessMap, v_UV).a * u_GlossinessFactor;
+    return u_GlossinessFactor;
+}
+
+vec3 ResolveWorldNormal()
+{
+    vec3 worldNormal = normalize(v_Normal);
+    if (!u_HasNormalMap || !u_UseNormalMap)
+        return worldNormal;
+
+    vec3 tangentNormal = texture(u_NormalMap, v_UV).xyz * 2.0 - 1.0;
+
+    // DirectX normal maps store Y inverted relative to OpenGL convention.
+    // Flip green channel when loading NormalDX assets (e.g. Poly Haven textures).
+    if (u_FlipNormalMapY > 0.5)
+        tangentNormal.y = -tangentNormal.y;
+
+    tangentNormal.xy *= u_NormalScale;
+    tangentNormal.z = sqrt(max(1.0 - dot(tangentNormal.xy, tangentNormal.xy), 0.0));
+    tangentNormal = normalize(tangentNormal);
+
+    return normalize(v_TBN * tangentNormal);
 }
 
 // Picks the tightest cascade that still covers this fragment's view-space depth.
@@ -161,30 +251,67 @@ float DistanceAttenuation(float radius,
     return physical * smoothFalloff;
 }
 
-vec3 DirectionalLighting(vec3 albedo, vec3 n, vec3 v)
+vec3 CalculatePBRLight(vec3 N,
+                       vec3 V,
+                       vec3 L,
+                       vec3 radiance,
+                       vec3 albedo,
+                       vec3 F0,
+                       float roughness)
 {
-    // Directional light has no source position: only direction + radiance.
+    vec3 H = normalize(V + L);
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    if (NdotV <= 0.0 || NdotL <= 0.0)
+        return vec3(0.0);
+
+    float D = DistributionGGX(N, H, roughness);
+    float G = GeometrySmith(N, V, L, roughness);
+    vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
+
+    vec3 specular = (D * G * F) / max(4.0 * NdotV * NdotL, 0.0001);
+    vec3 kS = F;
+    vec3 kD = (vec3(1.0) - kS);
+    // Note: metallic workflow would multiply kD by (1 - metallic) outside or here.
+    // For general PBRLight, we assume albedo is already pre-multiplied if needed or handled by caller.
+    vec3 diffuse = kD * albedo / PI;
+
+    return (diffuse + specular) * radiance * NdotL;
+}
+
+vec3 DirectionalLighting(vec3 albedo, vec3 n, vec3 v, vec3 F0, float roughness, float metallic)
+{
+    // Directional light now uses Cook-Torrance BRDF with existing light radiance.
     if (u_HasDirectional == 0 || u_Directional.enabled == 0u)
         return vec3(0.0);
 
     vec3 l = normalize(-u_Directional.direction);
-    float diffuse = DiffuseTerm(n, l);
-    float spec = BlinnPhongSpecular(n, l, v, u_Shininess);
-    vec3 irradiance = u_Directional.color * u_Directional.intensity;
+    vec3 radiance = u_Directional.color * u_Directional.intensity;
+    
+    // Adjust albedo for metallic workflow if not spec-gloss
+    vec3 actualAlbedo = albedo;
+    if (!u_IsSpecularGlossiness) {
+        actualAlbedo *= (1.0 - metallic);
+    }
 
-    vec3 diffuseColor = albedo * irradiance * diffuse;
-    vec3 specColor = irradiance * (u_SpecularStrength * spec);
+    vec3 directLight = CalculatePBRLight(n, v, l, radiance, actualAlbedo, F0, roughness);
 
     float shadow = 0.0;
     if (u_ReceiveShadow != 0) {
         shadow = CalculateShadow(v_WorldPos, n, l, v_ViewDepth);
     }
-    return (diffuseColor + specColor) * (1.0 - shadow);
+    return directLight * (1.0 - shadow);
 }
 
-vec3 PointLighting(vec3 albedo, vec3 worldPos, vec3 n, vec3 v)
+vec3 PointLighting(vec3 albedo,
+                   vec3 worldPos,
+                   vec3 n,
+                   vec3 v,
+                   vec3 F0,
+                   float roughness,
+                   float metallic)
 {
-    vec3 sum = vec3(0.0);
+    vec3 Lo = vec3(0.0);
 
     int count = clamp(u_NumPointLights, 0, 16);
     for (int i = 0; i < count; ++i) {
@@ -192,36 +319,43 @@ vec3 PointLighting(vec3 albedo, vec3 worldPos, vec3 n, vec3 v)
         if (light.enabled == 0u)
             continue;
 
-        vec3 toLight = light.position - worldPos;
-        float d = length(toLight);
-        if (d <= 0.0001)
+        vec3 lightVector = light.position - worldPos;
+        float distanceToLight = length(lightVector);
+        if (distanceToLight <= 0.0001)
             continue;
 
-        vec3 l = toLight / d;
+        vec3 l = lightVector / distanceToLight;
         float attenuation = DistanceAttenuation(
             light.radius,
             light.attnConstant,
             light.attnLinear,
             light.attnQuadratic,
-            d);
+            distanceToLight);
         if (attenuation <= 0.0)
             continue;
 
-        float diffuse = DiffuseTerm(n, l);
-        float spec = BlinnPhongSpecular(n, l, v, u_Shininess);
-        vec3 irradiance = light.color * light.intensity * attenuation;
+        vec3 radiance = light.color * light.intensity * attenuation;
+        
+        vec3 actualAlbedo = albedo;
+        if (!u_IsSpecularGlossiness) {
+            actualAlbedo *= (1.0 - metallic);
+        }
 
-        vec3 diffuseColor = albedo * irradiance * diffuse;
-        vec3 specColor = irradiance * (u_SpecularStrength * spec);
-        sum += diffuseColor + specColor;
+        Lo += CalculatePBRLight(n, v, l, radiance, actualAlbedo, F0, roughness);
     }
 
-    return sum;
+    return Lo;
 }
 
-vec3 SpotLighting(vec3 albedo, vec3 worldPos, vec3 n, vec3 v)
+vec3 SpotLighting(vec3 albedo,
+                  vec3 worldPos,
+                  vec3 n,
+                  vec3 v,
+                  vec3 F0,
+                  float roughness,
+                  float metallic)
 {
-    vec3 sum = vec3(0.0);
+    vec3 Lo = vec3(0.0);
 
     int count = clamp(u_NumSpotLights, 0, 8);
     for (int i = 0; i < count; ++i) {
@@ -256,35 +390,62 @@ vec3 SpotLighting(vec3 albedo, vec3 worldPos, vec3 n, vec3 v)
         // Smooth blend: full intensity inside inner cone, zero at/after outer cone.
         float coneBlend = smoothstep(light.outerCos, light.innerCos, cosTheta);
         float weight = attenuation * coneBlend;
+        vec3 radiance = light.color * light.intensity * weight;
+        
+        vec3 actualAlbedo = albedo;
+        if (!u_IsSpecularGlossiness) {
+            actualAlbedo *= (1.0 - metallic);
+        }
 
-        float diffuse = DiffuseTerm(n, l);
-        float spec = BlinnPhongSpecular(n, l, v, u_Shininess);
-        vec3 irradiance = light.color * light.intensity * weight;
-
-        vec3 diffuseColor = albedo * irradiance * diffuse;
-        vec3 specColor = irradiance * (u_SpecularStrength * spec);
-        sum += diffuseColor + specColor;
+        Lo += CalculatePBRLight(n, v, l, radiance, actualAlbedo, F0, roughness);
     }
 
-    return sum;
+    return Lo;
 }
 
 void main()
 {
-    // Base color remains material-driven; lighting modulates this albedo.
-    vec4 texel = texture(u_AlbedoMap, v_UV) * u_TintColor;
-    vec3 albedo = texel.rgb;
+    vec4 albedoSample = GetAlbedoSample();
+    vec3 albedo = GetAlbedo() * u_TintColor.rgb;
+    float alpha = albedoSample.a * u_TintColor.a;
+    
+    float metallic;
+    float roughness;
+    vec3 F0;
 
-    // Dev 5 core vectors for Blinn-Phong shading.
-    vec3 n = normalize(v_Normal);
-    vec3 v = normalize(cameraPos - v_WorldPos);
+    if (u_IsSpecularGlossiness) {
+        vec3 specular = GetSpecular();
+        float glossiness = GetGlossiness();
+        F0 = specular;
+        roughness = 1.0 - glossiness;
+        metallic = 0.0; // Not used in spec-gloss logic but for uniform's sake
+    } else {
+        metallic = GetMetallic();
+        roughness = GetRoughness();
+        F0 = mix(vec3(0.04), albedo, metallic);
+    }
 
-    // Ambient + directional + local lights.
-    vec3 ambient = albedo * u_AmbientColor * u_AmbientIntensity;
-    vec3 directional = DirectionalLighting(albedo, n, v);
-    vec3 point = PointLighting(albedo, v_WorldPos, n, v);
-    vec3 spot = SpotLighting(albedo, v_WorldPos, n, v);
+    float ao = GetAO();
+    vec3 emissive = GetEmissive();
 
-    vec3 litColor = ambient + directional + point + spot;
-    FragColor = vec4(litColor, texel.a);
+    // Use normalized world-space normal and the fragment-to-camera view vector for BRDF evaluation.
+    vec3 N = ResolveWorldNormal();
+    vec3 V = normalize(cameraPos - v_WorldPos);
+
+    // Existing scene ambient stays in place; Lo collects direct-light BRDF contributions.
+    vec3 kS = FresnelSchlick(max(dot(N, V), 0.0), F0);
+    
+    vec3 kD;
+    if (u_IsSpecularGlossiness) {
+        kD = (vec3(1.0) - kS);
+    } else {
+        kD = (vec3(1.0) - kS) * (1.0 - metallic);
+    }
+
+    vec3 ambient = kD * albedo * u_AmbientColor * u_AmbientIntensity * ao;
+    vec3 Lo = DirectionalLighting(albedo, N, V, F0, roughness, metallic);
+    Lo += PointLighting(albedo, v_WorldPos, N, V, F0, roughness, metallic);
+    Lo += SpotLighting(albedo, v_WorldPos, N, V, F0, roughness, metallic);
+
+    FragColor = vec4(ambient + Lo + emissive, alpha);
 }

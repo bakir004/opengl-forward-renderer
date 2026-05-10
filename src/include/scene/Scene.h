@@ -1,15 +1,17 @@
 #pragma once
 
+#include "core/IInputProvider.h"
 #include "core/Camera.h"
 #include "core/CameraController.h"
 #include "scene/RenderItem.h"
 #include "scene/LightEnvironment.h"
 #include <glm/glm.hpp>
 #include <vector>
+#include <memory>
 
-class KeyboardInput;
-class MouseInput;
+class IInputProvider;
 struct FrameSubmission;
+class Skybox;
 
 /// Base class for all scenes.
 ///
@@ -26,7 +28,16 @@ public:
     virtual ~Scene() = default;
 
     /// Called once per frame. Override to handle input and update scene state.
-    virtual void OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mouse) {}
+    virtual void OnUpdate(float deltaTime, IInputProvider& input) {}
+
+    /// Sets whether the skybox should be rendered.
+    void SetSkyboxVisible(bool visible) { m_skyboxVisible = visible; }
+
+    /// Returns whether the skybox is currently set to be rendered.
+    bool IsSkyboxVisible() const { return m_skyboxVisible; }
+
+    /// Called during the ImGui frame. Override to draw custom debug UI for the scene.
+    virtual void OnImGuiRender() {}
 
 protected:
     /// Replaces the scene camera.
@@ -34,6 +45,9 @@ protected:
 
     /// Sets the background clear colour.
     void SetClearColor(glm::vec4 color);
+
+    /// Sets the scene skybox.
+    void SetSkybox(std::shared_ptr<Skybox> skybox);
 
     /// Adds a render item to the scene.
     /// @return Index that can be passed to GetObject() for per-frame updates.
@@ -66,24 +80,29 @@ protected:
 
     /// Shared standard camera logic (WASD, TAB, F1-F3, mouselook, sprint/zoom).
     /// Safe to call each frame in OnUpdate by subclasses.
-    void UpdateStandardCameraAndPlayer(float deltaTime, KeyboardInput& input, MouseInput& mouse, 
-                                       glm::vec3& playerPos, glm::vec3& outMoveDirXZ, 
+    void UpdateStandardCameraAndPlayer(float deltaTime, IInputProvider& input,
+                                       glm::vec3& playerPos, glm::vec3& outMoveDirXZ,
                                        float orbitTargetYOffset = 0.0f);
+
+    void SetFirstPersonEyeHeight(float height) { m_standardCameraController.SetFirstPersonEyeHeight(height); }
 
 private:
     /// Called by Application each frame before rendering.
     /// Updates camera aspect ratio from the current framebuffer, then calls OnUpdate.
-    void InternalUpdate(float deltaTime, KeyboardInput& input, MouseInput& mouse, int fbWidth, int fbHeight);
+    void InternalUpdate(float deltaTime, IInputProvider& input, int fbWidth, int fbHeight);
 
     /// Fills a FrameSubmission from current scene state. Called by Application.
     void BuildSubmission(FrameSubmission& out) const;
 
     Camera               m_camera;
     StandardSceneCameraController m_standardCameraController;
+    std::shared_ptr<Skybox> m_skybox;
+    bool                 m_skyboxVisible = true;
     LightEnvironment     m_lights;
     std::vector<RenderItem> m_objects;
     glm::vec4            m_clearColor = {0.08f, 0.09f, 0.12f, 1.0f};
     mutable bool         m_reportedInvalidLights = false;
 
     friend class Application;
+    friend class RendererUI;
 };

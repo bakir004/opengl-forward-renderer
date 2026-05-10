@@ -1,7 +1,6 @@
 #include "NeonCityScene.h"
 #include "core/Camera.h"
-#include "core/KeyboardInput.h"
-#include "core/MouseInput.h"
+#include "core/IInputProvider.h"
 #include "core/ShaderProgram.h"
 #include "core/Texture2D.h"
 #include "core/SubMesh.h"
@@ -28,8 +27,6 @@ bool NeonCityScene::Setup()
     // One shared base Material (shader + default params).
     m_cityBaseMaterial = std::make_shared<Material>(meshShader);
     m_cityBaseMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
-    m_cityBaseMaterial->SetFloat("u_Shininess", 96.0f);
-    m_cityBaseMaterial->SetFloat("u_SpecularStrength", 0.6f);
 
     // One MaterialInstance per unique material, each with its own diffuse texture.
     auto whiteFallback = std::make_shared<Texture2D>(
@@ -135,8 +132,8 @@ bool NeonCityScene::Setup()
     return true;
 }
 
-void NeonCityScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mouse)
+void NeonCityScene::OnUpdate(float deltaTime, IInputProvider& input)
 {
     glm::vec3 moveDirXZ;
-    UpdateStandardCameraAndPlayer(deltaTime, input, mouse, m_playerPosition, moveDirXZ);
+    UpdateStandardCameraAndPlayer(deltaTime, input, m_playerPosition, moveDirXZ);
 }

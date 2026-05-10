@@ -3,6 +3,7 @@
 #include "core/SubMesh.h"
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -13,6 +14,7 @@ struct VertexPNT {
     glm::vec3 position { 0, 0, 0 };
     glm::vec3 normal   { 0, 1, 0 };
     glm::vec2 uv       { 0, 0   };
+    glm::vec4 tangent  { 1, 0, 0, 1 }; // xyz=tangent, w=handednes
 };
 
 /// CPU-side mesh description passed to the backend for upload.

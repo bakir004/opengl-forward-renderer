@@ -14,7 +14,7 @@ class NeonCityScene : public Scene
 {
 public:
     bool Setup();
-    void OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mouse) override;
+    void OnUpdate(float deltaTime, IInputProvider& input) override;
 
 private:
     ModelData                                    m_cityModel;

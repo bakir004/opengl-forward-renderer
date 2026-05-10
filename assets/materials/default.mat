@@ -14,10 +14,11 @@
     }
   },
   "floats": {
-    "u_Metallic": 0.0,
-    "u_Roughness": 0.5
+    "u_MetallicValue": 0.0,
+    "u_RoughnessValue": 0.5
   },
   "vec3s": {
-    "u_AlbedoColor": [1.0, 1.0, 1.0]
+    "u_AlbedoColor": [1.0, 1.0, 1.0],
+    "u_EmissiveColor": [0.0, 0.0, 0.0]
   }
 }

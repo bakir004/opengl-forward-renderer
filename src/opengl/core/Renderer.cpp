@@ -1,5 +1,6 @@
 #include "core/Renderer.h"
 #include "core/Camera.h"
+#include "core/Skybox.h"
 #include "core/Mesh.h"
 #include "core/MeshBuffer.h"
 #include "core/shadows/CascadedShadowMap.h"
@@ -216,8 +217,27 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
         m_cameraUBO->BindToSlot(0);
     }
 
+    // Create or resize the HDR offscreen framebuffer to match the current viewport.
+    // The scene is rendered here instead of the default framebuffer so HDR color
+    // values > 1.0 survive until the post-process tone-mapping pass (Person 4).
+    const uint32_t vpW = static_cast<uint32_t>(submission.clearInfo.viewport.width);
+    const uint32_t vpH = static_cast<uint32_t>(submission.clearInfo.viewport.height);
+    if (vpW > 0 && vpH > 0)
+    {
+        if (!m_hdrFramebuffer)
+            m_hdrFramebuffer = std::make_unique<HdrFramebuffer>(vpW, vpH);
+        else
+            m_hdrFramebuffer->Resize(vpW, vpH);
+    }
+
+    if (m_hdrFramebuffer && m_hdrFramebuffer->IsValid())
+        m_hdrFramebuffer->Bind();
+
     submission.clearInfo.Apply();
     submission.context.Apply(m_currentContext);
+
+    m_currentSkybox = submission.skybox;
+    m_currentCamera = submission.camera;
 }
 
 void Renderer::EndFrame()
@@ -238,9 +258,31 @@ void Renderer::EndFrame()
 
     m_queue.Sort();
     const RenderQueueFrameStats queueStats = m_queue.Flush(m_currentContext);
+    
+    // Render Skybox last (it uses GL_LEQUAL and .xyww to only draw on empty pixels)
+    if (m_currentSkybox && m_currentCamera) {
+        m_currentSkybox->Draw(m_currentCamera->GetProjection(), m_currentCamera->GetView());
+    }
     m_debugStats.processedRenderItemCount = queueStats.processedItemCount;
     m_debugStats.drawCallCount = queueStats.drawCallCount;
     m_debugStats.approxTriangleCount = queueStats.approxTriangleCount;
+
+    // Return to the default framebuffer after the scene pass.
+    // Person 4 will add the fullscreen post-process quad that reads hdrColorTextureId.
+    if (m_hdrFramebuffer && m_hdrFramebuffer->IsValid())
+    {
+        m_hdrFramebuffer->Unbind();
+        m_debugStats.hdrColorTextureId = m_hdrFramebuffer->GetColorTexture();
+        m_debugStats.hdrWidth          = m_hdrFramebuffer->GetWidth();
+        m_debugStats.hdrHeight         = m_hdrFramebuffer->GetHeight();
+    }
+    else
+    {
+        m_debugStats.hdrColorTextureId = 0;
+        m_debugStats.hdrWidth          = 0;
+        m_debugStats.hdrHeight         = 0;
+    }
+
     m_queue.Clear();
     m_inFrame = false;
 }

@@ -9,6 +9,7 @@
 
 class ShaderProgram;
 class Texture2D;
+class TextureCubemap;
 class Material;
 struct MeshData;
 class MeshBuffer;
@@ -87,6 +88,16 @@ public:
                                                    SamplerDesc        sampler = {},
                                                    bool               flipY   = true);
 
+    /**
+     * @brief Loads (or returns cached) a TextureCubemap from 6 image files.
+     * @param facePaths Array of 6 paths in order: +X, -X, +Y, -Y, +Z, -Z.
+     * @param colorSpace sRGB for color data, Linear for non-color data.
+     * @param flipY Whether to flip images vertically on load.
+     */
+    static std::shared_ptr<TextureCubemap> LoadCubemap(const std::array<std::string, 6>& facePaths,
+                                                       TextureColorSpace colorSpace,
+                                                       bool flipY = false);
+
     /// Loads (or returns cached) a MeshBuffer from a model file via Assimp.
     /// Returns the first mesh in the file. For multi-mesh files use LoadModel().
     static std::shared_ptr<MeshBuffer> LoadMesh(const std::string& path);
@@ -123,6 +134,7 @@ private:
     // Caches keyed by canonical path.
     static std::unordered_map<std::string, std::shared_ptr<ShaderProgram>> s_shaders;
     static std::unordered_map<std::string, std::shared_ptr<Texture2D>>     s_textures;
+    static std::unordered_map<std::string, std::shared_ptr<TextureCubemap>> s_cubemaps;
     static std::unordered_map<std::string, std::shared_ptr<MeshBuffer>>    s_meshes;
     static std::unordered_map<std::string, std::shared_ptr<Material>>      s_materials;
     static std::unordered_map<std::string, ModelData>                      s_models;
@@ -161,4 +173,11 @@ inline std::shared_ptr<MeshBuffer> AssetImporter::Import<MeshBuffer>(const std::
 template <>
 inline std::shared_ptr<Material> AssetImporter::Import<Material>(const std::string& path) {
     return ImportMaterial(path);
+}
+
+template <>
+inline std::shared_ptr<TextureCubemap> AssetImporter::Import<TextureCubemap>(const std::string& path) {
+    // Single path import for cubemap not directly supported as it needs 6 paths.
+    // Use LoadCubemap instead.
+    return nullptr;
 }

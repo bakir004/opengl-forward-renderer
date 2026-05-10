@@ -8,10 +8,13 @@
 #include "core/RenderQueue.h"
 #include "core/UniformBuffer.h"
 #include "core/ShaderProgram.h"
+#include "core/HdrFramebuffer.h"
 #include "core/shadows/CascadedShadowMap.h"
 
 struct RenderItem;
 struct FrameSubmission;
+class Skybox;
+class Camera;
 
 /// Small per-frame debug snapshot used by the runtime stats UI.
 struct ShadowFrustumDebugInfo
@@ -46,6 +49,9 @@ struct RendererDebugStats
     uint32_t shadowMapTextureId = 0;
     uint32_t shadowMapWidth = 0;
     uint32_t shadowMapHeight = 0;
+    uint32_t hdrColorTextureId = 0;
+    uint32_t hdrWidth = 0;
+    uint32_t hdrHeight = 0;
     // Per-cascade 2D texture views into the depth array, suitable for ImGui.
     std::array<uint32_t, CascadedShadowMap::kNumCascades> cascadePreviewTextureIds{};
     // View-space distance covered by each cascade (positive, far edge).
@@ -78,6 +84,9 @@ class Renderer
     std::unique_ptr<ShaderProgram> m_errorShader;
     std::unique_ptr<ShaderProgram> m_shadowDepthShader;
     std::unique_ptr<CascadedShadowMap> m_directionalShadowMap;
+    std::unique_ptr<HdrFramebuffer> m_hdrFramebuffer;
+    const Skybox* m_currentSkybox = nullptr;
+    const Camera* m_currentCamera = nullptr;
     std::array<glm::mat4, CascadedShadowMap::kNumCascades> m_cascadeViewProj{};
     std::array<float, CascadedShadowMap::kNumCascades> m_cascadeSplits{};
     int m_shadowPcfRadius = 1;

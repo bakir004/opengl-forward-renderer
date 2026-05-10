@@ -6,9 +6,13 @@
 #include "scene/RenderItem.h"
 #include "core/Camera.h"
 #include "utils/Options.h"
+#include "core/Material.h"
 #include "core/Renderer.h"
-#include "core/KeyboardInput.h"
+#include "core/ShaderProgram.h"
+#include "core/FullscreenQuad.h"
+#include "core/InputManager.h"
 #include "core/MouseInput.h"
+#include <glad/glad.h>
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl3.h>
@@ -21,144 +25,67 @@
 #include <string_view>
 #include <string>
 
-static void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
-    auto app = static_cast<Application*>(glfwGetWindowUserPointer(window));
-    if (app) app->GetRenderer()->Resize(width, height);
+// ─────────────────────────────────────────────────────────────────────────────
+// GLFW callbacks
+// ─────────────────────────────────────────────────────────────────────────────
+
+// NOTE: We no longer resize the renderer directly from the framebuffer callback
+// because the renderer viewport is a sub-region of the window (sidebar excluded).
+// RendererUI::Draw() calls renderer.Resize(vpW, vpH) each frame instead.
+// We keep the callback only to handle GL context invalidation on some platforms.
+static void framebuffer_size_callback(GLFWwindow * /*window*/, int /*w*/, int /*h*/)
+{
+    // Intentionally empty — resize is driven by RendererUI each frame.
 }
 
-static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
-    auto app = static_cast<Application*>(glfwGetWindowUserPointer(window));
-    if (!app || !app->GetMouseInput())
+static void scroll_callback(GLFWwindow *window, double /*xoff*/, double yoff)
+{
+    auto *app = static_cast<Application *>(glfwGetWindowUserPointer(window));
+    if (!app || !app->GetInputManager())
         return;
-
-    // Route wheel input to camera only when UI is not actively consuming mouse input.
-    // Exception: while cursor is captured for mouselook/game control, keep camera zoom active.
-    const bool uiWantsMouse = ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse;
-    const bool allowCameraScroll = app->GetMouseInput()->IsCaptured() || !uiWantsMouse;
-    if (allowCameraScroll)
-        app->GetMouseInput()->OnScroll(static_cast<float>(yoffset));
+    app->GetInputManager()->GetMouse().OnScroll(static_cast<float>(yoff));
 }
 
-static std::string FormatCompactCount(uint64_t value) {
-    if (value >= 1000000ull) {
-        return std::to_string(value / 1000000ull) + "." +
-               std::to_string((value % 1000000ull) / 100000ull) + "M";
+// ─────────────────────────────────────────────────────────────────────────────
+// Ctor / Dtor
+// ─────────────────────────────────────────────────────────────────────────────
+Application::Application()
+    : m_renderer(std::make_unique<Renderer>()), m_ui(std::make_unique<RendererUI>())
+{
+}
+
+Application::~Application()
+{
+    m_fullscreenQuad.reset();
+    m_toneMappingShader.reset();
+    m_brightPassShader.reset();
+    m_gaussianBlurShader.reset();
+
+    if (m_brightPassFbo != 0)
+    {
+        glDeleteFramebuffers(1, &m_brightPassFbo);
+        m_brightPassFbo = 0;
     }
-    if (value >= 1000ull) {
-        return std::to_string(value / 1000ull) + "." +
-               std::to_string((value % 1000ull) / 100ull) + "k";
+    if (m_brightPassTexture != 0)
+    {
+        glDeleteTextures(1, &m_brightPassTexture);
+        m_brightPassTexture = 0;
     }
-    return std::to_string(value);
-}
-
-static void DrawDirectionalLightDebug(DirectionalLight& light) {
-    ImGui::Text("Name      : %s", light.name.empty() ? "(unnamed)" : light.name.c_str());
-    ImGui::Text("Enabled   : %s", light.enabled ? "yes" : "no");
-
-    ImGui::DragFloat("Intensity", &light.intensity, 0.05f, 0.0f, 1000.0f, "%.3f");
-    ImGui::ColorEdit3("Color", &light.color.x);
-
-    // Edit direction as azimuth + elevation rather than raw XYZ.
-    //
-    // WHY: the direction must stay a unit vector. Editing raw XYZ and then
-    // calling glm::normalize() couples all three components — dragging X
-    // silently rescales Y and Z to restore length 1, making it impossible
-    // to control one axis without the others jumping.
-    //
-    // Azimuth and elevation are orthogonal degrees of freedom: dragging one
-    // never affects the other. The XYZ direction is derived from them, so it
-    // is always unit length by construction (no normalize needed).
-    const glm::vec3& d = light.direction;
-    float elevation = glm::degrees(std::asin(glm::clamp(d.y, -1.0f, 1.0f)));
-    float azimuth   = glm::degrees(std::atan2(d.z, d.x));
-
-    bool dirChanged = false;
-    dirChanged |= ImGui::DragFloat("Azimuth (°)",   &azimuth,   0.5f, -180.0f, 180.0f, "%.1f");
-    dirChanged |= ImGui::DragFloat("Elevation (°)", &elevation, 0.5f,  -90.0f,  90.0f, "%.1f");
-
-    if (dirChanged) {
-        const float pitchRad = glm::radians(elevation);
-        const float yawRad   = glm::radians(azimuth);
-        light.direction = {
-            std::cos(pitchRad) * std::cos(yawRad),
-            std::sin(pitchRad),
-            std::cos(pitchRad) * std::sin(yawRad)
-        };
+    if (m_blurPingPongFbos[0] != 0 || m_blurPingPongFbos[1] != 0)
+    {
+        glDeleteFramebuffers(2, m_blurPingPongFbos);
+        m_blurPingPongFbos[0] = 0;
+        m_blurPingPongFbos[1] = 0;
     }
-    ImGui::TextDisabled("XYZ: %.3f, %.3f, %.3f", d.x, d.y, d.z);
-}
-
-// Returns true if the light should be removed.
-static bool DrawPointLightDebug(PointLight& light, int index, const glm::vec3& cameraPos) {
-    const std::string label = "Point Light " + std::to_string(index + 1);
-    if (!ImGui::TreeNode(label.c_str()))
-        return false;
-
-    ImGui::Text("Name      : %s", light.name.empty() ? "(unnamed)" : light.name.c_str());
-    ImGui::Text("Enabled   : %s", light.enabled ? "yes" : "no");
-
-    ImGui::DragFloat("Intensity", &light.intensity, 0.05f, 0.0f, 1000.0f, "%.3f");
-    ImGui::ColorEdit3("Color", &light.color.x);
-    ImGui::DragFloat3("Position", &light.position.x, 0.05f);
-    ImGui::DragFloat("Radius", &light.radius, 0.5f, 0.1f, 500.0f, "%.1f");
-
-    if (ImGui::Button("Move to camera"))
-        light.position = cameraPos;
-    ImGui::SameLine();
-    ImGui::TextDisabled("(%.2f, %.2f, %.2f)", cameraPos.x, cameraPos.y, cameraPos.z);
-
-    ImGui::Spacing();
-    ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.6f, 0.1f, 0.1f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.5f, 0.05f, 0.05f, 1.0f));
-    const bool remove = ImGui::Button("Remove light");
-    ImGui::PopStyleColor(3);
-
-    ImGui::TreePop();
-    return remove;
-}
-
-static void DrawShadowParamsDebug(LightShadowParams& shadow,
-                                  std::string_view   farPlaneLabel,
-                                  std::string_view   connectionNote,
-                                  bool               showDirectionalGpuNote) {
-    // Keep the debug UI bound directly to LightShadowParams so later shadow-resource
-    // and sampling work can continue from the same runtime state.
-    ImGui::Checkbox("Cast shadow", &shadow.castShadow);
-    ImGui::DragFloat("Depth bias", &shadow.depthBias, 0.0001f, 0.0f, 1.0f, "%.5f");
-    ImGui::DragFloat("Normal bias", &shadow.normalBias, 0.0005f, 0.0f, 10.0f, "%.4f");
-    ImGui::DragFloat("Slope bias",  &shadow.slopeBias,  0.05f,   0.0f, 10.0f, "%.3f");
-
-    int resolution[2] = {shadow.shadowMapWidth, shadow.shadowMapHeight};
-    if (ImGui::DragInt2("Resolution", resolution, 4.0f, 16, 8192)) {
-        shadow.shadowMapWidth  = resolution[0] < 16 ? 16 : resolution[0];
-        shadow.shadowMapHeight = resolution[1] < 16 ? 16 : resolution[1];
+    if (m_blurPingPongTextures[0] != 0 || m_blurPingPongTextures[1] != 0)
+    {
+        glDeleteTextures(2, m_blurPingPongTextures);
+        m_blurPingPongTextures[0] = 0;
+        m_blurPingPongTextures[1] = 0;
     }
 
-    ImGui::DragFloat("Near plane", &shadow.nearPlane, 0.01f, 0.001f, 1000.0f, "%.3f");
-    ImGui::DragFloat(farPlaneLabel.data(), &shadow.farPlane, 0.05f, 0.01f, 10000.0f, "%.3f");
-    if (shadow.nearPlane < 0.001f)
-        shadow.nearPlane = 0.001f;
-    if (shadow.farPlane <= shadow.nearPlane)
-        shadow.farPlane = shadow.nearPlane + 0.01f;
-
-    ImGui::SliderInt("PCF radius", &shadow.pcfRadius, 0, 4);
-    if (shadow.pcfRadius < 0)
-        shadow.pcfRadius = 0;
-
-    const int kernelSize  = shadow.pcfRadius * 2 + 1;
-    const int sampleCount = kernelSize * kernelSize;
-    ImGui::Text("Derived PCF kernel: %dx%d (%d taps)", kernelSize, kernelSize, sampleCount);
-    ImGui::TextDisabled("%s", connectionNote.data());
-    if (showDirectionalGpuNote)
-        ImGui::TextDisabled("Directional cast/depth/normal bias are already packed into the light UBO.");
-
-    ImGui::TextDisabled("PCF enable/sample count are not separate engine fields; kernel is derived from radius only.");
-}
-
-Application::Application() : m_renderer(std::make_unique<Renderer>()) {}
-Application::~Application() {
-    if (m_imguiInitialized) {
+    if (m_imguiInitialized)
+    {
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
         ImGui::DestroyContext();
@@ -166,17 +93,25 @@ Application::~Application() {
     }
 
     m_renderer->Shutdown();
-    if (m_window) { glfwDestroyWindow(m_window); m_window = nullptr; }
+    if (m_window)
+    {
+        glfwDestroyWindow(m_window);
+        m_window = nullptr;
+    }
     glfwTerminate();
 }
 
-bool Application::Initialize() {
+// ─────────────────────────────────────────────────────────────────────────────
+// Initialize
+// ─────────────────────────────────────────────────────────────────────────────
+bool Application::Initialize()
+{
 #ifndef NDEBUG
     spdlog::set_level(spdlog::level::debug);
 #endif
-
-    if (!glfwInit()) {
-        spdlog::error("[Application] GLFW initialization failed — glfwInit() returned false");
+    if (!glfwInit())
+    {
+        spdlog::error("[Application] glfwInit() failed");
         return false;
     }
 
@@ -186,30 +121,31 @@ bool Application::Initialize() {
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 #endif
 
-    struct GLVersion { int major; int minor; };
-    std::vector<GLVersion> versions = {
-        {4, 6}, {4, 5}, {4, 4}, {4, 3}, {4, 2}, {4, 1}, {4, 0}, {3, 3}
+    struct GLVer
+    {
+        int major, minor;
     };
-
-    bool windowCreated = false;
-    int createdMajor = 0, createdMinor = 0;
-    for (const auto& v : versions) {
+    const GLVer versions[] = {{4, 6}, {4, 5}, {4, 4}, {4, 3}, {4, 2}, {4, 1}, {4, 0}, {3, 3}};
+    int cMaj = 0, cMin = 0;
+    for (const auto &v : versions)
+    {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, v.major);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, v.minor);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
         glfwWindowHint(GLFW_DEPTH_BITS, 24);
-        m_window = glfwCreateWindow(options.window.width, options.window.height, options.window.title.c_str(), nullptr, nullptr);
-        if (m_window) {
-            windowCreated = true;
-            createdMajor = v.major;
-            createdMinor = v.minor;
+        m_window = glfwCreateWindow(options.window.width, options.window.height,
+                                    options.window.title.c_str(), nullptr, nullptr);
+        if (m_window)
+        {
+            cMaj = v.major;
+            cMin = v.minor;
             break;
         }
     }
-
-    if (!windowCreated) {
-        spdlog::error("[Application] Failed to create GLFW window — no supported OpenGL context available (tried 4.6 down to 3.3 Core Profile)");
+    if (!m_window)
+    {
+        spdlog::error("[Application] Failed to create GLFW window (tried GL 4.6–3.3)");
         glfwTerminate();
         return false;
     }
@@ -222,31 +158,31 @@ bool Application::Initialize() {
     glfwSetFramebufferSizeCallback(m_window, framebuffer_size_callback);
     glfwSetScrollCallback(m_window, scroll_callback);
 
-    int vsyncInterval = options.window.vsync ? 1 : 0;
-    glfwSwapInterval(vsyncInterval);
-    spdlog::info("[Application] VSync {}", vsyncInterval ? "enabled" : "disabled");
-
     if (!m_renderer->Initialize())
         return false;
+    m_toneMappingShader = std::make_unique<ShaderProgram>(
+        "assets/shaders/tone_mapping.vert", "assets/shaders/tone_mapping.frag");
+    m_brightPassShader = std::make_unique<ShaderProgram>(
+        "assets/shaders/tone_mapping.vert", "assets/shaders/bright_pass.frag");
+    m_gaussianBlurShader = std::make_unique<ShaderProgram>(
+        "assets/shaders/tone_mapping.vert", "assets/shaders/gaussian_blur.frag");
+    m_fullscreenQuad = std::make_unique<FullscreenQuad>();
 
-    m_input = std::make_unique<KeyboardInput>(m_window);
-    spdlog::info("[Application] KeyboardInput initialized");
-
-    m_mouse = std::make_unique<MouseInput>(m_window);
-    spdlog::info("[Application] MouseInput initialized");
+    m_input = std::make_unique<InputManager>(m_window);
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
 
-    if (!ImGui_ImplGlfw_InitForOpenGL(m_window, true)) {
-        spdlog::warn("[Application] ImGui GLFW backend init failed — debug overlay disabled");
-        ImGui::DestroyContext();
-    } else if (!ImGui_ImplOpenGL3_Init("#version 330")) {
-        spdlog::warn("[Application] ImGui OpenGL backend init failed — debug overlay disabled");
+    if (!ImGui_ImplGlfw_InitForOpenGL(m_window, true) ||
+        !ImGui_ImplOpenGL3_Init("#version 330"))
+    {
+        spdlog::warn("[Application] ImGui init failed — UI disabled");
         ImGui_ImplGlfw_Shutdown();
         ImGui::DestroyContext();
-    } else {
+    }
+    else
+    {
         m_imguiInitialized = true;
         spdlog::info("[Application] ImGui debug overlay initialized");
     }
@@ -254,342 +190,81 @@ bool Application::Initialize() {
     return true;
 }
 
-void Application::GetFramebufferSize(int& width, int& height) const {
-    glfwGetFramebufferSize(m_window, &width, &height);
+void Application::GetFramebufferSize(int &w, int &h) const
+{
+    glfwGetFramebufferSize(m_window, &w, &h);
 }
 
-void Application::Update(Scene& scene) {
+// ─────────────────────────────────────────────────────────────────────────────
+// RunFrame  — single shared frame body used by both Run() overloads
+// ─────────────────────────────────────────────────────────────────────────────
+void Application::RunFrame(Scene &scene,
+                           const std::vector<Scene *> &scenes,
+                           std::size_t &activeSceneIndex)
+{
     glfwPollEvents();
     m_input->Update();
-    m_mouse->Update();
 
     int w = 0, h = 0;
     GetFramebufferSize(w, h);
 
-    const float currTime = static_cast<float>(glfwGetTime());
-    const float dt = (m_lastFrameTime > 0.0f) ? (currTime - m_lastFrameTime) : 0.0f;
-    m_lastFrameTime = currTime;
+    const float now = static_cast<float>(glfwGetTime());
+    const float dt = (m_lastFrameTime > 0.f) ? (now - m_lastFrameTime) : 0.f;
+    m_lastFrameTime = now;
 
-    scene.InternalUpdate(dt, *m_input, *m_mouse, w, h);
+    scene.InternalUpdate(dt, *m_input, fbW, fbH);
 
-    FrameSubmission submission;
-    scene.BuildSubmission(submission);
-    submission.clearInfo.viewport = {0, 0, w, h};
-    submission.time      = currTime;
-    submission.deltaTime = dt;
+    // Build submission
+    FrameSubmission sub;
+    scene.BuildSubmission(sub);
+    sub.time = now;
+    sub.deltaTime = dt;
 
-    m_renderer->BeginFrame(submission);
-    for (const auto& item : submission.objects) {
-        RenderItem drawItem = item;
-        if (m_wireframeOverride)
-            drawItem.drawMode = DrawMode::Wireframe;
+    // Use the viewport rect computed by RendererUI (sidebar already excluded).
+    // GL's glViewport origin is bottom-left, so:
+    //   x = sidebar + handle width  (pixels from left)
+    //   y = 0                       (bottom of framebuffer; topbar is ImGui-only)
+    //   w, h = remaining area
+    // On the very first frame m_ui viewport equals (0,0,fbW,fbH) which is fine.
+    int vpX, vpY, vpW, vpH;
+    m_ui->GetViewportRect(vpX, vpY, vpW, vpH);
+    sub.clearInfo.viewport = {
+        vpX, 0, // y=0: GL bottom-left origin
+        vpW > 0 ? vpW : fbW,
+        vpH > 0 ? vpH : fbH};
 
-        m_renderer->SubmitDraw(drawItem);
+    m_renderer->BeginFrame(sub);
+    for (const auto &item : sub.objects)
+    {
+        RenderItem di = item;
+        if (m_ui->wireframeOverride)
+            di.drawMode = DrawMode::Wireframe;
+        if (di.material)
+        {
+            const_cast<MaterialInstance *>(di.material)->SetUseNormalMap(m_ui->normalMapOverride);
+        }
+        m_renderer->SubmitDraw(di);
     }
 
     m_renderer->EndFrame();
+    RenderPostProcess(sub.clearInfo.viewport.x,
+                      sub.clearInfo.viewport.y,
+                      sub.clearInfo.viewport.width,
+                      sub.clearInfo.viewport.height);
 
-    if (m_imguiInitialized) {
+    // ── ImGui ─────────────────────────────────────────────────────────────────
+    if (m_imguiInitialized)
+    {
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        const bool lookModeActive = (m_mouse && m_mouse->IsCaptured());
+        // RendererUI::Draw() also calls renderer.Resize(vpW, vpH) internally
+        // so the GL viewport stays correct even as the sidebar is resized.
+        m_ui->Draw(fbW, fbH, scene, *m_renderer, &m_input->GetMouse(),
+                   scenes, activeSceneIndex);
 
-        // --- Help Overlay & User Guide ---
-        ImGuiWindowFlags helpButtonFlags = ImGuiWindowFlags_NoDecoration | 
-                                           ImGuiWindowFlags_AlwaysAutoResize | 
-                                           ImGuiWindowFlags_NoSavedSettings | 
-                                           ImGuiWindowFlags_NoFocusOnAppearing | 
-                                           ImGuiWindowFlags_NoNav | 
-                                           ImGuiWindowFlags_NoMove;
-        
-        if (lookModeActive) helpButtonFlags |= ImGuiWindowFlags_NoMouseInputs;
-
-        ImGui::SetNextWindowPos(ImVec2(static_cast<float>(w) - 10.0f, 10.0f), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
-        ImGui::SetNextWindowBgAlpha(0.35f);
-        if (ImGui::Begin("Help Overlay", nullptr, helpButtonFlags)) {
-            if (ImGui::Button("? Help")) {
-                m_showHelpWindow = !m_showHelpWindow;
-            }
-        }
-        ImGui::End();
-
-        if (m_showHelpWindow) {
-            ImGui::SetNextWindowSize(ImVec2(500, 0), ImGuiCond_FirstUseEver);
-            const ImGuiWindowFlags guideFlags = lookModeActive ? ImGuiWindowFlags_NoMouseInputs : 0;
-            if (ImGui::Begin("Application Guide", &m_showHelpWindow, guideFlags)) {
-                ImGui::TextWrapped("Welcome! Use this guide to navigate through the application and interact with the UI.");
-                ImGui::Spacing();
-                ImGui::SeparatorText("Keyboard Controls");
-                ImGui::BulletText("W, A, S, D: Move camera (forward, left, backward, right).");
-                ImGui::BulletText("Space, LCtrl: Move camera vertically (up, down).");
-                ImGui::BulletText("Shift: Hold to sprint (move significantly faster).");
-                ImGui::BulletText("TAB: Toggle mouse capture (switch between UI interaction and camera freelook).");
-                ImGui::BulletText("1-4: Switch between different project scenes (1: Sample, 2: Solar System, 3: Diorama, 4: Neon City).");
-                ImGui::Spacing();
-                ImGui::SeparatorText("Mouse Controls");
-                ImGui::BulletText("Mouse Movement: Look around (only active when the mouse cursor is captured via TAB).");
-                ImGui::BulletText("Right Mouse Button (Hold): Temporarily capture mouse to look around.");
-                ImGui::BulletText("Scroll Wheel: Zoom in / Zoom out (adjusts FOV or Orbit distance).");
-                ImGui::Spacing();
-                ImGui::SeparatorText("General Tips");
-                ImGui::TextWrapped("Press TAB to release the mouse cursor and interact with this UI. On the left, you can use the 'Renderer Debug' panel to add and manipulate point lights, check renderer performance, and change shadow parameters. Changes apply in real-time!");
-            }
-            ImGui::End();
-        }
-        // ---------------------------------
-
-        ImGui::SetNextWindowSize(ImVec2(340, 0), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowBgAlpha(0.87f);
-
-        const ImGuiWindowFlags debugWindowFlags = lookModeActive ? ImGuiWindowFlags_NoMouseInputs : 0;
-
-        if (ImGui::Begin("Renderer Debug", nullptr, debugWindowFlags)) {
-            const RendererDebugStats& stats = m_renderer->GetDebugStats();
-            const AssetCacheStats cacheStats = AssetImporter::GetCacheStats();
-            LightEnvironment& liveLights = scene.GetLights();
-            // ── Performance ───────────────────────────────────────────────
-            ImGui::SeparatorText("Performance");
-            ImGui::Text("Frame time : %.2f ms", stats.frameTimeMs);
-            ImGui::Text("FPS        : %.1f", stats.fps);
-
-            // ── Camera ────────────────────────────────────────────────────
-            ImGui::SeparatorText("Camera");
-            if (submission.camera) {
-                const glm::vec3 pos = submission.camera->GetPosition();
-                ImGui::Text("Position   : %.2f, %.2f, %.2f", pos.x, pos.y, pos.z);
-                ImGui::Text("Yaw / Pitch: %.1f / %.1f",
-                            submission.camera->GetYaw(),
-                            submission.camera->GetPitch());
-
-                const char* modeStr = "FreeFly";
-                switch (submission.camera->GetMode()) {
-                    case CameraMode::FirstPerson:  modeStr = "FirstPerson";  break;
-                    case CameraMode::ThirdPerson:  modeStr = "ThirdPerson";  break;
-                    default: break;
-                }
-                ImGui::Text("Mode       : %s", modeStr);
-                ImGui::Text("Speed      : %.1f m/s", scene.GetCurrentCameraSpeed());
-            } else {
-                ImGui::TextDisabled("No camera");
-            }
-
-            // ── Scene ─────────────────────────────────────────────────────
-            ImGui::SeparatorText("Renderer Stats");
-            ImGui::Text("Framebuffer: %d x %d", w, h);
-            ImGui::Text("Submitted  : %u", stats.submittedRenderItemCount);
-            ImGui::Text("Queued     : %u", stats.queuedRenderItemCount);
-            ImGui::Text("Processed  : %u", stats.processedRenderItemCount);
-            ImGui::Text("Draw calls : %u", stats.drawCallCount);
-            ImGui::Text("Approx tris: %s", FormatCompactCount(stats.approxTriangleCount).c_str());
-            if (stats.approxTriangleCountApproximate)
-                ImGui::TextDisabled("Triangle estimate uses index/vertex counts and treats non-triangle topologies as 0.");
-
-            ImGui::SeparatorText("Lighting Debug");
-            ImGui::Text("Directional : %u", stats.directionalLightCount);
-            ImGui::Text("Point lights: %u", stats.pointLightCount);
-            ImGui::Text("Queued casters: %u", stats.shadowCasterCount);
-            if (stats.shadowCasterCountApproximate)
-                ImGui::TextDisabled("Queued caster count comes from accepted RenderItem castShadow flags.");
-
-            ImGui::SeparatorText("Active Lights");
-            ImGui::Text("Directional lights: %d", liveLights.HasDirectionalLight() ? 1 : 0);
-            ImGui::Text("Point lights      : %d", static_cast<int>(liveLights.GetPointLights().size()));
-            ImGui::TextDisabled("Interactive: edits write back to the current scene lights and apply on the next frame.");
-
-            if (liveLights.HasDirectionalLight()) {
-                if (ImGui::TreeNode("Directional Light")) {
-                    DrawDirectionalLightDebug(liveLights.GetDirectionalLight());
-                    ImGui::TreePop();
-                }
-            } else {
-                ImGui::TextDisabled("No directional light in the active scene.");
-            }
-
-            auto& pointLights = liveLights.GetPointLights();
-            const glm::vec3 camPos = submission.camera ? submission.camera->GetPosition() : glm::vec3(0.0f);
-
-            // Add button — placed before the list so it's always visible
-            const bool atMax = static_cast<int>(pointLights.size()) >= kMaxPointLights;
-            if (atMax) ImGui::BeginDisabled();
-            if (ImGui::Button("+ Add point light")) {
-                PointLight newLight;
-                newLight.position  = camPos;
-                newLight.color     = {1.0f, 1.0f, 1.0f};
-                newLight.intensity = 3.0f;
-                newLight.radius    = 20.0f;
-                newLight.name      = "Light " + std::to_string(pointLights.size() + 1);
-                liveLights.AddPointLight(newLight);
-            }
-            if (atMax) {
-                ImGui::EndDisabled();
-                ImGui::SameLine();
-                ImGui::TextDisabled("(max %d reached)", kMaxPointLights);
-            }
-
-            if (pointLights.empty()) {
-                ImGui::TextDisabled("No point lights in the active scene.");
-            } else {
-                int removeIndex = -1;
-                for (std::size_t i = 0; i < pointLights.size(); ++i) {
-                    ImGui::PushID(static_cast<int>(i));
-                    if (DrawPointLightDebug(pointLights[i], static_cast<int>(i), camPos))
-                        removeIndex = static_cast<int>(i);
-                    ImGui::PopID();
-                }
-                if (removeIndex >= 0)
-                    pointLights.erase(pointLights.begin() + removeIndex);
-            }
-
-            int directionalShadowLights = 0;
-            if (liveLights.HasDirectionalLight() && liveLights.GetDirectionalLight().shadow.castShadow)
-                directionalShadowLights = 1;
-
-            int pointShadowLights = 0;
-            for (const auto& point : liveLights.GetPointLights()) {
-                if (point.shadow.castShadow)
-                    ++pointShadowLights;
-            }
-
-            int spotShadowLights = 0;
-            for (const auto& spot : liveLights.GetSpotLights()) {
-                if (spot.shadow.castShadow)
-                    ++spotShadowLights;
-            }
-
-            ImGui::SeparatorText("Shadow Debug");
-            ImGui::Text("Directional shadow lights: %d", directionalShadowLights);
-            ImGui::Text("Point shadow lights      : %d", pointShadowLights);
-            ImGui::Text("Spot shadow lights       : %d", spotShadowLights);
-            ImGui::TextDisabled("Interactive: edits write back to per-light shadow config and apply on the next frame.");
-            ImGui::Spacing();
-            ImGui::TextDisabled("Shadow Pass Stats");
-            ImGui::Text("Shadow pass draws        : %u", stats.shadowPassObjectCount);
-            ImGui::Text("Excluded (castShadow=no): %u", stats.shadowPassExcludedObjectCount);
-            ImGui::Text("Receivers (receiveShadow): %u", stats.shadowReceiverCount);
-            ImGui::Text("Queued casters           : %u", stats.shadowCasterCount);
-            if (stats.shadowPassDataAvailable && stats.shadowPassObjectCount == 0)
-                ImGui::TextDisabled("Live directional shadow pass ran, but no submitted object reached the depth draw path.");
-            if (!stats.shadowPassDataAvailable)
-                ImGui::TextDisabled("Directional shadow pass is inactive for this frame, so pass-only counters stay at 0.");
-
-            ImGui::Spacing();
-            ImGui::TextDisabled("Directional Frustum");
-            if (stats.directionalShadowFrustum.available) {
-                ImGui::Text("Focus center (world)     : %.2f, %.2f, %.2f",
-                            stats.directionalShadowFrustum.focusCenterX,
-                            stats.directionalShadowFrustum.focusCenterY,
-                            stats.directionalShadowFrustum.focusCenterZ);
-                ImGui::Text("Light direction          : %.2f, %.2f, %.2f",
-                            stats.directionalShadowFrustum.lightDirectionX,
-                            stats.directionalShadowFrustum.lightDirectionY,
-                            stats.directionalShadowFrustum.lightDirectionZ);
-                ImGui::Text("Ortho radius             : %.2f", stats.directionalShadowFrustum.orthoRadius);
-                ImGui::Text("Near / far clip          : %.2f / %.2f",
-                            stats.directionalShadowFrustum.nearPlane,
-                            stats.directionalShadowFrustum.farPlane);
-                ImGui::TextDisabled("Bounds come from the current coarse caster-fit helper.");
-            } else {
-                ImGui::TextDisabled("Directional frustum info is unavailable for the current frame.");
-            }
-
-            ImGui::Spacing();
-            ImGui::TextDisabled("Cascade Shadow Map Preview");
-            if (stats.shadowMapPreviewAvailable) {
-                ImGui::Text("Resolution per cascade   : %u x %u", stats.shadowMapWidth, stats.shadowMapHeight);
-
-                const float previewWidth  = 150.0f;
-                const float previewHeight = stats.shadowMapWidth > 0
-                    ? (previewWidth * static_cast<float>(stats.shadowMapHeight) / static_cast<float>(stats.shadowMapWidth))
-                    : previewWidth;
-
-                // Lay the 4 cascade previews out in a 2x2 grid with a caption
-                // above each image showing its view-space far-edge distance.
-                for (size_t i = 0; i < stats.cascadePreviewTextureIds.size(); ++i) {
-                    const uint32_t texId = stats.cascadePreviewTextureIds[i];
-                    const float    splitFar = stats.cascadeSplitDistances[i];
-                    const float    splitNear = (i == 0) ? 0.0f : stats.cascadeSplitDistances[i - 1];
-
-                    ImGui::BeginGroup();
-                    ImGui::Text("Cascade %zu: [%.1f, %.1f]", i, splitNear, splitFar);
-                    if (texId != 0) {
-                        ImGui::Image(
-                            reinterpret_cast<ImTextureID>(static_cast<intptr_t>(texId)),
-                            ImVec2(previewWidth, previewHeight),
-                            ImVec2(0.0f, 1.0f),
-                            ImVec2(1.0f, 0.0f));
-                    } else {
-                        ImGui::Dummy(ImVec2(previewWidth, previewHeight));
-                        ImGui::TextDisabled("no view");
-                    }
-                    ImGui::EndGroup();
-
-                    // Two previews per row.
-                    if ((i % 2) == 0)
-                        ImGui::SameLine();
-                }
-                ImGui::TextDisabled("Previews are 2D views aliasing the depth array's cascade layers.");
-            } else {
-                ImGui::TextDisabled("Cascade shadow map preview is unavailable for the current frame.");
-            }
-
-            ImGui::Spacing();
-            ImGui::TextDisabled("Shadow Controls");
-            if (liveLights.HasDirectionalLight()) {
-                if (ImGui::TreeNode("Directional Shadow")) {
-                    DrawShadowParamsDebug(
-                        liveLights.GetDirectionalLight().shadow,
-                        "Far / extent",
-                        "Resolution is live for directional shadow-map generation; near/far and PCF radius stay on LightShadowParams for future shadow integration.",
-                        true);
-                    ImGui::TreePop();
-                }
-            } else {
-                ImGui::TextDisabled("No directional shadow config in the active scene.");
-            }
-
-            if (pointLights.empty()) {
-                ImGui::TextDisabled("No point-light shadow config in the active scene.");
-            } else {
-                for (std::size_t i = 0; i < pointLights.size(); ++i) {
-                    const std::string label = "Point Shadow " + std::to_string(i + 1);
-                    ImGui::PushID(static_cast<int>(i));
-                    if (ImGui::TreeNode(label.c_str())) {
-                        ImGui::Text("Name      : %s", pointLights[i].name.empty() ? "(unnamed)" : pointLights[i].name.c_str());
-                        DrawShadowParamsDebug(
-                            pointLights[i].shadow,
-                            "Far plane",
-                            "Point-light shadow params stay in scene state until Person 7/8 land the point shadow pass and sampling hooks.",
-                            false);
-                        ImGui::TreePop();
-                    }
-                    ImGui::PopID();
-                }
-            }
-
-            if (!liveLights.GetSpotLights().empty())
-                ImGui::TextDisabled("Spot-light shadow UI is not added in this phase; shadow-enabled count is shown above.");
-
-            ImGui::SeparatorText("Resource Cache");
-            ImGui::Text("Cached total: %zu", cacheStats.TotalCount());
-            ImGui::Text("Shaders     : %zu", cacheStats.shaderCount);
-            ImGui::Text("Textures    : %zu", cacheStats.textureCount);
-            ImGui::Text("Meshes      : %zu", cacheStats.meshCount);
-            ImGui::Text("Materials   : %zu", cacheStats.materialCount);
-
-            // ── Renderer ──────────────────────────────────────────────────
-            ImGui::SeparatorText("Renderer");
-            ImGui::Checkbox("Wireframe override", &m_wireframeOverride);
-
-            // ── Controls hint ─────────────────────────────────────────────
-            if (m_mouse && m_mouse->IsCaptured()) {
-                ImGui::Spacing();
-                ImGui::TextDisabled("TAB — release mouse for UI");
-            }
-        }
-        ImGui::End();
+        scene.OnImGuiRender();
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -598,42 +273,418 @@ void Application::Update(Scene& scene) {
     glfwSwapBuffers(m_window);
 }
 
-void Application::Run(Scene& scene) {
-    while (!glfwWindowShouldClose(m_window))
-        Update(scene);
+// ─────────────────────────────────────────────────────────────────────────────
+// Update  (single-scene variant called by external custom loops)
+// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// RenderPostProcess: bright-pass extraction + tone mapping
+// ─────────────────────────────────────────────────────────────────────────────
+void Application::RenderPostProcess(int x, int y, int width, int height)
+{
+    if (!m_toneMappingShader || !m_toneMappingShader->IsValid() ||
+        !m_brightPassShader || !m_brightPassShader->IsValid() ||
+        !m_fullscreenQuad || width <= 0 || height <= 0)
+    {
+        return;
+    }
+
+    const RendererDebugStats &stats = m_renderer->GetDebugStats();
+    if (stats.hdrColorTextureId == 0)
+    {
+        return;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Bright-pass extraction: read HDR color, extract bright contribution
+    // ─────────────────────────────────────────────────────────────────────────
+    const uint32_t vpW = static_cast<uint32_t>(width);
+    const uint32_t vpH = static_cast<uint32_t>(height);
+
+    // Create or resize bright-pass FBO + texture
+    if (m_brightPassWidth != vpW || m_brightPassHeight != vpH)
+    {
+        if (m_brightPassFbo != 0)
+        {
+            glDeleteFramebuffers(1, &m_brightPassFbo);
+            m_brightPassFbo = 0;
+        }
+        if (m_brightPassTexture != 0)
+        {
+            glDeleteTextures(1, &m_brightPassTexture);
+            m_brightPassTexture = 0;
+        }
+
+        // Create floating-point color texture (GL_RGBA16F)
+        glGenTextures(1, &m_brightPassTexture);
+        glBindTexture(GL_TEXTURE_2D, m_brightPassTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
+                     static_cast<GLsizei>(vpW), static_cast<GLsizei>(vpH),
+                     0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        // Create FBO and attach color texture
+        glGenFramebuffers(1, &m_brightPassFbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, m_brightPassFbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                               m_brightPassTexture, 0);
+
+        const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+        if (status != GL_FRAMEBUFFER_COMPLETE)
+        {
+            spdlog::error("[Application] Bright-pass FBO incomplete (status=0x{:X})",
+                          static_cast<uint32_t>(status));
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        m_brightPassWidth = vpW;
+        m_brightPassHeight = vpH;
+        spdlog::info("[Application] Created bright-pass FBO ({}x{})", vpW, vpH);
+    }
+
+    // Render bright-pass to FBO
+    if (m_brightPassFbo != 0)
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, m_brightPassFbo);
+        glViewport(0, 0, static_cast<GLsizei>(vpW), static_cast<GLsizei>(vpH));
+        glDisable(GL_DEPTH_TEST);
+        glDepthMask(GL_FALSE);
+        glDisable(GL_BLEND);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        m_brightPassShader->Bind();
+        m_brightPassShader->SetUniform("u_HdrColor", 0);
+        m_brightPassShader->SetUniform("u_Threshold",  m_ui->bloomThreshold);
+        m_brightPassShader->SetUniform("u_SoftKnee",
+                                       m_ui->bloomSoftThreshold ? m_ui->bloomSoftKnee : 0.0f);
+        m_brightPassShader->SetUniform("u_Exposure",   m_ui->exposure);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, stats.hdrColorTextureId);
+        m_fullscreenQuad->Draw();
+        glBindTexture(GL_TEXTURE_2D, 0);
+        ShaderProgram::Unbind();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Gaussian blur (Person 8): ping-pong between two floating-point targets
+    // using separable horizontal/vertical passes.
+    // ─────────────────────────────────────────────────────────────────────────
+    if (m_blurWidth != vpW || m_blurHeight != vpH)
+    {
+        if (m_blurPingPongFbos[0] != 0 || m_blurPingPongFbos[1] != 0)
+        {
+            glDeleteFramebuffers(2, m_blurPingPongFbos);
+            m_blurPingPongFbos[0] = 0;
+            m_blurPingPongFbos[1] = 0;
+        }
+        if (m_blurPingPongTextures[0] != 0 || m_blurPingPongTextures[1] != 0)
+        {
+            glDeleteTextures(2, m_blurPingPongTextures);
+            m_blurPingPongTextures[0] = 0;
+            m_blurPingPongTextures[1] = 0;
+        }
+
+        glGenFramebuffers(2, m_blurPingPongFbos);
+        glGenTextures(2, m_blurPingPongTextures);
+
+        bool blurTargetsValid = true;
+        for (int i = 0; i < 2; ++i)
+        {
+            glBindTexture(GL_TEXTURE_2D, m_blurPingPongTextures[i]);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
+                         static_cast<GLsizei>(vpW), static_cast<GLsizei>(vpH),
+                         0, GL_RGBA, GL_FLOAT, nullptr);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+            glBindFramebuffer(GL_FRAMEBUFFER, m_blurPingPongFbos[i]);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                   GL_TEXTURE_2D, m_blurPingPongTextures[i], 0);
+            const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+            if (status != GL_FRAMEBUFFER_COMPLETE)
+            {
+                spdlog::error("[Application] Gaussian blur ping-pong FBO {} incomplete (status=0x{:X})",
+                              i, static_cast<uint32_t>(status));
+                blurTargetsValid = false;
+            }
+        }
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        if (blurTargetsValid)
+        {
+            m_blurWidth = vpW;
+            m_blurHeight = vpH;
+            spdlog::info("[Application] Created Gaussian blur ping-pong FBOs ({}x{})", vpW, vpH);
+        }
+        else
+        {
+            glDeleteFramebuffers(2, m_blurPingPongFbos);
+            glDeleteTextures(2, m_blurPingPongTextures);
+            m_blurPingPongFbos[0] = 0;
+            m_blurPingPongFbos[1] = 0;
+            m_blurPingPongTextures[0] = 0;
+            m_blurPingPongTextures[1] = 0;
+            m_blurWidth = 0;
+            m_blurHeight = 0;
+        }
+    }
+
+    const int blurPassCount = std::clamp(m_ui->bloomBlurIterations, 1, 10);
+    if (m_gaussianBlurShader && m_gaussianBlurShader->IsValid() &&
+        m_blurPingPongFbos[0] != 0 && m_blurPingPongFbos[1] != 0 &&
+        m_blurPingPongTextures[0] != 0 && m_blurPingPongTextures[1] != 0)
+    {
+        bool horizontal = true;
+        bool firstIteration = true;
+
+        glDisable(GL_DEPTH_TEST);
+        glDepthMask(GL_FALSE);
+        glDisable(GL_BLEND);
+
+        m_gaussianBlurShader->Bind();
+        m_gaussianBlurShader->SetUniform("u_Image", 0);
+
+        for (int i = 0; i < blurPassCount; ++i)
+        {
+            const int targetIndex = horizontal ? 0 : 1;
+            glBindFramebuffer(GL_FRAMEBUFFER, m_blurPingPongFbos[targetIndex]);
+            glViewport(0, 0, static_cast<GLsizei>(vpW), static_cast<GLsizei>(vpH));
+            glClear(GL_COLOR_BUFFER_BIT);
+
+            m_gaussianBlurShader->SetUniform("u_Horizontal", horizontal ? 1 : 0);
+
+            const uint32_t sourceTexture = firstIteration
+                                               ? m_brightPassTexture
+                                               : m_blurPingPongTextures[horizontal ? 1 : 0];
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, sourceTexture);
+            m_fullscreenQuad->Draw();
+
+            horizontal = !horizontal;
+            firstIteration = false;
+        }
+
+        glBindTexture(GL_TEXTURE_2D, 0);
+        ShaderProgram::Unbind();
+    }
+
+    const uint32_t blurredBloomTexture = (blurPassCount % 2 == 1)
+                                             ? m_blurPingPongTextures[0]
+                                             : m_blurPingPongTextures[1];
+    const bool hasBlurredBloom = blurredBloomTexture != 0;
+    const bool hasBrightPass = m_brightPassTexture != 0;
+    const int debugView = std::clamp(m_ui->postFxDebugView, 0, 4);
+
+    uint32_t bloomInputForComposite = hasBlurredBloom ? blurredBloomTexture : stats.hdrColorTextureId;
+    if (debugView == 2 && hasBrightPass)
+    {
+        // Bright-pass debug mode uses slot 1 as the inspection source.
+        bloomInputForComposite = m_brightPassTexture;
+    }
+    else if (debugView == 3 && hasBlurredBloom)
+    {
+        bloomInputForComposite = blurredBloomTexture;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Final post-process composite: bloom in HDR + tone mapping to screen.
+    // ─────────────────────────────────────────────────────────────────────────
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(x, y, width, height);
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glDisable(GL_BLEND);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    m_toneMappingShader->Bind();
+    m_toneMappingShader->SetUniform("u_HdrBuffer",           0);
+    m_toneMappingShader->SetUniform("u_BloomBlur",           1);
+    m_toneMappingShader->SetUniform("u_BloomStrength",       m_ui->bloomStrength);
+    m_toneMappingShader->SetUniform("u_BloomEnabled",        m_ui->bloomEnabled && hasBlurredBloom);
+    m_toneMappingShader->SetUniform("u_ToneMappingOperator", m_ui->tonemapOperator);
+    m_toneMappingShader->SetUniform("u_Exposure",            m_ui->exposure);
+    m_toneMappingShader->SetUniform("u_ToneMappingEnabled",  m_ui->tonemapEnabled);
+    m_toneMappingShader->SetUniform("u_DebugView",           debugView);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, stats.hdrColorTextureId);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, bloomInputForComposite);
+    m_fullscreenQuad->Draw();
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    ShaderProgram::Unbind();
+
+    glDepthMask(GL_TRUE);
+    glEnable(GL_DEPTH_TEST);
 }
 
-void Application::Run(const std::vector<Scene*>& scenes, std::size_t initialSceneIndex) {
-    if (scenes.empty()) {
-        spdlog::warn("[Application] Run(scenes): no scenes provided");
+
+void Application::Update(Scene &scene)
+{
+    std::vector<Scene *> sv = {&scene};
+    std::size_t idx = 0;
+    RunFrame(scene, sv, idx);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Run (single scene)
+// ─────────────────────────────────────────────────────────────────────────────
+void Application::Run(Scene &scene)
+{
+    std::vector<Scene *> sv = {&scene};
+    std::size_t idx = 0;
+    while (!glfwWindowShouldClose(m_window))
+    {
+        RunFrame(scene, sv, idx);
+        RunHotKeys();
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Run (multiple scenes, keyboard 1–9 + topbar buttons switch scenes)
+// ─────────────────────────────────────────────────────────────────────────────
+void Application::Run(const std::vector<Scene *> &scenes, std::size_t initialIdx)
+{
+    m_scenes = scenes;
+
+    if (m_scenes.empty())
+    {
+        spdlog::warn("[Application] No scenes");
         return;
     }
 
-    std::size_t activeSceneIndex = initialSceneIndex;
-    if (activeSceneIndex >= scenes.size() || scenes[activeSceneIndex] == nullptr)
-        activeSceneIndex = 0;
+    m_activeSceneIndex = std::min(initialIdx, m_scenes.size() - 1);
 
-    while (activeSceneIndex < scenes.size() && scenes[activeSceneIndex] == nullptr)
-        ++activeSceneIndex;
+    // ensure valid non-null scene
+    while (m_activeSceneIndex < m_scenes.size() && !m_scenes[m_activeSceneIndex])
+        ++m_activeSceneIndex;
 
-    if (activeSceneIndex >= scenes.size()) {
-        spdlog::warn("[Application] Run(scenes): all scene entries are null");
+    if (m_activeSceneIndex >= m_scenes.size())
+    {
+        spdlog::warn("[Application] All scenes null");
         return;
     }
 
-    spdlog::info("[Application] Active scene index: {}", activeSceneIndex);
-    while (!glfwWindowShouldClose(m_window)) {
-        Update(*scenes[activeSceneIndex]);
+    spdlog::info("[Application] Starting at scene {}", m_activeSceneIndex);
 
-        const std::size_t maxSwitchableScenes = std::min<std::size_t>(9, scenes.size());
-        for (std::size_t i = 0; i < maxSwitchableScenes; ++i) {
-            if (scenes[i] == nullptr) continue;
-            const int key = GLFW_KEY_1 + static_cast<int>(i);
-            if (m_input->IsKeyPressed(key) && activeSceneIndex != i) {
-                activeSceneIndex = i;
-                spdlog::info("[Application] Switched to scene index {} (key {})", i, i + 1);
+    while (!glfwWindowShouldClose(m_window))
+    {
+        Scene *scene = m_scenes[m_activeSceneIndex];
+        if (!scene)
+            continue;
+
+        RunFrame(*scene, m_scenes, m_activeSceneIndex);
+
+        // keyboard scene switching
+        const std::size_t maxK = std::min<std::size_t>(9, m_scenes.size());
+        for (std::size_t i = 0; i < maxK; ++i)
+        {
+            if (!m_scenes[i])
+                continue;
+
+            if (m_input->IsKeyPressed(GLFW_KEY_1 + static_cast<int>(i)) &&
+                m_activeSceneIndex != i)
+            {
+                m_activeSceneIndex = i;
+                spdlog::info("[Application] Switched to scene {} (key {})", i, i + 1);
                 break;
             }
         }
+
+        RunHotKeys();
+    }
+}
+
+void Application::RunHotKeys()
+{
+    if (m_input->IsKeyPressed(GLFW_KEY_F11))
+    {
+        ToggleFullscreen();
+        spdlog::info("[Application] Toggle fullscreen: {}", m_fullscreen);
+    }
+
+    if (m_input->IsKeyPressed(GLFW_KEY_X))
+    {
+        m_ui->showSidebar = !m_ui->showSidebar;
+        spdlog::debug("[Application] Toggle sidebar (inspector): {}", m_ui->showSidebar);
+    }
+
+    if (m_input->IsKeyPressed(GLFW_KEY_Y))
+    {
+        m_ui->wireframeOverride = !m_ui->wireframeOverride;
+        spdlog::debug("[Application] Toggle wireframe mode: {}", m_ui->wireframeOverride);
+    }
+
+    if (m_input->IsKeyPressed(GLFW_KEY_H))
+    {
+        m_ui->showHelpWindow = !m_ui->showHelpWindow;
+        spdlog::debug("[Application] Toggle help window: {}", m_ui->showHelpWindow);
+    }
+
+    if (m_input->IsKeyPressed(GLFW_KEY_N))
+    {
+        m_ui->normalMapOverride = !m_ui->normalMapOverride;
+        spdlog::debug("[Application] Toggle normal maps: {}", m_ui->normalMapOverride);
+    }
+    if (m_input->IsKeyPressed(GLFW_KEY_K))
+    {
+        m_ui->skyboxOverride = !m_ui->skyboxOverride;
+        m_scenes[m_activeSceneIndex]->SetSkyboxVisible(m_ui->skyboxOverride);
+        spdlog::debug("[Application] Toggle skybox: {}", m_ui->skyboxOverride);
+    }
+
+    if (m_input->IsKeyPressed(GLFW_KEY_C))
+    {
+        Camera &cam = m_scenes[m_activeSceneIndex]->GetCamera();
+
+        CameraMode mode = cam.GetMode();
+        mode = static_cast<CameraMode>((static_cast<int>(mode) + 1) % 3);
+
+        cam.SetMode(mode);
+        spdlog::debug("[Application] Toggle camera mode: {}", static_cast<int>(mode));
+    }
+}
+
+void Application::ToggleFullscreen()
+{
+    m_fullscreen = !m_fullscreen;
+
+    if (m_fullscreen)
+    {
+        // Save windowed position + size
+        glfwGetWindowPos(m_window, &m_windowedX, &m_windowedY);
+        glfwGetWindowSize(m_window, &m_windowedW, &m_windowedH);
+
+        GLFWmonitor *monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode *mode = glfwGetVideoMode(monitor);
+
+        glfwSetWindowMonitor(
+            m_window,
+            monitor,
+            0, 0,
+            mode->width,
+            mode->height,
+            mode->refreshRate);
+    }
+    else
+    {
+        glfwSetWindowMonitor(
+            m_window,
+            nullptr,
+            m_windowedX,
+            m_windowedY,
+            m_windowedW,
+            m_windowedH,
+            0);
     }
 }

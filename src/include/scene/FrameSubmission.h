@@ -4,12 +4,14 @@
 #include "core/Camera.h"
 #include "core/FrameClearInfo.h"
 #include "core/SubmissionContext.h"
+#include "core/Skybox.h"
 #include "scene/RenderItem.h"
 #include "scene/LightEnvironment.h"
 
 /// Data collected by Scene::BuildSubmission and consumed by Renderer::BeginFrame.
 struct FrameSubmission {
     const Camera*     camera  = nullptr;
+    const Skybox*     skybox  = nullptr;
     FrameClearInfo    clearInfo;
     SubmissionContext context;
     LightEnvironment  lights;

@@ -1,7 +1,6 @@
 #include "DioramaScene.h"
 #include "core/Camera.h"
-#include "core/KeyboardInput.h"
-#include "core/MouseInput.h"
+#include "core/IInputProvider.h"
 #include "core/Primitives.h"
 #include "core/Texture2D.h"
 #include "scene/LightBuilder.h"
@@ -103,7 +102,7 @@ bool DioramaScene::Setup() {
             .Radius(13.0f)
             .Name("LanternLight")
             .Build());
-    
+
     // Warm light emitting from the indoor lantern
     lights.AddPointLight(
         PointLightBuilder()
@@ -121,7 +120,7 @@ bool DioramaScene::Setup() {
             .Radius(10.0f)
             .Name("PoolLight")
             .Build());
-            
+
     // Firefly dynamic light
     lights.AddPointLight(
         PointLightBuilder()
@@ -161,7 +160,7 @@ bool DioramaScene::Setup() {
         bench.mesh = m_bench.get();
         bench.material = m_benchMatInst.get();
         bench.transform.SetTranslation({-9.0f, -0.5f, -8.2f});
-        bench.transform.SetScale({0.85f, 0.85f, 0.85f}); 
+        bench.transform.SetScale({0.85f, 0.85f, 0.85f});
         bench.transform.SetRotationEulerDegrees({0.0f, -90.0f, 0.0f});
         AddObject(bench);
     }
@@ -185,7 +184,7 @@ bool DioramaScene::Setup() {
         lantern.transform.SetScale({0.2f, 0.2f, 0.2f});
         AddObject(lantern);
     }
-    
+
     // Lantern inside
     if (m_lantern) {
         RenderItem houseLantern;
@@ -196,7 +195,7 @@ bool DioramaScene::Setup() {
         houseLantern.flags.castShadow = false;
         AddObject(houseLantern);
     }
-    
+
     // Firefly (Flying light proxy)
     if (m_fireflyMesh) {
         RenderItem firefly;
@@ -272,7 +271,7 @@ bool DioramaScene::Setup() {
     return true;
 }
 
-void DioramaScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& mouse) {
+void DioramaScene::OnUpdate(float deltaTime, IInputProvider& input) {
     // Swimming duck logic
     m_duckInsideAngle += 1.0f * deltaTime;
     const float radius = 0.7f;
@@ -297,9 +296,9 @@ void DioramaScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& m
         float fx = -2.0f + 7.0f * std::cos(fT * 0.9f);
         float fy = 0.8f + 0.6f * std::sin(fT * 3.5f); // Bouncing up and down
         float fz = -5.0f + 4.0f * std::sin(fT * 1.2f);
-        
+
         GetObject(m_fireflyIdx).transform.SetTranslation({fx, fy, fz});
-        
+
         // Update the mathematical light source
         auto& pointLights = GetLights().GetPointLights();
         for (auto& light : pointLights) {
@@ -317,7 +316,7 @@ void DioramaScene::OnUpdate(float deltaTime, KeyboardInput& input, MouseInput& m
         GetObject(m_playerCubeIdx).flags.visible = (cam.GetMode() != CameraMode::FirstPerson);
 
     glm::vec3 moveDirXZ;
-    UpdateStandardCameraAndPlayer(deltaTime, input, mouse, m_playerPosition, moveDirXZ, 0.7f);
+    UpdateStandardCameraAndPlayer(deltaTime, input, m_playerPosition, moveDirXZ, 0.7f);
 
     // Keep player cube in sync
     auto& playerTransform = GetObject(m_playerCubeIdx).transform;

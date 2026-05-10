@@ -1,8 +1,7 @@
 #include "scene/Scene.h"
 #include "scene/FrameSubmission.h"
 #include "scene/LightUtils.h"
-#include "core/KeyboardInput.h"
-#include "core/MouseInput.h"
+#include "core/IInputProvider.h"
 #include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
 
@@ -12,6 +11,10 @@ void Scene::SetCamera(Camera camera) {
 
 void Scene::SetClearColor(glm::vec4 color) {
     m_clearColor = color;
+}
+
+void Scene::SetSkybox(std::shared_ptr<Skybox> skybox) {
+    m_skybox = std::move(skybox);
 }
 
 size_t Scene::AddObject(RenderItem item) {
@@ -46,13 +49,14 @@ float Scene::GetCurrentCameraSpeed() const {
     return m_lastEffectiveSpeed;
 }
 
-void Scene::InternalUpdate(float deltaTime, KeyboardInput& input, MouseInput& mouse, int fbWidth, int fbHeight) {
+void Scene::InternalUpdate(float deltaTime, IInputProvider& input, int fbWidth, int fbHeight) {
     m_camera.OnResize(fbWidth, fbHeight);
-    OnUpdate(deltaTime, input, mouse);
+    OnUpdate(deltaTime, input);
 }
 
 void Scene::BuildSubmission(FrameSubmission& out) const {
     out.camera                   = &m_camera;
+    out.skybox                   = m_skyboxVisible ? m_skybox.get() : nullptr;
     out.clearInfo.clearColor     = m_clearColor;
     out.clearInfo.clearFlags     = ClearFlags::ColorDepth;
     out.lights                   = m_lights;
@@ -67,13 +71,12 @@ void Scene::BuildSubmission(FrameSubmission& out) const {
     }
 }
 
-void Scene::UpdateStandardCameraAndPlayer(float deltaTime, KeyboardInput& input, MouseInput& mouse, 
+void Scene::UpdateStandardCameraAndPlayer(float deltaTime, IInputProvider& input, 
                                           glm::vec3& playerPos, glm::vec3& outMoveDirXZ, 
                                           float orbitTargetYOffset) 
 {
     m_standardCameraController.Update(deltaTime,
                                       input,
-                                      mouse,
                                       playerPos,
                                       outMoveDirXZ,
                                       orbitTargetYOffset,

@@ -24,12 +24,18 @@ add_library(${PROJECT_NAME} STATIC
         opengl/core/UniformBuffer.cpp
         opengl/core/KeyboardInput.cpp
         opengl/core/MouseInput.cpp
+        opengl/core/InputManager.cpp
         opengl/scene/Scene.cpp
         opengl/scene/RenderItem.cpp
         opengl/scene/LightEnvironment.cpp
         opengl/scene/LightUtils.cpp
         opengl/scene/LightBlock.cpp
         opengl/core/Texture2D.cpp
+        opengl/core/TextureCubemap.cpp
+        opengl/core/Skybox.cpp
+        opengl/core/HdrFramebuffer.cpp
+        opengl/core/FullscreenQuad.cpp
+        opengl/core/PostProcessPass.cpp
         opengl/core/shadows/CascadedShadowMap.cpp
         opengl/core/Material.cpp
         opengl/assets/AssetImporter.cpp
@@ -73,7 +79,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
         glm::glm
 )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE imgui)
+target_link_libraries(${PROJECT_NAME} PUBLIC imgui)
 
 # stb_image — header-only, expose include dir
 if(TARGET stb)
