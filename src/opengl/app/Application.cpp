@@ -119,6 +119,7 @@ bool Application::Initialize()
 #ifndef NDEBUG
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 #endif
+    glfwWindowHint(GLFW_SRGB_CAPABLE, GLFW_TRUE);
 
     struct GLVer
     {
@@ -448,6 +449,7 @@ void Application::RenderPostProcess(int x, int y, int width, int height)
 
         m_gaussianBlurShader->Bind();
         m_gaussianBlurShader->SetUniform("u_Image", 0);
+        m_gaussianBlurShader->SetUniform("u_Radius", m_ui->bloomRadius);
 
         for (int i = 0; i < blurPassCount; ++i)
         {
@@ -515,7 +517,9 @@ void Application::RenderPostProcess(int x, int y, int width, int height)
     glBindTexture(GL_TEXTURE_2D, stats.hdrColorTextureId);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, bloomInputForComposite);
+    glEnable(GL_FRAMEBUFFER_SRGB);
     m_fullscreenQuad->Draw();
+    glDisable(GL_FRAMEBUFFER_SRGB);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE0);
