@@ -833,6 +833,41 @@ void RendererUI::DrawTabLights(Scene &scene, const RendererDebugStats & /*stats*
 // ─────────────────────────────────────────────────────────────────────────────
 void RendererUI::DrawTabMaterials(Scene &scene, const RendererDebugStats &stats,
                                   const FrameSubmission &frame) {
+
+    // ── Skybox ────────────────────────────────────────────────────────────────
+    if (auto* sb = scene.GetSkybox()) {
+        if (SectionHeader("Skybox")) {
+            ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
+
+            glm::vec3 tint = sb->GetTint();
+            if (ImGui::ColorEdit3("Tint", &tint.x))
+                sb->SetTint(tint);
+
+            float exposure = sb->GetExposure();
+            if (ImGui::SliderFloat("Exposure##sky", &exposure, 0.0f, 5.0f, "%.2f"))
+                sb->SetExposure(exposure);
+
+            glm::vec3 emissive = sb->GetEmissiveColor();
+            if (ImGui::ColorEdit3("Emissive Color##sky", &emissive.x))
+                sb->SetEmissiveColor(emissive);
+
+            float emissiveStr = sb->GetEmissiveStrength();
+            if (ImGui::SliderFloat("Emissive Strength##sky", &emissiveStr, 0.0f, 10.0f, "%.2f"))
+                sb->SetEmissiveStrength(emissiveStr);
+
+            ImGui::Spacing();
+            if (ImGui::Button("Reset Skybox##sky")) {
+                sb->SetTint({1.0f, 1.0f, 1.0f});
+                sb->SetExposure(1.0f);
+                sb->SetEmissiveColor({0.0f, 0.0f, 0.0f});
+                sb->SetEmissiveStrength(0.0f);
+            }
+
+            ImGui::PopStyleColor();
+            ImGui::Spacing();
+        }
+    }
+
     if (frame.objects.empty()) {
         ImGui::TextColored(Pal::TextDim, "No renderable objects in current frame.");
         return;
