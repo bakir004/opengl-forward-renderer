@@ -144,6 +144,8 @@ bool JapanScene::Setup() {
         "assets/skybox/Moody/vz_moody_back.png",    // nz = negative Z (back)
     };
     auto skybox = std::make_shared<Skybox>(skyboxFaces);
+    skybox->SetTint({1.0f, 0.0f, 0.0f});
+    skybox->SetExposure(3.0f);
     SetSkybox(skybox);
 
     m_moonBaseMaterial = std::make_shared<Material>(meshShader);
@@ -311,7 +313,7 @@ bool JapanScene::Setup() {
         DirectionalLightBuilder()
         .Direction({-0.35f, -1.0f, -0.25f})
         .Color({1.0f, 0.98f, 0.92f})
-        .Intensity(0.5f)
+        .Intensity(0.0f)
         .CastShadow(true)
         .ShadowResolution(2048, 2048)
         .Name("JapanSun")

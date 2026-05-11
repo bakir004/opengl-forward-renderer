@@ -37,10 +37,25 @@ public:
 
     [[nodiscard]] std::shared_ptr<TextureCubemap> GetTexture() const { return m_cubemap; }
 
+    void SetTint(const glm::vec3& tint)            { m_tint = tint; }
+    void SetExposure(float exposure)               { m_exposure = exposure; }
+    void SetEmissiveColor(const glm::vec3& color)  { m_emissiveColor = color; }
+    void SetEmissiveStrength(float strength)       { m_emissiveStrength = strength; }
+
+    [[nodiscard]] glm::vec3 GetTint()             const { return m_tint; }
+    [[nodiscard]] float     GetExposure()         const { return m_exposure; }
+    [[nodiscard]] glm::vec3 GetEmissiveColor()    const { return m_emissiveColor; }
+    [[nodiscard]] float     GetEmissiveStrength() const { return m_emissiveStrength; }
+
 private:
     void Init();
 
     std::shared_ptr<MeshBuffer> m_cubeMesh;
     std::shared_ptr<TextureCubemap> m_cubemap;
     std::shared_ptr<ShaderProgram> m_shader;
+
+    glm::vec3 m_tint            = {1.0f, 1.0f, 1.0f};
+    float     m_exposure        = 1.0f;
+    glm::vec3 m_emissiveColor   = {0.0f, 0.0f, 0.0f};
+    float     m_emissiveStrength = 0.0f;
 };
