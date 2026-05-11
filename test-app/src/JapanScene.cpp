@@ -136,16 +136,16 @@ bool JapanScene::Setup() {
     // ── Skybox ──────────────────────────────────────────────────────────────
     // Load the test skybox textures from the assets folder.
     std::vector<std::string> skyboxFaces = {
-        "assets/skybox/test_skybox/px.png",
-        "assets/skybox/test_skybox/nx.png",
-        "assets/skybox/test_skybox/py.png",
-        "assets/skybox/test_skybox/ny.png",
-        "assets/skybox/test_skybox/pz.png",
-        "assets/skybox/test_skybox/nz.png"
+        "assets/skybox/Moody/vz_moody_right.png",   // px = positive X (right)
+        "assets/skybox/Moody/vz_moody_left.png",    // nx = negative X (left)
+        "assets/skybox/Moody/vz_moody_up.png",      // py = positive Y (up)
+        "assets/skybox/Moody/vz_moody_down.png",    // ny = negative Y (down)
+        "assets/skybox/Moody/vz_moody_front.png",   // pz = positive Z (front)
+        "assets/skybox/Moody/vz_moody_back.png",    // nz = negative Z (back)
     };
     auto skybox = std::make_shared<Skybox>(skyboxFaces);
     SetSkybox(skybox);
-    
+
     m_moonBaseMaterial = std::make_shared<Material>(meshShader);
     m_moonBaseMaterial->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
 
@@ -211,13 +211,13 @@ bool JapanScene::Setup() {
                 item.material = m_moonMatInstances[sm.materialIndex].get();
             else
                 item.material = m_moonMatInstances.empty() ? nullptr : m_moonMatInstances[0].get();
-            
+
             // Position the moon far away in the sky
             item.transform.SetTranslation({-120.0f, 250.0f, -200.0f});
             item.transform.SetScale({0.4f, 0.4f, 0.4f});
             item.flags.castShadow = false;
             item.flags.receiveShadow = false;
-            
+
             AddObject(item);
         }
     }
@@ -264,7 +264,7 @@ bool JapanScene::Setup() {
             Rand(-20.0f, 20.0f)
         };
 
-        p.speed = Rand(1.0f, 5.0f);      // How fast it falls
+        p.speed = Rand(1.0f, 5.0f); // How fast it falls
         p.swayPhase = Rand(0.0f, 6.28f); // Random starting point for the oscillation
 
         // Random axis and speed for the tumbling rotation
@@ -429,7 +429,7 @@ bool JapanScene::Setup() {
                 item.material = m_sekiroMatInstances[sm.materialIndex].get();
             else
                 item.material = m_sekiroMatInstances.empty() ? nullptr : m_sekiroMatInstances[0].get();
-            
+
             item.transform.SetTranslation(m_playerPosition);
             item.transform.SetScale({0.01f, 0.01f, 0.01f});
             item.flags.castShadow = true;
@@ -496,8 +496,8 @@ void JapanScene::OnUpdate(float deltaTime, IInputProvider &input) {
         float windFactor = 0.0f;
         if (m_windActive) {
             // Smoothly ramp the wind force up and down over the duration (sine curve)
-            float t = m_windTimer / m_windDuration; 
-            windFactor = std::sin(t * 3.1415926f); 
+            float t = m_windTimer / m_windDuration;
+            windFactor = std::sin(t * 3.1415926f);
         }
 
         // Apply height-based scaling so petals higher up feel more wind
