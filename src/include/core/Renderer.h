@@ -52,6 +52,11 @@ struct RendererDebugStats
     uint32_t hdrColorTextureId = 0;
     uint32_t hdrWidth = 0;
     uint32_t hdrHeight = 0;
+    uint32_t iblIrradianceTextureId = 0;
+    uint32_t iblPrefilteredTextureId = 0;
+    uint32_t iblBrdfLutTextureId = 0;
+    float iblIntensity = 0.0f;
+    bool iblAvailable = false;
     // Per-cascade 2D texture views into the depth array, suitable for ImGui.
     std::array<uint32_t, CascadedShadowMap::kNumCascades> cascadePreviewTextureIds{};
     // View-space distance covered by each cascade (positive, far edge).

@@ -4,6 +4,8 @@
 #include "core/Mesh.h"
 #include "core/MeshBuffer.h"
 #include "core/shadows/CascadedShadowMap.h"
+#include "core/Texture2D.h"
+#include "core/TextureCubemap.h"
 #include "scene/FrameSubmission.h"
 #include "scene/LightBlock.h"
 #include "scene/LightUtils.h"
@@ -142,6 +144,20 @@ namespace
         stats.shadowMapWidth = 0;
         stats.shadowMapHeight = 0;
         stats.shadowMapPreviewAvailable = false;
+        stats.iblIrradianceTextureId = 0;
+        stats.iblPrefilteredTextureId = 0;
+        stats.iblBrdfLutTextureId = 0;
+        stats.iblIntensity = 0.0f;
+        stats.iblAvailable = false;
+        if (submission.activeReflectionProbe)
+        {
+            const ReflectionProbe &probe = *submission.activeReflectionProbe;
+            stats.iblIrradianceTextureId = probe.irradianceCubemap ? probe.irradianceCubemap->GetID() : 0;
+            stats.iblPrefilteredTextureId = probe.prefilteredCubemap ? probe.prefilteredCubemap->GetID() : 0;
+            stats.iblBrdfLutTextureId = probe.brdfLut ? probe.brdfLut->GetID() : 0;
+            stats.iblIntensity = probe.intensity;
+            stats.iblAvailable = probe.HasAnyIbl();
+        }
         stats.cascadePreviewTextureIds.fill(0);
         stats.cascadeSplitDistances.fill(0.0f);
         stats.directionalShadowFrustum = {};
@@ -238,6 +254,7 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
 
     m_currentSkybox = submission.skybox;
     m_currentCamera = submission.camera;
+    m_queue.SetEnvironmentData(submission.activeReflectionProbe);
 }
 
 void Renderer::EndFrame()

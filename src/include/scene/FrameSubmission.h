@@ -7,11 +7,13 @@
 #include "core/Skybox.h"
 #include "scene/RenderItem.h"
 #include "scene/LightEnvironment.h"
+#include "scene/ReflectionProbe.h"
 
 /// Data collected by Scene::BuildSubmission and consumed by Renderer::BeginFrame.
 struct FrameSubmission {
     const Camera*     camera  = nullptr;
     const Skybox*     skybox  = nullptr;
+    const ReflectionProbe* activeReflectionProbe = nullptr;
     FrameClearInfo    clearInfo;
     SubmissionContext context;
     LightEnvironment  lights;

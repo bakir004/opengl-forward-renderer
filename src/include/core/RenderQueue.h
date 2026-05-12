@@ -7,6 +7,7 @@
 #include "scene/RenderItem.h"
 
 struct SubmissionContext;
+struct ReflectionProbe;
 
 struct RenderQueueFrameStats
 {
@@ -57,6 +58,9 @@ public:
         uint32_t shadowMapTextureArrayId,
         int pcfRadius);
 
+    /// Sets active environment/IBL resources for shaders flushed this frame.
+    void SetEnvironmentData(const ReflectionProbe *probe);
+
 private:
     std::vector<RenderItem> m_items;
     const ShaderProgram *m_errorShader = nullptr;
@@ -65,4 +69,5 @@ private:
     uint32_t m_shadowMapTextureArrayId = 0;
     int  m_pcfRadius = 1;
     bool m_hasShadowData = false;
+    const ReflectionProbe *m_activeReflectionProbe = nullptr;
 };

@@ -13,6 +13,7 @@
 class IInputProvider;
 struct FrameSubmission;
 class Skybox;
+struct ReflectionProbe;
 
 /// Base class for all scenes.
 ///
@@ -56,6 +57,14 @@ protected:
 
     /// Returns the skybox
     [[nodiscard]] Skybox *GetSkybox() const { return m_skybox.get(); }
+    /// Sets the active reflection probe used by PBR/IBL shaders.
+    void SetReflectionProbe(std::shared_ptr<ReflectionProbe> probe);
+
+    /// Returns the active reflection probe so scenes can update intensity or influence settings.
+    [[nodiscard]] std::shared_ptr<ReflectionProbe> GetReflectionProbe() const { return m_reflectionProbe; }
+
+    /// Sets the active probe intensity when a probe exists.
+    void SetIblIntensity(float intensity);
 
     /// Adds a render item to the scene.
     /// @return Index that can be passed to GetObject() for per-frame updates.
@@ -108,8 +117,9 @@ private:
     Camera m_camera;
     StandardSceneCameraController m_standardCameraController;
     std::shared_ptr<Skybox> m_skybox;
-    bool m_skyboxVisible = true;
-    LightEnvironment m_lights;
+    std::shared_ptr<ReflectionProbe> m_reflectionProbe;
+    bool                 m_skyboxVisible = true;
+    LightEnvironment     m_lights;
     std::vector<RenderItem> m_objects;
     glm::vec4 m_clearColor = {0.08f, 0.09f, 0.12f, 1.0f};
     std::string m_sceneName = "Untitled Scene";

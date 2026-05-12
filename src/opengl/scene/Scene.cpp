@@ -2,6 +2,7 @@
 #include "scene/FrameSubmission.h"
 #include "scene/LightUtils.h"
 #include "core/IInputProvider.h"
+#include "scene/ReflectionProbe.h"
 #include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
 
@@ -15,6 +16,15 @@ void Scene::SetClearColor(glm::vec4 color) {
 
 void Scene::SetSkybox(std::shared_ptr<Skybox> skybox) {
     m_skybox = std::move(skybox);
+}
+
+void Scene::SetReflectionProbe(std::shared_ptr<ReflectionProbe> probe) {
+    m_reflectionProbe = std::move(probe);
+}
+
+void Scene::SetIblIntensity(float intensity) {
+    if (m_reflectionProbe)
+        m_reflectionProbe->intensity = intensity;
 }
 
 size_t Scene::AddObject(RenderItem item) {
@@ -57,6 +67,7 @@ void Scene::InternalUpdate(float deltaTime, IInputProvider& input, int fbWidth, 
 void Scene::BuildSubmission(FrameSubmission& out) const {
     out.camera                   = &m_camera;
     out.skybox                   = m_skyboxVisible ? m_skybox.get() : nullptr;
+    out.activeReflectionProbe    = m_reflectionProbe.get();
     out.clearInfo.clearColor     = m_clearColor;
     out.clearInfo.clearFlags     = ClearFlags::ColorDepth;
     out.lights                   = m_lights;
