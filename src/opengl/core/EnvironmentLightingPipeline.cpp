@@ -159,7 +159,11 @@ struct EnvironmentLightingPipeline::Impl
         glDepthMask(GL_FALSE);
         glDrawBuffer(GL_COLOR_ATTACHMENT0);
         glReadBuffer(GL_NONE);
-
+        // Generate mipmaps on the source cubemap so that textureLod() in the
+        // prefilter shader can access intermediate mip levels.
+        glBindTexture(GL_TEXTURE_CUBE_MAP, source.GetID());
+        glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
         prefilterShader->Bind();
         prefilterShader->SetUniform("u_Projection", captureProjection);
         prefilterShader->SetUniform("u_EnvironmentMap", 0);
