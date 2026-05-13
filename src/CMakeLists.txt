@@ -33,6 +33,7 @@ add_library(${PROJECT_NAME} STATIC
         opengl/core/Texture2D.cpp
         opengl/core/TextureCubemap.cpp
         opengl/core/Skybox.cpp
+        opengl/core/EnvironmentLightingPipeline.cpp
         opengl/core/HdrFramebuffer.cpp
         opengl/core/FullscreenQuad.cpp
         opengl/core/PostProcessPass.cpp

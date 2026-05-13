@@ -1,5 +1,6 @@
 #include "core/Renderer.h"
 #include "core/Camera.h"
+#include "core/EnvironmentLightingPipeline.h"
 #include "core/Skybox.h"
 #include "core/Mesh.h"
 #include "core/MeshBuffer.h"
@@ -122,7 +123,9 @@ namespace
         return bounds;
     }
 
-    void PopulateDebugStatsFromSubmission(const FrameSubmission &submission, RendererDebugStats &stats)
+    void PopulateDebugStatsFromSubmission(const FrameSubmission &submission,
+                                          const ReflectionProbe *activeProbe,
+                                          RendererDebugStats &stats)
     {
         stats.submittedRenderItemCount = static_cast<uint32_t>(submission.objects.size());
         stats.queuedRenderItemCount = 0;
@@ -149,9 +152,9 @@ namespace
         stats.iblBrdfLutTextureId = 0;
         stats.iblIntensity = 0.0f;
         stats.iblAvailable = false;
-        if (submission.activeReflectionProbe)
+        if (activeProbe)
         {
-            const ReflectionProbe &probe = *submission.activeReflectionProbe;
+            const ReflectionProbe &probe = *activeProbe;
             stats.iblIrradianceTextureId = probe.irradianceCubemap ? probe.irradianceCubemap->GetID() : 0;
             stats.iblPrefilteredTextureId = probe.prefilteredCubemap ? probe.prefilteredCubemap->GetID() : 0;
             stats.iblBrdfLutTextureId = probe.brdfLut ? probe.brdfLut->GetID() : 0;
@@ -176,10 +179,19 @@ namespace
 
 } // namespace
 
+Renderer::~Renderer() = default;
+
 bool Renderer::Initialize()
 {
     if (!m_initCtx.Initialize(m_currentContext))
         return false;
+
+    m_environmentLightingPipeline = std::make_unique<EnvironmentLightingPipeline>();
+    if (!m_environmentLightingPipeline->Initialize())
+    {
+        spdlog::error("[Renderer] Failed to initialize environment lighting pipeline");
+        return false;
+    }
 
     m_errorShader = std::make_unique<ShaderProgram>(
         "assets/shaders/error.vert", "assets/shaders/error.frag");
@@ -196,6 +208,12 @@ bool Renderer::Initialize()
 
 void Renderer::Shutdown()
 {
+    if (m_environmentLightingPipeline)
+    {
+        m_environmentLightingPipeline->Shutdown();
+        m_environmentLightingPipeline.reset();
+    }
+    m_defaultReflectionProbe.reset();
     m_initCtx.Shutdown();
 }
 
@@ -203,7 +221,30 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
 {
     assert(!m_inFrame && "BeginFrame() called without a matching EndFrame()");
     m_inFrame = true;
-    PopulateDebugStatsFromSubmission(submission, m_debugStats);
+
+    ReflectionProbe *activeProbe = submission.activeReflectionProbe;
+    if (!activeProbe && submission.skybox)
+    {
+        if (!m_defaultReflectionProbe)
+            m_defaultReflectionProbe = std::make_shared<ReflectionProbe>();
+        activeProbe = m_defaultReflectionProbe.get();
+    }
+
+    if (activeProbe)
+    {
+        std::shared_ptr<TextureCubemap> fallbackSource = submission.skybox ? submission.skybox->GetTexture() : nullptr;
+        if (!activeProbe->sourceCubemap && fallbackSource)
+            activeProbe->sourceCubemap = fallbackSource;
+
+        if (m_environmentLightingPipeline)
+        {
+            const bool probeReady = m_environmentLightingPipeline->EnsureProbe(*activeProbe, fallbackSource);
+            if (!probeReady)
+                spdlog::warn("[Renderer] Active reflection probe is not ready yet");
+        }
+    }
+
+    PopulateDebugStatsFromSubmission(submission, activeProbe, m_debugStats);
     RenderDirectionalShadowPass(submission);
 
     if (!m_lightUBO)
@@ -254,7 +295,7 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
 
     m_currentSkybox = submission.skybox;
     m_currentCamera = submission.camera;
-    m_queue.SetEnvironmentData(submission.activeReflectionProbe);
+    m_queue.SetEnvironmentData(activeProbe);
 }
 
 void Renderer::EndFrame()
