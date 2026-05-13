@@ -1,4 +1,5 @@
 #include "core/Material.h"
+#include "scene/ReflectionProbe.h"
 #include "core/ShaderProgram.h"
 #include "core/Texture2D.h"
 #include <glad/glad.h>
@@ -121,6 +122,9 @@ void ApplyPbrFallbackUniformDefaults(const ShaderProgram& shader)
     SetOptionalIntUniform(programId, TextureSlot::Emissive, MaterialTextureUnit::Emissive);
     SetOptionalIntUniform(programId, TextureSlot::SpecularGlossiness, MaterialTextureUnit::SpecularGlossiness);
     SetOptionalIntUniform(programId, "u_CascadeShadowMaps", 7);
+    SetOptionalIntUniform(programId,  EnvironmentTextureSlot::Irradiance, EnvironmentTextureUnit::Irradiance);
+    SetOptionalIntUniform(programId, "u_HasIrradianceMap", 0);
+    SetOptionalFloatUniform(programId, "u_IBLIntensity",   0.0f);
     SetOptionalVec3Uniform(programId, "u_AlbedoColor", kDefaultPbrAlbedoColor);
     SetOptionalFloatUniform(programId, "u_MetallicValue", kDefaultPbrMetallicValue);
     SetOptionalFloatUniform(programId, "u_RoughnessValue", kDefaultPbrRoughnessValue);

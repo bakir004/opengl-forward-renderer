@@ -25,6 +25,11 @@ uniform sampler2D      u_AOMap;
 uniform sampler2D      u_EmissiveMap;
 uniform sampler2D      u_SpecularGlossinessMap;
 uniform sampler2DArray u_CascadeShadowMaps;
+
+uniform samplerCube    u_IrradianceMap;
+uniform bool           u_HasIrradianceMap = false;
+uniform float          u_IBLIntensity     = 1.0;
+
 uniform mat4           u_CascadeViewProj[NUM_CASCADES];
 uniform float          u_CascadeSplits[NUM_CASCADES];
 uniform int            u_PCFRadius = 1;
@@ -442,7 +447,23 @@ void main()
         kD = (vec3(1.0) - kS) * (1.0 - metallic);
     }
 
-    vec3 ambient = kD * albedo * u_AmbientColor * u_AmbientIntensity * ao;
+    vec3 ambient;
+    if (u_HasIrradianceMap)
+    {
+        vec3 irradiance    = texture(u_IrradianceMap, N).rgb;
+        vec3 diffuseIBL    = irradiance * albedo;          // kD already in kD below
+        vec3 iblDiffuse    = kD * diffuseIBL * ao * u_IBLIntensity;
+
+        // Blend IBL ambient with the scene ambient so scenes without a probe
+        // still look correct (scene ambient acts as a floor).
+        vec3 sceneAmbient  = kD * albedo * u_AmbientColor * u_AmbientIntensity * ao;
+        ambient = max(iblDiffuse, sceneAmbient);
+    }
+    else
+    {
+        ambient = kD * albedo * u_AmbientColor * u_AmbientIntensity * ao;
+    }
+
     vec3 Lo = DirectionalLighting(albedo, N, V, F0, roughness, metallic);
     Lo += PointLighting(albedo, v_WorldPos, N, V, F0, roughness, metallic);
     Lo += SpotLighting(albedo, v_WorldPos, N, V, F0, roughness, metallic);
