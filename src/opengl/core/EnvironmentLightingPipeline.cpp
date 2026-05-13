@@ -35,6 +35,8 @@ namespace
     struct GLStateGuard
     {
         GLint viewport[4] = {0, 0, 0, 0};
+        GLint drawFramebuffer = 0;
+        GLint currentProgram = 0;
         GLboolean depthTest = GL_FALSE;
         GLboolean cullFace = GL_FALSE;
         GLboolean depthMask = GL_TRUE;
@@ -42,6 +44,8 @@ namespace
         GLStateGuard()
         {
             glGetIntegerv(GL_VIEWPORT, viewport);
+            glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &drawFramebuffer);
+            glGetIntegerv(GL_CURRENT_PROGRAM, &currentProgram);
             depthTest = glIsEnabled(GL_DEPTH_TEST);
             cullFace = glIsEnabled(GL_CULL_FACE);
             glGetBooleanv(GL_DEPTH_WRITEMASK, &depthMask);
@@ -49,6 +53,8 @@ namespace
 
         ~GLStateGuard()
         {
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(drawFramebuffer));
+            glUseProgram(static_cast<GLuint>(currentProgram));
             glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
             if (depthTest)
                 glEnable(GL_DEPTH_TEST);
@@ -70,6 +76,7 @@ struct EnvironmentLightingPipeline::Impl
     std::shared_ptr<ShaderProgram> irradianceShader;
     std::shared_ptr<ShaderProgram> prefilterShader;
     std::shared_ptr<ShaderProgram> brdfLutShader;
+    std::shared_ptr<Texture2D> sharedBrdfLut;
     GLuint framebuffer = 0;
     glm::mat4 captureProjection{1.0f};
     std::array<glm::mat4, 6> captureViews{};
@@ -101,7 +108,27 @@ struct EnvironmentLightingPipeline::Impl
             glm::lookAt(glm::vec3(0.0f), glm::vec3( 0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
         };
 
-        return cubeMesh && irradianceShader && prefilterShader && brdfLutShader;
+        if (!(cubeMesh && irradianceShader && prefilterShader && brdfLutShader))
+            return false;
+
+        sharedBrdfLut = std::make_shared<Texture2D>(Texture2D::CreateRenderTarget(
+            kBrdfLutSize,
+            kBrdfLutSize,
+            GL_RG16F,
+            GL_RG,
+            GL_FLOAT,
+            SamplerDesc{GL_LINEAR, GL_LINEAR, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE}));
+        if (!sharedBrdfLut->IsValid())
+        {
+            spdlog::error("[EnvironmentLighting] Failed to allocate BRDF LUT render target");
+            return false;
+        }
+
+        RenderBrdfLut(*sharedBrdfLut);
+        spdlog::info("[EnvironmentLighting] Generated BRDF integration LUT ({}x{}, RG16F, 1024 samples/texel, IBL k)",
+                     kBrdfLutSize,
+                     kBrdfLutSize);
+        return true;
     }
 
     void Shutdown()
@@ -116,6 +143,7 @@ struct EnvironmentLightingPipeline::Impl
         irradianceShader.reset();
         prefilterShader.reset();
         brdfLutShader.reset();
+        sharedBrdfLut.reset();
         lastSourceTextureId = 0;
     }
 
@@ -266,16 +294,8 @@ bool EnvironmentLightingPipeline::EnsureProbe(ReflectionProbe& probe,
                                                GL_LINEAR));
     }
 
-    if (!probe.brdfLut || !probe.brdfLut->IsValid())
-    {
-        probe.brdfLut = std::make_shared<Texture2D>(
-            Texture2D::CreateRenderTarget(kBrdfLutSize,
-                                          kBrdfLutSize,
-                                          GL_RG16F,
-                                          GL_RG,
-                                          GL_FLOAT,
-                                          SamplerDesc{GL_LINEAR, GL_LINEAR, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE}));
-    }
+    // BRDF LUT is independent of the environment; one shared texture baked at pipeline init.
+    probe.brdfLut = m_impl->sharedBrdfLut;
 
     if (!probe.irradianceCubemap || !probe.irradianceCubemap->IsValid() ||
         !probe.prefilteredCubemap || !probe.prefilteredCubemap->IsValid() ||
@@ -289,9 +309,8 @@ bool EnvironmentLightingPipeline::EnsureProbe(ReflectionProbe& probe,
     {
         m_impl->RenderIrradianceCubemap(*probe.irradianceCubemap, *probe.sourceCubemap);
         m_impl->RenderPrefilteredCubemap(*probe.prefilteredCubemap, *probe.sourceCubemap);
-        m_impl->RenderBrdfLut(*probe.brdfLut);
         m_impl->lastSourceTextureId = sourceTextureId;
-        spdlog::info("[EnvironmentLighting] Generated runtime IBL resources from source cubemap {}", sourceTextureId);
+        spdlog::info("[EnvironmentLighting] Generated irradiance + prefiltered cubemaps from source {}", sourceTextureId);
     }
 
     return probe.HasAnyIbl();
