@@ -13,7 +13,7 @@
 struct FrameSubmission {
     const Camera*     camera  = nullptr;
     const Skybox*     skybox  = nullptr;
-    const ReflectionProbe* activeReflectionProbe = nullptr;
+    ReflectionProbe* activeReflectionProbe = nullptr;
     FrameClearInfo    clearInfo;
     SubmissionContext context;
     LightEnvironment  lights;

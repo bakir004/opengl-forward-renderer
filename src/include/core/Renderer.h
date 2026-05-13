@@ -9,10 +9,12 @@
 #include "core/UniformBuffer.h"
 #include "core/ShaderProgram.h"
 #include "core/HdrFramebuffer.h"
+#include "core/EnvironmentLightingPipeline.h"
 #include "core/shadows/CascadedShadowMap.h"
 
 struct RenderItem;
 struct FrameSubmission;
+struct ReflectionProbe;
 class Skybox;
 class Camera;
 
@@ -90,8 +92,10 @@ class Renderer
     std::unique_ptr<ShaderProgram> m_shadowDepthShader;
     std::unique_ptr<CascadedShadowMap> m_directionalShadowMap;
     std::unique_ptr<HdrFramebuffer> m_hdrFramebuffer;
+    std::unique_ptr<EnvironmentLightingPipeline> m_environmentLightingPipeline;
     const Skybox* m_currentSkybox = nullptr;
     const Camera* m_currentCamera = nullptr;
+    std::shared_ptr<ReflectionProbe> m_defaultReflectionProbe;
     std::array<glm::mat4, CascadedShadowMap::kNumCascades> m_cascadeViewProj{};
     std::array<float, CascadedShadowMap::kNumCascades> m_cascadeSplits{};
     int m_shadowPcfRadius = 1;
@@ -102,6 +106,8 @@ class Renderer
     void RenderDirectionalShadowPass(const FrameSubmission &submission);
 
 public:
+    ~Renderer();
+
     /// Loads GL function pointers, enables debug output, and applies the default pipeline state.
     /// Must be called after a valid GL context is current.
     bool Initialize();

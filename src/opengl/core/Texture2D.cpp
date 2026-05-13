@@ -122,6 +122,45 @@ Texture2D Texture2D::CreateCheckerboard(int size)
     return t;
 }
 
+Texture2D Texture2D::CreateRenderTarget(int width,
+                                        int height,
+                                        GLenum internalFormat,
+                                        GLenum format,
+                                        GLenum type,
+                                        SamplerDesc sampler)
+{
+    Texture2D texture;
+    texture.m_width = width;
+    texture.m_height = height;
+    texture.m_path = "<runtime>";
+
+    if (texture.m_width <= 0 || texture.m_height <= 0)
+    {
+        spdlog::error("[Texture2D] Invalid render-target size: {}x{}", texture.m_width, texture.m_height);
+        return texture;
+    }
+
+    glGenTextures(1, &texture.m_id);
+    glBindTexture(GL_TEXTURE_2D, texture.m_id);
+    glTexImage2D(GL_TEXTURE_2D,
+                 0,
+                 static_cast<GLint>(internalFormat),
+                 texture.m_width,
+                 texture.m_height,
+                 0,
+                 format,
+                 type,
+                 nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, static_cast<GLint>(sampler.minFilter));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, static_cast<GLint>(sampler.magFilter));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, static_cast<GLint>(sampler.wrapS));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, static_cast<GLint>(sampler.wrapT));
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    spdlog::info("[Texture2D] Created runtime render target ({}x{})", texture.m_width, texture.m_height);
+    return texture;
+}
+
 Texture2D::~Texture2D() {
     if (m_id != 0) {
         glDeleteTextures(1, &m_id);

@@ -47,6 +47,15 @@ public:
     /// @param size  Width and height of the texture in pixels (must be power of 2).
     static Texture2D CreateCheckerboard(int size = 8);
 
+    /// Creates a runtime-generated 2-D texture with the requested internal format.
+    /// Useful for BRDF LUTs and other render-target textures.
+    static Texture2D CreateRenderTarget(int width,
+                                        int height,
+                                        GLenum internalFormat,
+                                        GLenum format,
+                                        GLenum type,
+                                        SamplerDesc sampler = {});
+
     ~Texture2D();
 
     Texture2D(const Texture2D&)            = delete;
