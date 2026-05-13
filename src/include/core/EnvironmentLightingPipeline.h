@@ -10,7 +10,7 @@ class TextureCubemap;
 ///
 /// The pipeline owns the GPU-side capture resources required to turn a source
 /// environment cubemap into the diffuse irradiance cubemap, prefiltered specular
-/// cubemap, and BRDF LUT used by PBR shaders.
+/// cubemap, and a shared BRDF integration LUT used by PBR shaders.
 class EnvironmentLightingPipeline {
 public:
     EnvironmentLightingPipeline();

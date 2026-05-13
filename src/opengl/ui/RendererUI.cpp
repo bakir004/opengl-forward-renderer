@@ -1112,6 +1112,21 @@ void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats
         ImGui::Spacing();
     }
 
+    if (SectionHeader("IBL (debug)", /*defaultOpen=*/false)) {
+        ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
+        ImGui::Text("IBL active (stats): %s", stats.iblAvailable ? "yes" : "no");
+        if (stats.iblBrdfLutTextureId != 0) {
+            ImGui::TextUnformatted("BRDF integration LUT (RG = scale, bias). Expect warm top-right, greenish bottom-left.");
+            const float pw = std::min(256.0f, kSidebarWidth - 40.0f);
+            ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<intptr_t>(stats.iblBrdfLutTextureId)),
+                         ImVec2(pw, pw), ImVec2(0, 1), ImVec2(1, 0));
+        } else {
+            ImGui::TextColored(Pal::TextFaint, "No BRDF LUT in active probe (need skybox + reflection probe path).");
+        }
+        ImGui::PopStyleColor();
+        ImGui::Spacing();
+    }
+
     if (SectionHeader("Light Counts")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
         ImGui::Text("Directional   : %u", stats.directionalLightCount);

@@ -17,6 +17,13 @@ layout(std140, binding = 0) uniform Camera {
 #include "light_block.glsl"
 #include "pbr_helpers.glsl"
 
+// Texture units (must match C++ MaterialTextureUnit / EnvironmentTextureUnit):
+//   0–5  material maps (albedo, normal, metallic, roughness, AO, emissive)
+//   6    specular/glossiness (when used)
+//   7    cascaded shadow map array
+//   8    u_IrradianceMap   (diffuse IBL)
+//   9    u_PrefilteredMap  (specular prefiltered environment)
+//   10   u_BRDFLUT         (split-sum BRDF; RG = scale, bias — wired in Task 7)
 uniform sampler2D      u_AlbedoMap;
 uniform sampler2D      u_NormalMap;
 uniform sampler2D      u_MetallicMap;
@@ -27,7 +34,12 @@ uniform sampler2D      u_SpecularGlossinessMap;
 uniform sampler2DArray u_CascadeShadowMaps;
 
 uniform samplerCube    u_IrradianceMap;
+uniform samplerCube    u_PrefilteredMap;
+uniform sampler2D      u_BRDFLUT;
 uniform bool           u_HasIrradianceMap = false;
+uniform bool           u_HasPrefilteredMap = false;
+uniform bool           u_HasBRDFLUT = false;
+uniform bool           u_HasIBL = false;
 uniform float          u_IBLIntensity     = 1.0;
 
 uniform mat4           u_CascadeViewProj[NUM_CASCADES];

@@ -123,7 +123,12 @@ void ApplyPbrFallbackUniformDefaults(const ShaderProgram& shader)
     SetOptionalIntUniform(programId, TextureSlot::SpecularGlossiness, MaterialTextureUnit::SpecularGlossiness);
     SetOptionalIntUniform(programId, "u_CascadeShadowMaps", 7);
     SetOptionalIntUniform(programId,  EnvironmentTextureSlot::Irradiance, EnvironmentTextureUnit::Irradiance);
+    SetOptionalIntUniform(programId, EnvironmentTextureSlot::Prefiltered, EnvironmentTextureUnit::Prefiltered);
+    SetOptionalIntUniform(programId, EnvironmentTextureSlot::BrdfLut, EnvironmentTextureUnit::BrdfLut);
     SetOptionalIntUniform(programId, "u_HasIrradianceMap", 0);
+    SetOptionalIntUniform(programId, "u_HasPrefilteredMap", 0);
+    SetOptionalIntUniform(programId, "u_HasBRDFLUT", 0);
+    SetOptionalIntUniform(programId, "u_HasIBL", 0);
     SetOptionalFloatUniform(programId, "u_IBLIntensity",   0.0f);
     SetOptionalVec3Uniform(programId, "u_AlbedoColor", kDefaultPbrAlbedoColor);
     SetOptionalFloatUniform(programId, "u_MetallicValue", kDefaultPbrMetallicValue);
