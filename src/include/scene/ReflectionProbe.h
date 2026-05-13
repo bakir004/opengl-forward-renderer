@@ -17,6 +17,7 @@ namespace EnvironmentTextureSlot {
 namespace EnvironmentTextureUnit {
     inline constexpr int Irradiance = 8;
     inline constexpr int Prefiltered = 9;
+    /// Split-sum BRDF LUT (RG16F); same data for every probe — baked once in EnvironmentLightingPipeline.
     inline constexpr int BrdfLut = 10;
 }
 
