@@ -22,13 +22,16 @@ namespace TextureSlot {
 }
 
 /// Fixed texture units reserved for the forward PBR material schema.
-/// Keep these values in sync with the GLSL sampler uniforms:
+/// Keep these values in sync with the GLSL sampler uniforms in mesh.frag:
 ///   - albedoMap   -> unit 0
 ///   - normalMap   -> unit 1
 ///   - metallicMap -> unit 2
 ///   - roughnessMap-> unit 3
 ///   - aoMap       -> unit 4
 ///   - emissiveMap -> unit 5
+///   - specularGlossiness -> unit 6
+/// Environment / IBL (see EnvironmentTextureUnit in ReflectionProbe.h):
+///   - irradiance / prefiltered cubemaps -> 8, 9; BRDF LUT -> 10
 namespace MaterialTextureUnit {
     inline constexpr int Albedo    = 0;
     inline constexpr int Normal    = 1;
