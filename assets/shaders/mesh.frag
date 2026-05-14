@@ -420,6 +420,21 @@ vec3 SpotLighting(vec3 albedo,
     return Lo;
 }
 
+// Sprint 9 / Task 6 (Diffuse IBL only):
+//  1) world-space normal N
+//  2) irradiance sample by N
+//  3) multiply by albedo and diffuse energy term (kD)
+//  4) diffuse fades out as metallic -> 1 via kD
+vec3 ComputeDiffuseIBL(vec3 N, vec3 albedo, vec3 kD, float ao)
+{
+    if (!u_HasIBL || !u_HasIrradianceMap)
+        return vec3(0.0);
+
+    vec3 irradiance = texture(u_IrradianceMap, normalize(N)).rgb;
+    vec3 diffuseIBL = irradiance * albedo;
+    return kD * diffuseIBL * ao * max(u_IBLIntensity, 0.0);
+}
+
 void main()
 {
     vec4 albedoSample = GetAlbedoSample();
@@ -459,22 +474,10 @@ void main()
         kD = (vec3(1.0) - kS) * (1.0 - metallic);
     }
 
-    vec3 ambient;
-    if (u_HasIrradianceMap)
-    {
-        vec3 irradiance    = texture(u_IrradianceMap, N).rgb;
-        vec3 diffuseIBL    = irradiance * albedo;          // kD already in kD below
-        vec3 iblDiffuse    = kD * diffuseIBL * ao * u_IBLIntensity;
-
-        // Blend IBL ambient with the scene ambient so scenes without a probe
-        // still look correct (scene ambient acts as a floor).
-        vec3 sceneAmbient  = kD * albedo * u_AmbientColor * u_AmbientIntensity * ao;
-        ambient = max(iblDiffuse, sceneAmbient);
-    }
-    else
-    {
-        ambient = kD * albedo * u_AmbientColor * u_AmbientIntensity * ao;
-    }
+    // Scene ambient remains as a floor for scenes without valid probe data.
+    vec3 sceneAmbient = kD * albedo * u_AmbientColor * u_AmbientIntensity * ao;
+    vec3 iblDiffuse   = ComputeDiffuseIBL(N, albedo, kD, ao);
+    vec3 ambient      = max(iblDiffuse, sceneAmbient);
 
     vec3 Lo = DirectionalLighting(albedo, N, V, F0, roughness, metallic);
     Lo += PointLighting(albedo, v_WorldPos, N, V, F0, roughness, metallic);
