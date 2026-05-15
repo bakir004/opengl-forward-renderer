@@ -435,12 +435,63 @@ vec3 ComputeDiffuseIBL(vec3 N, vec3 albedo, vec3 kD, float ao)
     return kD * diffuseIBL * ao * max(u_IBLIntensity, 0.0);
 }
 
+// Sprint 9 / Task 7 (Specular IBL — split-sum approximation):
+//  Uses the prefiltered environment map + BRDF LUT to compute the specular
+//  ambient contribution from the surrounding environment.
+//
+//  Split-sum (Karis 2013):
+//    specular_IBL = prefilteredColor * (F0 * scale + bias)
+//
+//  where:
+//    prefilteredColor = environment pre-convolved at the surface roughness level
+//    (F0 * scale + bias) = precomputed BRDF integral (stored in LUT as RG)
+//
+//  The Fresnel term here uses a roughness-corrected variant (FresnelSchlickRoughness)
+//  so that rough surfaces do not over-darken at grazing angles.
+vec3 FresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    // Reduces F multiplier at grazing angles proportionally to roughness,
+    // preventing excessively bright edges on rough surfaces (Lazarov 2013).
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+vec3 ComputeSpecularIBL(vec3 N, vec3 V, vec3 F0, float roughness, float ao)
+{
+    if (!u_HasIBL || !u_HasPrefilteredMap || !u_HasBRDFLUT)
+        return vec3(0.0);
+
+    // 1. Reflection vector: mirror the view direction about the surface normal.
+    vec3 R = reflect(-V, N);
+
+    float NdotV = max(dot(N, V), 0.0);
+
+    // 2. Sample the prefiltered environment map at the mip level that corresponds
+    //    to this surface's roughness.  textureQueryLevels returns the number of
+    //    mip levels in the cubemap; mip 0 = mirror-sharp, highest mip = fully blurred.
+    float mipCount = float(textureQueryLevels(u_PrefilteredMap));
+    float mipLevel = roughness * (mipCount - 1.0);
+    vec3 prefilteredColor = textureLod(u_PrefilteredMap, R, mipLevel).rgb;
+
+    // 3. Sample the BRDF LUT.
+    //    X axis = NdotV (0..1), Y axis = roughness (0..1).
+    //    R channel = scale applied to F0, G channel = additive bias.
+    vec2 brdf = texture(u_BRDFLUT, vec2(NdotV, roughness)).rg;
+
+    // 4. Roughness-aware Fresnel for the ambient term.
+    vec3 F = FresnelSchlickRoughness(NdotV, F0, roughness);
+
+    // 5. Combine: specular = environment * BRDF(F0·scale + bias).
+    //    AO attenuates the specular ambient just like the diffuse term.
+    vec3 specularIBL = prefilteredColor * (F * brdf.x + brdf.y);
+    return specularIBL * ao * max(u_IBLIntensity, 0.0);
+}
+
 void main()
 {
     vec4 albedoSample = GetAlbedoSample();
     vec3 albedo = GetAlbedo() * u_TintColor.rgb;
     float alpha = albedoSample.a * u_TintColor.a;
-    
+
     float metallic;
     float roughness;
     vec3 F0;
@@ -466,7 +517,7 @@ void main()
 
     // Existing scene ambient stays in place; Lo collects direct-light BRDF contributions.
     vec3 kS = FresnelSchlick(max(dot(N, V), 0.0), F0);
-    
+
     vec3 kD;
     if (u_IsSpecularGlossiness) {
         kD = (vec3(1.0) - kS);
@@ -477,7 +528,15 @@ void main()
     // Scene ambient remains as a floor for scenes without valid probe data.
     vec3 sceneAmbient = kD * albedo * u_AmbientColor * u_AmbientIntensity * ao;
     vec3 iblDiffuse   = ComputeDiffuseIBL(N, albedo, kD, ao);
-    vec3 ambient      = max(iblDiffuse, sceneAmbient);
+    vec3 iblSpecular  = ComputeSpecularIBL(N, V, F0, roughness, ao);
+
+    // When IBL is active: diffuse + specular together replace the flat scene ambient.
+    // When IBL is absent: fall back to flat ambient so scenes without a probe still lit.
+    vec3 ambient;
+    if (u_HasIBL && (u_HasIrradianceMap || (u_HasPrefilteredMap && u_HasBRDFLUT)))
+        ambient = iblDiffuse + iblSpecular;
+    else
+        ambient = sceneAmbient;
 
     vec3 Lo = DirectionalLighting(albedo, N, V, F0, roughness, metallic);
     Lo += PointLighting(albedo, v_WorldPos, N, V, F0, roughness, metallic);
