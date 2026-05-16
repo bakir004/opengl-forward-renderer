@@ -24,6 +24,17 @@ layout(std140, binding = 0) uniform Camera {
 //   8    u_IrradianceMap   (diffuse IBL)
 //   9    u_PrefilteredMap  (specular prefiltered environment)
 //   10   u_BRDFLUT         (split-sum BRDF; RG = scale, bias — wired in Task 7)
+//   11   u_SourceEnvironmentMap (original reflection probe source)
+const int IBL_DEBUG_ORIGINAL_ENVIRONMENT = 0;
+const int IBL_DEBUG_IRRADIANCE_CUBEMAP = 1;
+const int IBL_DEBUG_PREFILTERED_CUBEMAP = 2;
+const int IBL_DEBUG_PREFILTERED_MIP_LEVEL = 3;
+const int IBL_DEBUG_BRDF_LUT = 4;
+const int IBL_DEBUG_DIFFUSE_ONLY = 5;
+const int IBL_DEBUG_SPECULAR_ONLY = 6;
+const int IBL_DEBUG_FULL_IBL_NO_DIRECT = 7;
+const int IBL_DEBUG_FULL_LIGHTING = 8;
+
 uniform sampler2D      u_AlbedoMap;
 uniform sampler2D      u_NormalMap;
 uniform sampler2D      u_MetallicMap;
@@ -33,14 +44,18 @@ uniform sampler2D      u_EmissiveMap;
 uniform sampler2D      u_SpecularGlossinessMap;
 uniform sampler2DArray u_CascadeShadowMaps;
 
+uniform samplerCube    u_SourceEnvironmentMap;
 uniform samplerCube    u_IrradianceMap;
 uniform samplerCube    u_PrefilteredMap;
 uniform sampler2D      u_BRDFLUT;
+uniform bool           u_HasSourceEnvironmentMap = false;
 uniform bool           u_HasIrradianceMap = false;
 uniform bool           u_HasPrefilteredMap = false;
 uniform bool           u_HasBRDFLUT = false;
 uniform bool           u_HasIBL = false;
 uniform float          u_IBLIntensity     = 1.0;
+uniform int            u_IBLDebugMode = IBL_DEBUG_FULL_LIGHTING;
+uniform float          u_IBLDebugPrefilteredMip = 0.0;
 
 uniform mat4           u_CascadeViewProj[NUM_CASCADES];
 uniform float          u_CascadeSplits[NUM_CASCADES];
@@ -553,5 +568,62 @@ void main()
     Lo += PointLighting(albedo, v_WorldPos, N, V, F0, roughness, metallic);
     Lo += SpotLighting(albedo, v_WorldPos, N, V, F0, roughness, metallic);
 
-    FragColor = vec4(ambient + Lo + emissive, alpha);
+    vec3 fullLighting = ambient + Lo + emissive;
+    vec3 R = reflect(-V, N);
+    float NdotV = max(dot(N, V), 0.0);
+
+    if (u_IBLDebugMode == IBL_DEBUG_ORIGINAL_ENVIRONMENT) {
+        vec3 color = u_HasSourceEnvironmentMap
+                         ? texture(u_SourceEnvironmentMap, normalize(R)).rgb * max(u_IBLIntensity, 0.0)
+                         : vec3(0.0);
+        FragColor = vec4(color, alpha);
+        return;
+    }
+
+    if (u_IBLDebugMode == IBL_DEBUG_IRRADIANCE_CUBEMAP) {
+        vec3 color = u_HasIrradianceMap
+                         ? texture(u_IrradianceMap, normalize(N)).rgb * max(u_IBLIntensity, 0.0)
+                         : vec3(0.0);
+        FragColor = vec4(color, alpha);
+        return;
+    }
+
+    if (u_IBLDebugMode == IBL_DEBUG_PREFILTERED_CUBEMAP ||
+        u_IBLDebugMode == IBL_DEBUG_PREFILTERED_MIP_LEVEL) {
+        vec3 color = vec3(0.0);
+        if (u_HasPrefilteredMap) {
+            float maxMipLevel = max(float(textureQueryLevels(u_PrefilteredMap)) - 1.0, 0.0);
+            float mipLevel = (u_IBLDebugMode == IBL_DEBUG_PREFILTERED_MIP_LEVEL)
+                                 ? clamp(u_IBLDebugPrefilteredMip, 0.0, maxMipLevel)
+                                 : roughness * maxMipLevel;
+            color = textureLod(u_PrefilteredMap, normalize(R), mipLevel).rgb * max(u_IBLIntensity, 0.0);
+        }
+        FragColor = vec4(color, alpha);
+        return;
+    }
+
+    if (u_IBLDebugMode == IBL_DEBUG_BRDF_LUT) {
+        vec3 color = u_HasBRDFLUT
+                         ? vec3(texture(u_BRDFLUT, vec2(NdotV, roughness)).rg, 0.0)
+                         : vec3(0.0);
+        FragColor = vec4(color, alpha);
+        return;
+    }
+
+    if (u_IBLDebugMode == IBL_DEBUG_DIFFUSE_ONLY) {
+        FragColor = vec4(iblDiffuse, alpha);
+        return;
+    }
+
+    if (u_IBLDebugMode == IBL_DEBUG_SPECULAR_ONLY) {
+        FragColor = vec4(iblSpecular, alpha);
+        return;
+    }
+
+    if (u_IBLDebugMode == IBL_DEBUG_FULL_IBL_NO_DIRECT) {
+        FragColor = vec4(iblDiffuse + iblSpecular + emissive, alpha);
+        return;
+    }
+
+    FragColor = vec4(fullLighting, alpha);
 }

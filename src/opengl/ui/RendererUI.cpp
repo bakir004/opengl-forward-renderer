@@ -1101,7 +1101,112 @@ void RendererUI::DrawTabPostFX(Scene & /*scene*/, const RendererDebugStats &stat
     if (SectionHeader("IBL Debug", /*defaultOpen=*/false)) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
         ImGui::Text("IBL active (stats): %s", stats.iblAvailable ? "yes" : "no");
+
+        int iblModeIndex = std::clamp(ToUniformValue(iblDebugMode),
+                                      0,
+                                      static_cast<int>(kIBLDebugModeLabels.size()) - 1);
+        if (ImGui::Combo("Debug Mode##ibl",
+                         &iblModeIndex,
+                         kIBLDebugModeLabels.data(),
+                         static_cast<int>(kIBLDebugModeLabels.size()))) {
+            iblDebugMode = static_cast<IBLDebugMode>(iblModeIndex);
+        }
+
+        const float maxMip = stats.iblPrefilteredMipCount > 0
+                                 ? static_cast<float>(stats.iblPrefilteredMipCount - 1)
+                                 : 0.0f;
+        iblDebugPrefilteredMip = std::clamp(iblDebugPrefilteredMip, 0.0f, maxMip);
+        ImGui::BeginDisabled(stats.iblPrefilteredMipCount <= 1);
+        ImGui::SliderFloat("Prefiltered Mip##ibl", &iblDebugPrefilteredMip, 0.0f, maxMip, "%.1f");
+        ImGui::EndDisabled();
+
+        ImGui::Separator();
+        ImGui::Text("IBL intensity    : %.3f", stats.iblIntensity);
+        ImGui::Text("Selected mip     : %.1f / %.1f", iblDebugPrefilteredMip, maxMip);
+
+        auto DrawResourceInfo = [](const char *label,
+                                   uint32_t textureId,
+                                   uint32_t width,
+                                   uint32_t height,
+                                   uint32_t mipCount = 0) {
+            const bool ready = textureId != 0;
+            ImGui::Text("%s", label);
+            ImGui::SameLine(165.0f);
+            ImGui::TextColored(ready ? Pal::Green : Pal::TextFaint,
+                               "%s", ready ? "ready" : "missing");
+            ImGui::TextColored(Pal::TextFaint, "  id: %u", textureId);
+            if (ready && width > 0 && height > 0)
+                ImGui::TextColored(Pal::TextFaint, "  size: %u x %u", width, height);
+            else
+                ImGui::TextColored(Pal::TextFaint, "  size: unknown");
+            if (mipCount > 0)
+                ImGui::TextColored(Pal::TextFaint, "  mips: %u", mipCount);
+        };
+
+        auto DrawCubemapPreview = [](const char *label,
+                                     const auto& faceTextureIds,
+                                     bool available) {
+            ImGui::Spacing();
+            ImGui::TextColored(Pal::TextDim, "%s", label);
+            if (!available) {
+                ImGui::TextColored(Pal::TextFaint, "  preview unavailable");
+                return;
+            }
+
+            static const char *kFaceLabels[] = {"+X", "-X", "+Y", "-Y", "+Z", "-Z"};
+            const float gap = 4.0f;
+            const float width = ImGui::GetContentRegionAvail().x;
+            const float thumb = std::max(48.0f, (width - gap * 2.0f) / 3.0f);
+
+            for (std::size_t face = 0; face < faceTextureIds.size(); ++face) {
+                ImGui::BeginGroup();
+                ImGui::TextColored(Pal::TextFaint, "%s", kFaceLabels[face]);
+                const uint32_t previewTexture = faceTextureIds[face];
+                if (previewTexture != 0) {
+                    ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<intptr_t>(previewTexture)),
+                                 ImVec2(thumb, thumb),
+                                 ImVec2(0, 1),
+                                 ImVec2(1, 0));
+                } else {
+                    ImGui::Dummy(ImVec2(thumb, thumb));
+                }
+                ImGui::EndGroup();
+                if ((face % 3) != 2)
+                    ImGui::SameLine(0, gap);
+            }
+        };
+
+        DrawResourceInfo("Source environment",
+                         stats.iblSourceTextureId,
+                         stats.iblSourceWidth,
+                         stats.iblSourceHeight);
+        DrawResourceInfo("Irradiance cubemap",
+                         stats.iblIrradianceTextureId,
+                         stats.iblIrradianceWidth,
+                         stats.iblIrradianceHeight);
+        DrawResourceInfo("Prefiltered cubemap",
+                         stats.iblPrefilteredTextureId,
+                         stats.iblPrefilteredWidth,
+                         stats.iblPrefilteredHeight,
+                         stats.iblPrefilteredMipCount);
+        DrawResourceInfo("BRDF LUT",
+                         stats.iblBrdfLutTextureId,
+                         stats.iblBrdfLutWidth,
+                         stats.iblBrdfLutHeight);
+
+        ImGui::Separator();
+        DrawCubemapPreview("Original environment cubemap",
+                           stats.iblSourcePreviewTextureIds,
+                           stats.iblSourceTextureId != 0);
+        DrawCubemapPreview("Irradiance cubemap",
+                           stats.iblIrradiancePreviewTextureIds,
+                           stats.iblIrradianceTextureId != 0);
+        DrawCubemapPreview("Prefiltered cubemap (selected mip)",
+                           stats.iblPrefilteredPreviewTextureIds,
+                           stats.iblPrefilteredTextureId != 0);
+
         if (stats.iblBrdfLutTextureId != 0) {
+            ImGui::Spacing();
             ImGui::TextWrapped("BRDF integration LUT (RG = scale, bias).");
             const float pw = std::min(256.0f, kSidebarWidth - 40.0f);
             ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<intptr_t>(stats.iblBrdfLutTextureId)),

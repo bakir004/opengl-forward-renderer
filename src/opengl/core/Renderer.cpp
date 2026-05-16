@@ -67,6 +67,18 @@ namespace
         return item.flags.visible && item.flags.castShadow && HasDrawableGeometry(item);
     }
 
+    void PopulateCubemapFacePreviews(const std::shared_ptr<TextureCubemap>& cubemap,
+                                     int mipLevel,
+                                     std::array<uint32_t, 6>& outPreviewIds)
+    {
+        outPreviewIds.fill(0);
+        if (!cubemap || !cubemap->IsValid())
+            return;
+
+        for (std::size_t face = 0; face < outPreviewIds.size(); ++face)
+            outPreviewIds[face] = cubemap->GetFacePreviewTexture(static_cast<int>(face), mipLevel);
+    }
+
     glm::mat4 BuildItemModelMatrix(const RenderItem &item)
     {
         glm::mat4 model = item.transform.GetModelMatrix();
@@ -125,6 +137,7 @@ namespace
 
     void PopulateDebugStatsFromSubmission(const FrameSubmission &submission,
                                           const ReflectionProbe *activeProbe,
+                                          float debugPrefilteredMip,
                                           RendererDebugStats &stats)
     {
         stats.submittedRenderItemCount = static_cast<uint32_t>(submission.objects.size());
@@ -147,17 +160,52 @@ namespace
         stats.shadowMapWidth = 0;
         stats.shadowMapHeight = 0;
         stats.shadowMapPreviewAvailable = false;
+        stats.iblSourceTextureId = 0;
+        stats.iblSourceWidth = 0;
+        stats.iblSourceHeight = 0;
         stats.iblIrradianceTextureId = 0;
+        stats.iblIrradianceWidth = 0;
+        stats.iblIrradianceHeight = 0;
         stats.iblPrefilteredTextureId = 0;
+        stats.iblPrefilteredWidth = 0;
+        stats.iblPrefilteredHeight = 0;
         stats.iblBrdfLutTextureId = 0;
+        stats.iblBrdfLutWidth = 0;
+        stats.iblBrdfLutHeight = 0;
+        stats.iblPrefilteredMipCount = 0;
+        stats.iblSourcePreviewTextureIds.fill(0);
+        stats.iblIrradiancePreviewTextureIds.fill(0);
+        stats.iblPrefilteredPreviewTextureIds.fill(0);
         stats.iblIntensity = 0.0f;
         stats.iblAvailable = false;
         if (activeProbe)
         {
             const ReflectionProbe &probe = *activeProbe;
+            stats.iblSourceTextureId = probe.sourceCubemap ? probe.sourceCubemap->GetID() : 0;
+            stats.iblSourceWidth = probe.sourceCubemap ? static_cast<uint32_t>(probe.sourceCubemap->GetWidth()) : 0;
+            stats.iblSourceHeight = probe.sourceCubemap ? static_cast<uint32_t>(probe.sourceCubemap->GetHeight()) : 0;
             stats.iblIrradianceTextureId = probe.irradianceCubemap ? probe.irradianceCubemap->GetID() : 0;
+            stats.iblIrradianceWidth = probe.irradianceCubemap ? static_cast<uint32_t>(probe.irradianceCubemap->GetWidth()) : 0;
+            stats.iblIrradianceHeight = probe.irradianceCubemap ? static_cast<uint32_t>(probe.irradianceCubemap->GetHeight()) : 0;
             stats.iblPrefilteredTextureId = probe.prefilteredCubemap ? probe.prefilteredCubemap->GetID() : 0;
+            stats.iblPrefilteredWidth = probe.prefilteredCubemap ? static_cast<uint32_t>(probe.prefilteredCubemap->GetWidth()) : 0;
+            stats.iblPrefilteredHeight = probe.prefilteredCubemap ? static_cast<uint32_t>(probe.prefilteredCubemap->GetHeight()) : 0;
             stats.iblBrdfLutTextureId = probe.brdfLut ? probe.brdfLut->GetID() : 0;
+            stats.iblBrdfLutWidth = probe.brdfLut ? static_cast<uint32_t>(probe.brdfLut->GetWidth()) : 0;
+            stats.iblBrdfLutHeight = probe.brdfLut ? static_cast<uint32_t>(probe.brdfLut->GetHeight()) : 0;
+            stats.iblPrefilteredMipCount = probe.prefilteredCubemap
+                                               ? static_cast<uint32_t>(probe.prefilteredCubemap->GetMipLevels())
+                                               : 0;
+            const int selectedPrefilteredMip = stats.iblPrefilteredMipCount > 0
+                                                   ? std::clamp(static_cast<int>(debugPrefilteredMip + 0.5f),
+                                                                0,
+                                                                static_cast<int>(stats.iblPrefilteredMipCount - 1))
+                                                   : 0;
+            PopulateCubemapFacePreviews(probe.sourceCubemap, 0, stats.iblSourcePreviewTextureIds);
+            PopulateCubemapFacePreviews(probe.irradianceCubemap, 0, stats.iblIrradiancePreviewTextureIds);
+            PopulateCubemapFacePreviews(probe.prefilteredCubemap,
+                                        selectedPrefilteredMip,
+                                        stats.iblPrefilteredPreviewTextureIds);
             stats.iblIntensity = probe.intensity;
             stats.iblAvailable = probe.HasAnyIbl();
         }
@@ -217,6 +265,12 @@ void Renderer::Shutdown()
     m_initCtx.Shutdown();
 }
 
+void Renderer::SetIBLDebugState(IBLDebugMode mode, float prefilteredMipLevel)
+{
+    m_iblDebugMode = mode;
+    m_iblDebugPrefilteredMip = std::max(0.0f, prefilteredMipLevel);
+}
+
 void Renderer::BeginFrame(const FrameSubmission &submission)
 {
     assert(!m_inFrame && "BeginFrame() called without a matching EndFrame()");
@@ -244,7 +298,9 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
         }
     }
 
-    PopulateDebugStatsFromSubmission(submission, activeProbe, m_debugStats);
+    PopulateDebugStatsFromSubmission(submission, activeProbe, m_iblDebugPrefilteredMip, m_debugStats);
+    m_debugStats.iblDebugMode = m_iblDebugMode;
+    m_debugStats.iblDebugPrefilteredMip = m_iblDebugPrefilteredMip;
     RenderDirectionalShadowPass(submission);
 
     if (!m_lightUBO)
@@ -296,6 +352,7 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
     m_currentSkybox = submission.skybox;
     m_currentCamera = submission.camera;
     m_queue.SetEnvironmentData(activeProbe);
+    m_queue.SetIBLDebugState(m_iblDebugMode, m_iblDebugPrefilteredMip);
 }
 
 void Renderer::EndFrame()

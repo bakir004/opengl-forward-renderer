@@ -233,6 +233,7 @@ void Application::RunFrame(Scene &scene,
         vpW > 0 ? vpW : fbW,
         vpH > 0 ? vpH : fbH};
 
+    m_renderer->SetIBLDebugState(m_ui->iblDebugMode, m_ui->iblDebugPrefilteredMip);
     m_renderer->BeginFrame(sub);
     for (const auto &item : sub.objects)
     {

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <vector>
 #include <glm/glm.hpp>
+#include "core/IBLDebugMode.h"
 #include "core/shadows/CascadedShadowMap.h"
 #include "scene/RenderItem.h"
 
@@ -61,6 +62,9 @@ public:
     /// Sets active environment/IBL resources for shaders flushed this frame.
     void SetEnvironmentData(const ReflectionProbe *probe);
 
+    /// Sets the active IBL debug visualization sent to PBR shaders.
+    void SetIBLDebugState(IBLDebugMode mode, float prefilteredMipLevel);
+
 private:
     std::vector<RenderItem> m_items;
     const ShaderProgram *m_errorShader = nullptr;
@@ -70,4 +74,6 @@ private:
     int  m_pcfRadius = 1;
     bool m_hasShadowData = false;
     const ReflectionProbe *m_activeReflectionProbe = nullptr;
+    IBLDebugMode m_iblDebugMode = kDefaultIBLDebugMode;
+    float m_iblDebugPrefilteredMip = 0.0f;
 };

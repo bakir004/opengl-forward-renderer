@@ -8,13 +8,16 @@ class TextureCubemap;
 
 /// Texture slot names and units reserved for image-based lighting resources.
 /// Units 0-6 are material textures and unit 7 is the cascaded shadow map array.
+/// IBL uses units 8-11.
 namespace EnvironmentTextureSlot {
+    inline constexpr const char* Source = "u_SourceEnvironmentMap";
     inline constexpr const char* Irradiance = "u_IrradianceMap";
     inline constexpr const char* Prefiltered = "u_PrefilteredMap";
     inline constexpr const char* BrdfLut = "u_BRDFLUT";
 }
 
 namespace EnvironmentTextureUnit {
+    inline constexpr int Source = 11;
     inline constexpr int Irradiance = 8;
     inline constexpr int Prefiltered = 9;
     /// Split-sum BRDF LUT (RG16F); same data for every probe — baked once in EnvironmentLightingPipeline.
