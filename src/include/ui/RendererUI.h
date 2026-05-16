@@ -15,7 +15,8 @@ enum class UITab : int {
     Lights = 1,
     Materials = 2,
     Shadow = 3,
-    Stats = 4,
+    PostFX = 4,
+    Stats = 5,
 };
 
 class RendererUI {
@@ -106,6 +107,8 @@ private:
                           const FrameSubmission &frame);
 
     void DrawTabShadow(Scene &scene, const RendererDebugStats &stats);
+
+    void DrawTabPostFX(Scene &scene, const RendererDebugStats &stats);
 
     void DrawTabStats(Scene &scene, const RendererDebugStats &stats,
                       const AssetCacheStats &cacheStats);

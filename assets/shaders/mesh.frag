@@ -455,8 +455,9 @@ vec3 FresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
-vec3 ComputeSpecularIBL(vec3 N, vec3 V, vec3 F0, float roughness, float ao)
+vec3 ComputeSpecularIBL(vec3 N, vec3 V, vec3 F0, float roughness, float ao, out vec3 F)
 {
+    F = vec3(0.0);
     if (!u_HasIBL || !u_HasPrefilteredMap || !u_HasBRDFLUT)
         return vec3(0.0);
 
@@ -478,7 +479,7 @@ vec3 ComputeSpecularIBL(vec3 N, vec3 V, vec3 F0, float roughness, float ao)
     vec2 brdf = texture(u_BRDFLUT, vec2(NdotV, roughness)).rg;
 
     // 4. Roughness-aware Fresnel for the ambient term.
-    vec3 F = FresnelSchlickRoughness(NdotV, F0, roughness);
+    F = FresnelSchlickRoughness(NdotV, F0, roughness);
 
     // 5. Combine: specular = environment * BRDF(F0·scale + bias).
     //    AO attenuates the specular ambient just like the diffuse term.
@@ -515,20 +516,30 @@ void main()
     vec3 N = ResolveWorldNormal();
     vec3 V = normalize(cameraPos - v_WorldPos);
 
-    // Existing scene ambient stays in place; Lo collects direct-light BRDF contributions.
-    vec3 kS = FresnelSchlick(max(dot(N, V), 0.0), F0);
-
-    vec3 kD;
+    // IBL logic:
+    vec3 kS_ibl;
+    vec3 iblSpecular = ComputeSpecularIBL(N, V, F0, roughness, ao, kS_ibl);
+    
+    vec3 kD_ibl;
     if (u_IsSpecularGlossiness) {
-        kD = (vec3(1.0) - kS);
+        kD_ibl = (vec3(1.0) - kS_ibl);
     } else {
-        kD = (vec3(1.0) - kS) * (1.0 - metallic);
+        kD_ibl = (vec3(1.0) - kS_ibl) * (1.0 - metallic);
+    }
+    
+    vec3 iblDiffuse = ComputeDiffuseIBL(N, albedo, kD_ibl, ao);
+
+    // Direct lighting logic (remains consistent with direct light BRDF):
+    vec3 kS_direct = FresnelSchlick(max(dot(N, V), 0.0), F0);
+    vec3 kD_direct;
+    if (u_IsSpecularGlossiness) {
+        kD_direct = (vec3(1.0) - kS_direct);
+    } else {
+        kD_direct = (vec3(1.0) - kS_direct) * (1.0 - metallic);
     }
 
     // Scene ambient remains as a floor for scenes without valid probe data.
-    vec3 sceneAmbient = kD * albedo * u_AmbientColor * u_AmbientIntensity * ao;
-    vec3 iblDiffuse   = ComputeDiffuseIBL(N, albedo, kD, ao);
-    vec3 iblSpecular  = ComputeSpecularIBL(N, V, F0, roughness, ao);
+    vec3 sceneAmbient = kD_direct * albedo * u_AmbientColor * u_AmbientIntensity * ao;
 
     // When IBL is active: diffuse + specular together replace the flat scene ambient.
     // When IBL is absent: fall back to flat ambient so scenes without a probe still lit.
