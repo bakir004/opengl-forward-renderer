@@ -1121,11 +1121,45 @@ void RendererUI::DrawTabPostFX(Scene & /*scene*/, const RendererDebugStats &stat
         ImGui::EndDisabled();
 
         ImGui::Separator();
-        ImGui::Text("Source cubemap   : %u", stats.iblSourceTextureId);
-        ImGui::Text("Irradiance map   : %u", stats.iblIrradianceTextureId);
-        ImGui::Text("Prefiltered map  : %u", stats.iblPrefilteredTextureId);
-        ImGui::Text("Prefiltered mips : %u", stats.iblPrefilteredMipCount);
-        ImGui::Text("BRDF LUT         : %u", stats.iblBrdfLutTextureId);
+        ImGui::Text("IBL intensity    : %.3f", stats.iblIntensity);
+        ImGui::Text("Selected mip     : %.1f / %.1f", iblDebugPrefilteredMip, maxMip);
+
+        auto DrawResourceInfo = [](const char *label,
+                                   uint32_t textureId,
+                                   uint32_t width,
+                                   uint32_t height,
+                                   uint32_t mipCount = 0) {
+            const bool ready = textureId != 0;
+            ImGui::Text("%s", label);
+            ImGui::SameLine(165.0f);
+            ImGui::TextColored(ready ? Pal::Green : Pal::TextFaint,
+                               "%s", ready ? "ready" : "missing");
+            ImGui::TextColored(Pal::TextFaint, "  id: %u", textureId);
+            if (ready && width > 0 && height > 0)
+                ImGui::TextColored(Pal::TextFaint, "  size: %u x %u", width, height);
+            else
+                ImGui::TextColored(Pal::TextFaint, "  size: unknown");
+            if (mipCount > 0)
+                ImGui::TextColored(Pal::TextFaint, "  mips: %u", mipCount);
+        };
+
+        DrawResourceInfo("Source environment",
+                         stats.iblSourceTextureId,
+                         stats.iblSourceWidth,
+                         stats.iblSourceHeight);
+        DrawResourceInfo("Irradiance cubemap",
+                         stats.iblIrradianceTextureId,
+                         stats.iblIrradianceWidth,
+                         stats.iblIrradianceHeight);
+        DrawResourceInfo("Prefiltered cubemap",
+                         stats.iblPrefilteredTextureId,
+                         stats.iblPrefilteredWidth,
+                         stats.iblPrefilteredHeight,
+                         stats.iblPrefilteredMipCount);
+        DrawResourceInfo("BRDF LUT",
+                         stats.iblBrdfLutTextureId,
+                         stats.iblBrdfLutWidth,
+                         stats.iblBrdfLutHeight);
 
         if (stats.iblBrdfLutTextureId != 0) {
             ImGui::TextWrapped("BRDF integration LUT (RG = scale, bias).");

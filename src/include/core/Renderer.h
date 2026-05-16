@@ -56,9 +56,17 @@ struct RendererDebugStats
     uint32_t hdrWidth = 0;
     uint32_t hdrHeight = 0;
     uint32_t iblSourceTextureId = 0;
+    uint32_t iblSourceWidth = 0;
+    uint32_t iblSourceHeight = 0;
     uint32_t iblIrradianceTextureId = 0;
+    uint32_t iblIrradianceWidth = 0;
+    uint32_t iblIrradianceHeight = 0;
     uint32_t iblPrefilteredTextureId = 0;
+    uint32_t iblPrefilteredWidth = 0;
+    uint32_t iblPrefilteredHeight = 0;
     uint32_t iblBrdfLutTextureId = 0;
+    uint32_t iblBrdfLutWidth = 0;
+    uint32_t iblBrdfLutHeight = 0;
     uint32_t iblPrefilteredMipCount = 0;
     float iblIntensity = 0.0f;
     float iblDebugPrefilteredMip = 0.0f;

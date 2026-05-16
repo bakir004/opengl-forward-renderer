@@ -148,9 +148,17 @@ namespace
         stats.shadowMapHeight = 0;
         stats.shadowMapPreviewAvailable = false;
         stats.iblSourceTextureId = 0;
+        stats.iblSourceWidth = 0;
+        stats.iblSourceHeight = 0;
         stats.iblIrradianceTextureId = 0;
+        stats.iblIrradianceWidth = 0;
+        stats.iblIrradianceHeight = 0;
         stats.iblPrefilteredTextureId = 0;
+        stats.iblPrefilteredWidth = 0;
+        stats.iblPrefilteredHeight = 0;
         stats.iblBrdfLutTextureId = 0;
+        stats.iblBrdfLutWidth = 0;
+        stats.iblBrdfLutHeight = 0;
         stats.iblPrefilteredMipCount = 0;
         stats.iblIntensity = 0.0f;
         stats.iblAvailable = false;
@@ -158,9 +166,17 @@ namespace
         {
             const ReflectionProbe &probe = *activeProbe;
             stats.iblSourceTextureId = probe.sourceCubemap ? probe.sourceCubemap->GetID() : 0;
+            stats.iblSourceWidth = probe.sourceCubemap ? static_cast<uint32_t>(probe.sourceCubemap->GetWidth()) : 0;
+            stats.iblSourceHeight = probe.sourceCubemap ? static_cast<uint32_t>(probe.sourceCubemap->GetHeight()) : 0;
             stats.iblIrradianceTextureId = probe.irradianceCubemap ? probe.irradianceCubemap->GetID() : 0;
+            stats.iblIrradianceWidth = probe.irradianceCubemap ? static_cast<uint32_t>(probe.irradianceCubemap->GetWidth()) : 0;
+            stats.iblIrradianceHeight = probe.irradianceCubemap ? static_cast<uint32_t>(probe.irradianceCubemap->GetHeight()) : 0;
             stats.iblPrefilteredTextureId = probe.prefilteredCubemap ? probe.prefilteredCubemap->GetID() : 0;
+            stats.iblPrefilteredWidth = probe.prefilteredCubemap ? static_cast<uint32_t>(probe.prefilteredCubemap->GetWidth()) : 0;
+            stats.iblPrefilteredHeight = probe.prefilteredCubemap ? static_cast<uint32_t>(probe.prefilteredCubemap->GetHeight()) : 0;
             stats.iblBrdfLutTextureId = probe.brdfLut ? probe.brdfLut->GetID() : 0;
+            stats.iblBrdfLutWidth = probe.brdfLut ? static_cast<uint32_t>(probe.brdfLut->GetWidth()) : 0;
+            stats.iblBrdfLutHeight = probe.brdfLut ? static_cast<uint32_t>(probe.brdfLut->GetHeight()) : 0;
             stats.iblPrefilteredMipCount = probe.prefilteredCubemap
                                                ? static_cast<uint32_t>(probe.prefilteredCubemap->GetMipLevels())
                                                : 0;

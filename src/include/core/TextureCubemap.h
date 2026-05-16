@@ -47,6 +47,8 @@ public:
 
     [[nodiscard]] GLuint GetID() const { return m_id; }
     [[nodiscard]] bool IsValid() const { return m_id != 0; }
+    [[nodiscard]] int GetWidth() const { return m_width; }
+    [[nodiscard]] int GetHeight() const { return m_height; }
     [[nodiscard]] int GetMipLevels() const { return m_mipLevels; }
 
 private:
