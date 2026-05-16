@@ -1143,6 +1143,39 @@ void RendererUI::DrawTabPostFX(Scene & /*scene*/, const RendererDebugStats &stat
                 ImGui::TextColored(Pal::TextFaint, "  mips: %u", mipCount);
         };
 
+        auto DrawCubemapPreview = [](const char *label,
+                                     const auto& faceTextureIds,
+                                     bool available) {
+            ImGui::Spacing();
+            ImGui::TextColored(Pal::TextDim, "%s", label);
+            if (!available) {
+                ImGui::TextColored(Pal::TextFaint, "  preview unavailable");
+                return;
+            }
+
+            static const char *kFaceLabels[] = {"+X", "-X", "+Y", "-Y", "+Z", "-Z"};
+            const float gap = 4.0f;
+            const float width = ImGui::GetContentRegionAvail().x;
+            const float thumb = std::max(48.0f, (width - gap * 2.0f) / 3.0f);
+
+            for (std::size_t face = 0; face < faceTextureIds.size(); ++face) {
+                ImGui::BeginGroup();
+                ImGui::TextColored(Pal::TextFaint, "%s", kFaceLabels[face]);
+                const uint32_t previewTexture = faceTextureIds[face];
+                if (previewTexture != 0) {
+                    ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<intptr_t>(previewTexture)),
+                                 ImVec2(thumb, thumb),
+                                 ImVec2(0, 1),
+                                 ImVec2(1, 0));
+                } else {
+                    ImGui::Dummy(ImVec2(thumb, thumb));
+                }
+                ImGui::EndGroup();
+                if ((face % 3) != 2)
+                    ImGui::SameLine(0, gap);
+            }
+        };
+
         DrawResourceInfo("Source environment",
                          stats.iblSourceTextureId,
                          stats.iblSourceWidth,
@@ -1161,7 +1194,19 @@ void RendererUI::DrawTabPostFX(Scene & /*scene*/, const RendererDebugStats &stat
                          stats.iblBrdfLutWidth,
                          stats.iblBrdfLutHeight);
 
+        ImGui::Separator();
+        DrawCubemapPreview("Original environment cubemap",
+                           stats.iblSourcePreviewTextureIds,
+                           stats.iblSourceTextureId != 0);
+        DrawCubemapPreview("Irradiance cubemap",
+                           stats.iblIrradiancePreviewTextureIds,
+                           stats.iblIrradianceTextureId != 0);
+        DrawCubemapPreview("Prefiltered cubemap (selected mip)",
+                           stats.iblPrefilteredPreviewTextureIds,
+                           stats.iblPrefilteredTextureId != 0);
+
         if (stats.iblBrdfLutTextureId != 0) {
+            ImGui::Spacing();
             ImGui::TextWrapped("BRDF integration LUT (RG = scale, bias).");
             const float pw = std::min(256.0f, kSidebarWidth - 40.0f);
             ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<intptr_t>(stats.iblBrdfLutTextureId)),

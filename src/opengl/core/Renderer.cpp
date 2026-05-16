@@ -67,6 +67,18 @@ namespace
         return item.flags.visible && item.flags.castShadow && HasDrawableGeometry(item);
     }
 
+    void PopulateCubemapFacePreviews(const std::shared_ptr<TextureCubemap>& cubemap,
+                                     int mipLevel,
+                                     std::array<uint32_t, 6>& outPreviewIds)
+    {
+        outPreviewIds.fill(0);
+        if (!cubemap || !cubemap->IsValid())
+            return;
+
+        for (std::size_t face = 0; face < outPreviewIds.size(); ++face)
+            outPreviewIds[face] = cubemap->GetFacePreviewTexture(static_cast<int>(face), mipLevel);
+    }
+
     glm::mat4 BuildItemModelMatrix(const RenderItem &item)
     {
         glm::mat4 model = item.transform.GetModelMatrix();
@@ -125,6 +137,7 @@ namespace
 
     void PopulateDebugStatsFromSubmission(const FrameSubmission &submission,
                                           const ReflectionProbe *activeProbe,
+                                          float debugPrefilteredMip,
                                           RendererDebugStats &stats)
     {
         stats.submittedRenderItemCount = static_cast<uint32_t>(submission.objects.size());
@@ -160,6 +173,9 @@ namespace
         stats.iblBrdfLutWidth = 0;
         stats.iblBrdfLutHeight = 0;
         stats.iblPrefilteredMipCount = 0;
+        stats.iblSourcePreviewTextureIds.fill(0);
+        stats.iblIrradiancePreviewTextureIds.fill(0);
+        stats.iblPrefilteredPreviewTextureIds.fill(0);
         stats.iblIntensity = 0.0f;
         stats.iblAvailable = false;
         if (activeProbe)
@@ -180,6 +196,16 @@ namespace
             stats.iblPrefilteredMipCount = probe.prefilteredCubemap
                                                ? static_cast<uint32_t>(probe.prefilteredCubemap->GetMipLevels())
                                                : 0;
+            const int selectedPrefilteredMip = stats.iblPrefilteredMipCount > 0
+                                                   ? std::clamp(static_cast<int>(debugPrefilteredMip + 0.5f),
+                                                                0,
+                                                                static_cast<int>(stats.iblPrefilteredMipCount - 1))
+                                                   : 0;
+            PopulateCubemapFacePreviews(probe.sourceCubemap, 0, stats.iblSourcePreviewTextureIds);
+            PopulateCubemapFacePreviews(probe.irradianceCubemap, 0, stats.iblIrradiancePreviewTextureIds);
+            PopulateCubemapFacePreviews(probe.prefilteredCubemap,
+                                        selectedPrefilteredMip,
+                                        stats.iblPrefilteredPreviewTextureIds);
             stats.iblIntensity = probe.intensity;
             stats.iblAvailable = probe.HasAnyIbl();
         }
@@ -272,7 +298,7 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
         }
     }
 
-    PopulateDebugStatsFromSubmission(submission, activeProbe, m_debugStats);
+    PopulateDebugStatsFromSubmission(submission, activeProbe, m_iblDebugPrefilteredMip, m_debugStats);
     m_debugStats.iblDebugMode = m_iblDebugMode;
     m_debugStats.iblDebugPrefilteredMip = m_iblDebugPrefilteredMip;
     RenderDirectionalShadowPass(submission);

@@ -68,6 +68,9 @@ struct RendererDebugStats
     uint32_t iblBrdfLutWidth = 0;
     uint32_t iblBrdfLutHeight = 0;
     uint32_t iblPrefilteredMipCount = 0;
+    std::array<uint32_t, 6> iblSourcePreviewTextureIds{};
+    std::array<uint32_t, 6> iblIrradiancePreviewTextureIds{};
+    std::array<uint32_t, 6> iblPrefilteredPreviewTextureIds{};
     float iblIntensity = 0.0f;
     float iblDebugPrefilteredMip = 0.0f;
     IBLDebugMode iblDebugMode = kDefaultIBLDebugMode;
