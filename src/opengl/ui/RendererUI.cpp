@@ -38,8 +38,8 @@ static constexpr float kPanelPadding = 12.0f;
 static constexpr float kRounding = 10.0f;
 static constexpr float kTopbarHeight = 44.0f;
 static constexpr float kSidebarWidth = 360.0f;
-static constexpr int kTabCount = 5;
-static const char *kTabLabels[] = {"Scene", "Lights", "Materials", "Shadow", "Stats"};
+static constexpr int kTabCount = 6;
+static const char *kTabLabels[] = {"Scene", "Lights", "Mat", "Shadow", "Post", "Stats"};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ApplyTheme — call once after ImGui::CreateContext(), NOT inside a frame.
@@ -506,6 +506,8 @@ void RendererUI::DrawSidebar(int fbH,
             case UITab::Materials: DrawTabMaterials(scene, stats, frame);
                 break;
             case UITab::Shadow: DrawTabShadow(scene, stats);
+                break;
+            case UITab::PostFX: DrawTabPostFX(scene, stats);
                 break;
             case UITab::Stats: DrawTabStats(scene, stats, cs);
                 break;
@@ -1051,22 +1053,18 @@ void RendererUI::DrawTabShadow(Scene &scene, const RendererDebugStats &stats) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tab: Stats
+// Tab: Post-FX
 // ─────────────────────────────────────────────────────────────────────────────
-void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats,
-                              const AssetCacheStats &cs) {
-                                    
-        if (SectionHeader("Tone Mapping")) {
+void RendererUI::DrawTabPostFX(Scene & /*scene*/, const RendererDebugStats &stats) {
+    if (SectionHeader("Tone Mapping")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
 
-        ImGui::Checkbox("Enabled", &tonemapEnabled);
+        ImGui::Checkbox("Enabled##tonemap", &tonemapEnabled);
 
         if (tonemapEnabled) {
-            // Operator selector — Person 6 will add ACES and Uncharted2 labels
-            static const char* kOps[] = { "Reinhard", "ACES", "Uncharted2" };
+            static const char *kOps[] = {"Reinhard", "ACES", "Uncharted2"};
             ImGui::Combo("Operator", &tonemapOperator, kOps, IM_ARRAYSIZE(kOps));
 
-            // Exposure control (Person 5 scope)
             ImGui::SliderFloat("Exposure", &exposure, 0.1f, 5.0f, "%.2f");
             if (ImGui::IsItemHovered())
                 ImGui::SetTooltip("Multiplier applied to HDR color before tone mapping");
@@ -1075,6 +1073,7 @@ void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats
         ImGui::PopStyleColor();
         ImGui::Spacing();
     }
+
     if (SectionHeader("Bloom")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
 
@@ -1082,27 +1081,50 @@ void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats
         ImGui::SliderFloat("Strength##bloom", &bloomStrength, 0.0f, 3.0f, "%.2f");
         ImGui::SliderFloat("Threshold##bloom", &bloomThreshold, 0.0f, 2.0f, "%.2f");
         if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Luminance threshold for bloom extraction. Higher = only brightest pixels bloom.");
+            ImGui::SetTooltip("Luminance threshold for bloom extraction.");
 
         ImGui::Checkbox("Soft threshold##bloom", &bloomSoftThreshold);
         ImGui::BeginDisabled(!bloomSoftThreshold);
         ImGui::SliderFloat("Soft Knee##bloom", &bloomSoftKnee, 0.0f, 1.0f, "%.2f");
         ImGui::EndDisabled();
-        if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Smooth transition around threshold. 0 = hard cut, 0.5 = smooth ramp.");
 
         ImGui::SliderFloat("Radius##bloom", &bloomRadius, 0.1f, 5.0f, "%.2f");
         ImGui::SliderInt("Blur iterations##bloom", &bloomBlurIterations, 1, 10);
+
         const char *kDebugViews[] = {"Final", "HDR Only", "Bright-pass", "Blurred Bloom", "No Bloom"};
         ImGui::Combo("Debug View##postfx", &postFxDebugView, kDebugViews, IM_ARRAYSIZE(kDebugViews));
 
         ImGui::PopStyleColor();
         ImGui::Spacing();
     }
+
+    if (SectionHeader("IBL Debug", /*defaultOpen=*/false)) {
+        ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
+        ImGui::Text("IBL active (stats): %s", stats.iblAvailable ? "yes" : "no");
+        if (stats.iblBrdfLutTextureId != 0) {
+            ImGui::TextWrapped("BRDF integration LUT (RG = scale, bias).");
+            const float pw = std::min(256.0f, kSidebarWidth - 40.0f);
+            ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<intptr_t>(stats.iblBrdfLutTextureId)),
+                         ImVec2(pw, pw), ImVec2(0, 1), ImVec2(1, 0));
+        } else {
+            ImGui::TextColored(Pal::TextFaint, "No BRDF LUT in active probe.");
+        }
+        ImGui::PopStyleColor();
+        ImGui::Spacing();
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tab: Stats
+// ─────────────────────────────────────────────────────────────────────────────
+void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats,
+                              const AssetCacheStats &cs) {
+
     if (SectionHeader("Performance")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
         ImGui::Text("FPS           : %.1f", stats.fps);
         ImGui::Text("Frame time    : %.2f ms", stats.frameTimeMs);
+        ImGui::Separator();
         ImGui::Text("Draw calls    : %u", stats.drawCallCount);
         ImGui::Text("Submitted     : %u", stats.submittedRenderItemCount);
         ImGui::Text("Queued        : %u", stats.queuedRenderItemCount);
@@ -1112,22 +1134,7 @@ void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats
         ImGui::Spacing();
     }
 
-    if (SectionHeader("IBL (debug)", /*defaultOpen=*/false)) {
-        ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
-        ImGui::Text("IBL active (stats): %s", stats.iblAvailable ? "yes" : "no");
-        if (stats.iblBrdfLutTextureId != 0) {
-            ImGui::TextUnformatted("BRDF integration LUT (RG = scale, bias). Expect warm top-right, greenish bottom-left.");
-            const float pw = std::min(256.0f, kSidebarWidth - 40.0f);
-            ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<intptr_t>(stats.iblBrdfLutTextureId)),
-                         ImVec2(pw, pw), ImVec2(0, 1), ImVec2(1, 0));
-        } else {
-            ImGui::TextColored(Pal::TextFaint, "No BRDF LUT in active probe (need skybox + reflection probe path).");
-        }
-        ImGui::PopStyleColor();
-        ImGui::Spacing();
-    }
-
-    if (SectionHeader("Light Counts")) {
+    if (SectionHeader("Lighting Counts")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
         ImGui::Text("Directional   : %u", stats.directionalLightCount);
         ImGui::Text("Point lights  : %u", stats.pointLightCount);
@@ -1138,7 +1145,8 @@ void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats
 
     if (SectionHeader("Resource Cache")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
-        ImGui::Text("Total         : %zu", cs.TotalCount());
+        ImGui::Text("Total items   : %zu", cs.TotalCount());
+        ImGui::Separator();
         ImGui::Text("Shaders       : %zu", cs.shaderCount);
         ImGui::Text("Textures      : %zu", cs.textureCount);
         ImGui::Text("Meshes        : %zu", cs.meshCount);
