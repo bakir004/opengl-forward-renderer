@@ -5,6 +5,7 @@
 #include "core/Mesh.h"
 #include "core/MeshData.h"
 #include "core/ShaderProgram.h"
+#include "core/Skybox.h"
 #include "scene/LightBuilder.h"
 
 #include <glm/glm.hpp>
@@ -14,123 +15,122 @@
 namespace
 {
 
-MeshData BuildUvSphere(float radius, int stacks, int slices)
-{
-    MeshData data;
-    data.name = "PbrValidationSphere";
-
-    stacks = std::max(stacks, 3);
-    slices = std::max(slices, 6);
-
-    data.vertices.reserve(static_cast<size_t>(stacks + 1) * static_cast<size_t>(slices + 1));
-    for (int stack = 0; stack <= stacks; ++stack)
+    MeshData BuildUvSphere(float radius, int stacks, int slices)
     {
-        const float v = static_cast<float>(stack) / static_cast<float>(stacks);
-        const float phi = v * glm::pi<float>();
+        MeshData data;
+        data.name = "PbrValidationSphere";
 
-        for (int slice = 0; slice <= slices; ++slice)
+        stacks = std::max(stacks, 3);
+        slices = std::max(slices, 6);
+
+        data.vertices.reserve(static_cast<size_t>(stacks + 1) * static_cast<size_t>(slices + 1));
+        for (int stack = 0; stack <= stacks; ++stack)
         {
-            const float u = static_cast<float>(slice) / static_cast<float>(slices);
-            const float theta = u * glm::two_pi<float>();
+            const float v = static_cast<float>(stack) / static_cast<float>(stacks);
+            const float phi = v * glm::pi<float>();
 
-            const float sinPhi = std::sin(phi);
-            const float cosPhi = std::cos(phi);
-            const float sinTheta = std::sin(theta);
-            const float cosTheta = std::cos(theta);
+            for (int slice = 0; slice <= slices; ++slice)
+            {
+                const float u = static_cast<float>(slice) / static_cast<float>(slices);
+                const float theta = u * glm::two_pi<float>();
 
-            const glm::vec3 normal{
-                sinPhi * cosTheta,
-                cosPhi,
-                sinPhi * sinTheta
-            };
+                const float sinPhi = std::sin(phi);
+                const float cosPhi = std::cos(phi);
+                const float sinTheta = std::sin(theta);
+                const float cosTheta = std::cos(theta);
 
-            VertexPNT vertex;
-            vertex.position = normal * radius;
-            vertex.normal = glm::normalize(normal);
-            vertex.uv = {u, 1.0f - v};
+                const glm::vec3 normal{
+                    sinPhi * cosTheta,
+                    cosPhi,
+                    sinPhi * sinTheta};
 
-            glm::vec3 tangent{-sinTheta, 0.0f, cosTheta};
-            if (glm::dot(tangent, tangent) < 1e-6f)
-                tangent = {1.0f, 0.0f, 0.0f};
+                VertexPNT vertex;
+                vertex.position = normal * radius;
+                vertex.normal = glm::normalize(normal);
+                vertex.uv = {u, 1.0f - v};
 
-            vertex.tangent = glm::vec4(glm::normalize(tangent), 1.0f);
-            data.vertices.push_back(vertex);
+                glm::vec3 tangent{-sinTheta, 0.0f, cosTheta};
+                if (glm::dot(tangent, tangent) < 1e-6f)
+                    tangent = {1.0f, 0.0f, 0.0f};
+
+                vertex.tangent = glm::vec4(glm::normalize(tangent), 1.0f);
+                data.vertices.push_back(vertex);
+            }
         }
+
+        data.indices.reserve(static_cast<size_t>(stacks) * static_cast<size_t>(slices) * 6);
+        const int ring = slices + 1;
+        for (int stack = 0; stack < stacks; ++stack)
+        {
+            for (int slice = 0; slice < slices; ++slice)
+            {
+                const uint32_t i0 = static_cast<uint32_t>(stack * ring + slice);
+                const uint32_t i1 = static_cast<uint32_t>((stack + 1) * ring + slice);
+                const uint32_t i2 = static_cast<uint32_t>(i0 + 1);
+                const uint32_t i3 = static_cast<uint32_t>(i1 + 1);
+
+                data.indices.push_back(i0);
+                data.indices.push_back(i2);
+                data.indices.push_back(i1);
+
+                data.indices.push_back(i2);
+                data.indices.push_back(i3);
+                data.indices.push_back(i1);
+            }
+        }
+
+        SubMesh subMesh;
+        subMesh.name = "Sphere";
+        subMesh.indexByteOffset = 0;
+        subMesh.indexCount = static_cast<uint32_t>(data.indices.size());
+        subMesh.baseVertex = 0;
+        subMesh.materialIndex = 0;
+        subMesh.hasTangents = true;
+        data.submeshes.push_back(subMesh);
+        return data;
     }
 
-    data.indices.reserve(static_cast<size_t>(stacks) * static_cast<size_t>(slices) * 6);
-    const int ring = slices + 1;
-    for (int stack = 0; stack < stacks; ++stack)
+    MeshData BuildPlane(float halfExtent)
     {
-        for (int slice = 0; slice < slices; ++slice)
-        {
-            const uint32_t i0 = static_cast<uint32_t>(stack * ring + slice);
-            const uint32_t i1 = static_cast<uint32_t>((stack + 1) * ring + slice);
-            const uint32_t i2 = static_cast<uint32_t>(i0 + 1);
-            const uint32_t i3 = static_cast<uint32_t>(i1 + 1);
+        MeshData data;
+        data.name = "PbrValidationPlane";
+        data.vertices = {
+            {{-halfExtent, 0.0f, -halfExtent}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
+            {{halfExtent, 0.0f, -halfExtent}, {0.0f, 1.0f, 0.0f}, {4.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
+            {{halfExtent, 0.0f, halfExtent}, {0.0f, 1.0f, 0.0f}, {4.0f, 4.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
+            {{-halfExtent, 0.0f, halfExtent}, {0.0f, 1.0f, 0.0f}, {0.0f, 4.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
+        };
+        data.indices = {0, 1, 2, 0, 2, 3};
 
-            data.indices.push_back(i0);
-            data.indices.push_back(i2);
-            data.indices.push_back(i1);
-
-            data.indices.push_back(i2);
-            data.indices.push_back(i3);
-            data.indices.push_back(i1);
-        }
+        SubMesh subMesh;
+        subMesh.name = "Plane";
+        subMesh.indexByteOffset = 0;
+        subMesh.indexCount = static_cast<uint32_t>(data.indices.size());
+        subMesh.baseVertex = 0;
+        subMesh.materialIndex = 0;
+        subMesh.hasTangents = true;
+        data.submeshes.push_back(subMesh);
+        return data;
     }
 
-    SubMesh subMesh;
-    subMesh.name = "Sphere";
-    subMesh.indexByteOffset = 0;
-    subMesh.indexCount = static_cast<uint32_t>(data.indices.size());
-    subMesh.baseVertex = 0;
-    subMesh.materialIndex = 0;
-    subMesh.hasTangents = true;
-    data.submeshes.push_back(subMesh);
-    return data;
-}
-
-MeshData BuildPlane(float halfExtent)
-{
-    MeshData data;
-    data.name = "PbrValidationPlane";
-    data.vertices = {
-        {{-halfExtent, 0.0f, -halfExtent}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
-        {{ halfExtent, 0.0f, -halfExtent}, {0.0f, 1.0f, 0.0f}, {4.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
-        {{ halfExtent, 0.0f,  halfExtent}, {0.0f, 1.0f, 0.0f}, {4.0f, 4.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
-        {{-halfExtent, 0.0f,  halfExtent}, {0.0f, 1.0f, 0.0f}, {0.0f, 4.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
-    };
-    data.indices = {0, 1, 2, 0, 2, 3};
-
-    SubMesh subMesh;
-    subMesh.name = "Plane";
-    subMesh.indexByteOffset = 0;
-    subMesh.indexCount = static_cast<uint32_t>(data.indices.size());
-    subMesh.baseVertex = 0;
-    subMesh.materialIndex = 0;
-    subMesh.hasTangents = true;
-    data.submeshes.push_back(subMesh);
-    return data;
-}
-
-std::unique_ptr<MaterialInstance> MakeSphereMaterial(const std::shared_ptr<Material>& parent,
-                                                     glm::vec3 albedo,
-                                                     float metallic,
-                                                     float roughness)
-{
-    auto material = std::make_unique<MaterialInstance>(parent);
-    material->SetVec3("u_AlbedoColor", albedo);
-    material->SetFloat("u_MetallicValue", metallic);
-    material->SetFloat("u_RoughnessValue", roughness);
-    material->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
-    return material;
-}
+    std::unique_ptr<MaterialInstance> MakeSphereMaterial(const std::shared_ptr<Material> &parent,
+                                                         glm::vec3 albedo,
+                                                         float metallic,
+                                                         float roughness)
+    {
+        auto material = std::make_unique<MaterialInstance>(parent);
+        material->SetVec3("u_AlbedoColor", albedo);
+        material->SetFloat("u_MetallicValue", metallic);
+        material->SetFloat("u_RoughnessValue", roughness);
+        material->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
+        return material;
+    }
 
 } // namespace
 bool PbrValidationScene::Setup()
 {
-    spdlog::info("[PbrValidationScene] Setting up Sprint 7 validation scene");
-    SetSceneName("PBR Validation");
+    spdlog::info("[PbrValidationScene] Setting up Sprint 9 IBL validation scene");
+    SetSceneName("PBR + IBL Validation");
 
     auto meshShader = AssetImporter::LoadShader("assets/shaders/mesh.vert", "assets/shaders/mesh.frag");
     if (!meshShader || !meshShader->IsValid())
@@ -157,17 +157,36 @@ bool PbrValidationScene::Setup()
     cam.SetOrientation(-90.0f, -13.5f);
     SetCamera(cam);
     SetFirstPersonEyeHeight(1.7f);
-    SetClearColor({0.125f, 0.13f, 0.145f, 1.0f});
+    SetClearColor({0.025f, 0.025f, 0.025f, 1.0f});
 
-    SetAmbientLight({0.12f, 0.13f, 0.14f}, 0.42f);
-    auto& lights = GetLights();
+    // ── IBL Setup ────────────────────────────────────────────────────────────
+    // Load the Mountains skybox for IBL (6 faces, one for each cube direction).
+    std::vector<std::string> skyboxFaces = {
+        "assets/skybox/Mountains/px.png", // positive X (right)
+        "assets/skybox/Mountains/nx.png", // negative X (left)
+        "assets/skybox/Mountains/py.png", // positive Y (up)
+        "assets/skybox/Mountains/ny.png", // negative Y (down)
+        "assets/skybox/Mountains/pz.png", // positive Z (front)
+        "assets/skybox/Mountains/nz.png", // negative Z (back)
+    };
+    auto skybox = std::make_shared<Skybox>(skyboxFaces);
+    skybox->SetExposure(2.0f); // Boost brightness for clearer IBL visualization
+    SetSkybox(skybox);
+
+    // The Renderer will automatically create a reflection probe from the skybox
+    // and generate irradiance, prefiltered, and BRDF LUT at runtime.
+    SetIblIntensity(1.2f);
+
+    // Reduce ambient light when IBL is active; IBL replaces flat ambient.
+    SetAmbientLight({0.08f, 0.08f, 0.08f}, 0.1f);
+    auto &lights = GetLights();
     lights.GetPointLights().clear();
     lights.GetSpotLights().clear();
     lights.SetDirectionalLight(
         DirectionalLightBuilder()
             .Direction({-0.32f, -0.78f, -0.54f})
             .Color({1.0f, 0.99f, 0.975f})
-            .Intensity(10.5f)
+            .Intensity(4.0f) // Reduced to ~1/3 so IBL is more visible
             .CastShadow(false)
             .Name("ValidationSun")
             .Build());
@@ -231,11 +250,9 @@ bool PbrValidationScene::Setup()
             sphere.meshMulti = m_sphereMesh.get();
             sphere.subMeshIndex = 0;
             sphere.material = material.get();
-            sphere.transform.SetTranslation({
-                (static_cast<float>(x) - 2.0f) * spacing,
-                (static_cast<float>(y) - 2.0f) * spacing + gridCenterY,
-                gridCenterZ
-            });
+            sphere.transform.SetTranslation({(static_cast<float>(x) - 2.0f) * spacing,
+                                             (static_cast<float>(y) - 2.0f) * spacing + gridCenterY,
+                                             gridCenterZ});
             sphere.flags.castShadow = false;
             sphere.flags.receiveShadow = false;
 
@@ -273,7 +290,7 @@ bool PbrValidationScene::Setup()
     return sphereCount == 25;
 }
 
-void PbrValidationScene::OnUpdate(float deltaTime, IInputProvider& input)
+void PbrValidationScene::OnUpdate(float deltaTime, IInputProvider &input)
 {
     glm::vec3 moveDirXZ{0.0f};
     UpdateStandardCameraAndPlayer(deltaTime, input, m_cameraAnchor, moveDirXZ, 0.0f);
