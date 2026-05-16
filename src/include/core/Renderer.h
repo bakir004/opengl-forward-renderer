@@ -10,6 +10,7 @@
 #include "core/ShaderProgram.h"
 #include "core/HdrFramebuffer.h"
 #include "core/EnvironmentLightingPipeline.h"
+#include "core/IBLDebugMode.h"
 #include "core/shadows/CascadedShadowMap.h"
 
 struct RenderItem;
@@ -54,10 +55,14 @@ struct RendererDebugStats
     uint32_t hdrColorTextureId = 0;
     uint32_t hdrWidth = 0;
     uint32_t hdrHeight = 0;
+    uint32_t iblSourceTextureId = 0;
     uint32_t iblIrradianceTextureId = 0;
     uint32_t iblPrefilteredTextureId = 0;
     uint32_t iblBrdfLutTextureId = 0;
+    uint32_t iblPrefilteredMipCount = 0;
     float iblIntensity = 0.0f;
+    float iblDebugPrefilteredMip = 0.0f;
+    IBLDebugMode iblDebugMode = kDefaultIBLDebugMode;
     bool iblAvailable = false;
     // Per-cascade 2D texture views into the depth array, suitable for ImGui.
     std::array<uint32_t, CascadedShadowMap::kNumCascades> cascadePreviewTextureIds{};
@@ -99,6 +104,8 @@ class Renderer
     std::array<glm::mat4, CascadedShadowMap::kNumCascades> m_cascadeViewProj{};
     std::array<float, CascadedShadowMap::kNumCascades> m_cascadeSplits{};
     int m_shadowPcfRadius = 1;
+    IBLDebugMode m_iblDebugMode = kDefaultIBLDebugMode;
+    float m_iblDebugPrefilteredMip = 0.0f;
     RendererDebugStats m_debugStats;
     bool m_reportedInvalidPackedLights = false;
     bool m_inFrame = false;
@@ -131,4 +138,10 @@ public:
 
     /// Returns the latest per-frame debug snapshot for runtime UI.
     [[nodiscard]] const RendererDebugStats &GetDebugStats() const { return m_debugStats; }
+
+    /// Selects the PBR IBL inspection mode used while flushing scene materials.
+    void SetIBLDebugState(IBLDebugMode mode, float prefilteredMipLevel);
+
+    [[nodiscard]] IBLDebugMode GetIBLDebugMode() const { return m_iblDebugMode; }
+    [[nodiscard]] float GetIBLDebugPrefilteredMipLevel() const { return m_iblDebugPrefilteredMip; }
 };

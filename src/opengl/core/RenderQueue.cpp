@@ -55,16 +55,25 @@ namespace
         return texture && texture->IsValid();
     }
 
-    void BindEnvironmentResources(const ShaderProgram &shader, const ReflectionProbe *probe)
+    void BindEnvironmentResources(const ShaderProgram &shader,
+                                  const ReflectionProbe *probe,
+                                  IBLDebugMode debugMode,
+                                  float debugPrefilteredMip)
     {
         const GLuint programId = shader.GetID();
         if (programId == 0)
             return;
 
+        const bool hasSource = probe && IsCubemapPresent(probe->sourceCubemap);
         const bool hasIrradiance = probe && IsCubemapPresent(probe->irradianceCubemap);
         const bool hasPrefiltered = probe && IsCubemapPresent(probe->prefilteredCubemap);
         const bool hasBrdfLut = probe && IsTexture2DPresent(probe->brdfLut);
         const bool hasIbl = hasIrradiance || (hasPrefiltered && hasBrdfLut);
+
+        if (hasSource)
+            probe->sourceCubemap->Bind(EnvironmentTextureUnit::Source);
+        else
+            TextureCubemap::Unbind(EnvironmentTextureUnit::Source);
 
         if (hasIrradiance)
             probe->irradianceCubemap->Bind(EnvironmentTextureUnit::Irradiance);
@@ -81,14 +90,18 @@ namespace
         else
             Texture2D::Unbind(EnvironmentTextureUnit::BrdfLut);
 
+        SetOptionalIntUniform(programId, EnvironmentTextureSlot::Source, EnvironmentTextureUnit::Source);
         SetOptionalIntUniform(programId, EnvironmentTextureSlot::Irradiance, EnvironmentTextureUnit::Irradiance);
         SetOptionalIntUniform(programId, EnvironmentTextureSlot::Prefiltered, EnvironmentTextureUnit::Prefiltered);
         SetOptionalIntUniform(programId, EnvironmentTextureSlot::BrdfLut, EnvironmentTextureUnit::BrdfLut);
+        SetOptionalIntUniform(programId, "u_HasSourceEnvironmentMap", hasSource ? 1 : 0);
         SetOptionalIntUniform(programId, "u_HasIrradianceMap", hasIrradiance ? 1 : 0);
         SetOptionalIntUniform(programId, "u_HasPrefilteredMap", hasPrefiltered ? 1 : 0);
         SetOptionalIntUniform(programId, "u_HasBRDFLUT", hasBrdfLut ? 1 : 0);
         SetOptionalIntUniform(programId, "u_HasIBL", hasIbl ? 1 : 0);
-        SetOptionalFloatUniform(programId, "u_IBLIntensity", (probe && hasIbl) ? probe->intensity : 0.0f);
+        SetOptionalFloatUniform(programId, "u_IBLIntensity", (probe && (hasIbl || hasSource)) ? probe->intensity : 0.0f);
+        SetOptionalIntUniform(programId, "u_IBLDebugMode", ToUniformValue(debugMode));
+        SetOptionalFloatUniform(programId, "u_IBLDebugPrefilteredMip", debugPrefilteredMip);
 
         const glm::vec3 position = probe ? probe->position : glm::vec3(0.0f);
         const glm::vec3 boxMin = probe ? probe->boxMin : glm::vec3(0.0f);
@@ -114,9 +127,13 @@ namespace
         SetOptionalIntUniform(programId, TextureSlot::Emissive, MaterialTextureUnit::Emissive);
         SetOptionalIntUniform(programId, TextureSlot::SpecularGlossiness, MaterialTextureUnit::SpecularGlossiness);
         SetOptionalIntUniform(programId, "u_CascadeShadowMaps", 7);
+        SetOptionalIntUniform(programId, EnvironmentTextureSlot::Source, EnvironmentTextureUnit::Source);
         SetOptionalIntUniform(programId, EnvironmentTextureSlot::Irradiance, EnvironmentTextureUnit::Irradiance);
         SetOptionalIntUniform(programId, EnvironmentTextureSlot::Prefiltered, EnvironmentTextureUnit::Prefiltered);
         SetOptionalIntUniform(programId, EnvironmentTextureSlot::BrdfLut, EnvironmentTextureUnit::BrdfLut);
+        SetOptionalIntUniform(programId, "u_HasSourceEnvironmentMap", 0);
+        SetOptionalIntUniform(programId, "u_IBLDebugMode", ToUniformValue(kDefaultIBLDebugMode));
+        SetOptionalFloatUniform(programId, "u_IBLDebugPrefilteredMip", 0.0f);
         SetOptionalVec3Uniform(programId, "u_AlbedoColor", kDefaultPbrAlbedoColor);
         SetOptionalFloatUniform(programId, "u_MetallicValue", kDefaultPbrMetallicValue);
         SetOptionalFloatUniform(programId, "u_RoughnessValue", kDefaultPbrRoughnessValue);
@@ -213,6 +230,12 @@ void RenderQueue::SetEnvironmentData(const ReflectionProbe *probe)
     m_activeReflectionProbe = probe;
 }
 
+void RenderQueue::SetIBLDebugState(IBLDebugMode mode, float prefilteredMipLevel)
+{
+    m_iblDebugMode = mode;
+    m_iblDebugPrefilteredMip = prefilteredMipLevel;
+}
+
 void RenderQueue::Sort()
 {
     // Sort by the resolved shader pointer to minimise program switches.
@@ -266,7 +289,10 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
             {
                 item.material->Bind();
                 if (const ShaderProgram *shader = item.material->GetShader())
-                    BindEnvironmentResources(*shader, m_activeReflectionProbe);
+                    BindEnvironmentResources(*shader,
+                                             m_activeReflectionProbe,
+                                             m_iblDebugMode,
+                                             m_iblDebugPrefilteredMip);
                 lastMaterial = item.material;
                 lastShader = item.material->GetShader();
             }
@@ -285,7 +311,10 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
                 Texture2D::Unbind(MaterialTextureUnit::AO);
                 Texture2D::Unbind(MaterialTextureUnit::Emissive);
                 Texture2D::Unbind(MaterialTextureUnit::SpecularGlossiness);
-                BindEnvironmentResources(*item.shader, m_activeReflectionProbe);
+                BindEnvironmentResources(*item.shader,
+                                         m_activeReflectionProbe,
+                                         m_iblDebugMode,
+                                         m_iblDebugPrefilteredMip);
                 lastShader = item.shader;
                 lastMaterial = nullptr;
             }

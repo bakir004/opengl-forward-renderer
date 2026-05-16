@@ -147,17 +147,23 @@ namespace
         stats.shadowMapWidth = 0;
         stats.shadowMapHeight = 0;
         stats.shadowMapPreviewAvailable = false;
+        stats.iblSourceTextureId = 0;
         stats.iblIrradianceTextureId = 0;
         stats.iblPrefilteredTextureId = 0;
         stats.iblBrdfLutTextureId = 0;
+        stats.iblPrefilteredMipCount = 0;
         stats.iblIntensity = 0.0f;
         stats.iblAvailable = false;
         if (activeProbe)
         {
             const ReflectionProbe &probe = *activeProbe;
+            stats.iblSourceTextureId = probe.sourceCubemap ? probe.sourceCubemap->GetID() : 0;
             stats.iblIrradianceTextureId = probe.irradianceCubemap ? probe.irradianceCubemap->GetID() : 0;
             stats.iblPrefilteredTextureId = probe.prefilteredCubemap ? probe.prefilteredCubemap->GetID() : 0;
             stats.iblBrdfLutTextureId = probe.brdfLut ? probe.brdfLut->GetID() : 0;
+            stats.iblPrefilteredMipCount = probe.prefilteredCubemap
+                                               ? static_cast<uint32_t>(probe.prefilteredCubemap->GetMipLevels())
+                                               : 0;
             stats.iblIntensity = probe.intensity;
             stats.iblAvailable = probe.HasAnyIbl();
         }
@@ -217,6 +223,12 @@ void Renderer::Shutdown()
     m_initCtx.Shutdown();
 }
 
+void Renderer::SetIBLDebugState(IBLDebugMode mode, float prefilteredMipLevel)
+{
+    m_iblDebugMode = mode;
+    m_iblDebugPrefilteredMip = std::max(0.0f, prefilteredMipLevel);
+}
+
 void Renderer::BeginFrame(const FrameSubmission &submission)
 {
     assert(!m_inFrame && "BeginFrame() called without a matching EndFrame()");
@@ -245,6 +257,8 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
     }
 
     PopulateDebugStatsFromSubmission(submission, activeProbe, m_debugStats);
+    m_debugStats.iblDebugMode = m_iblDebugMode;
+    m_debugStats.iblDebugPrefilteredMip = m_iblDebugPrefilteredMip;
     RenderDirectionalShadowPass(submission);
 
     if (!m_lightUBO)
@@ -296,6 +310,7 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
     m_currentSkybox = submission.skybox;
     m_currentCamera = submission.camera;
     m_queue.SetEnvironmentData(activeProbe);
+    m_queue.SetIBLDebugState(m_iblDebugMode, m_iblDebugPrefilteredMip);
 }
 
 void Renderer::EndFrame()

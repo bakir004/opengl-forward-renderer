@@ -31,7 +31,7 @@ namespace TextureSlot {
 ///   - emissiveMap -> unit 5
 ///   - specularGlossiness -> unit 6
 /// Environment / IBL (see EnvironmentTextureUnit in ReflectionProbe.h):
-///   - irradiance / prefiltered cubemaps -> 8, 9; BRDF LUT -> 10
+///   - irradiance / prefiltered cubemaps -> 8, 9; BRDF LUT -> 10; source cubemap -> 11
 namespace MaterialTextureUnit {
     inline constexpr int Albedo    = 0;
     inline constexpr int Normal    = 1;

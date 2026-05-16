@@ -1101,6 +1101,32 @@ void RendererUI::DrawTabPostFX(Scene & /*scene*/, const RendererDebugStats &stat
     if (SectionHeader("IBL Debug", /*defaultOpen=*/false)) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
         ImGui::Text("IBL active (stats): %s", stats.iblAvailable ? "yes" : "no");
+
+        int iblModeIndex = std::clamp(ToUniformValue(iblDebugMode),
+                                      0,
+                                      static_cast<int>(kIBLDebugModeLabels.size()) - 1);
+        if (ImGui::Combo("Debug Mode##ibl",
+                         &iblModeIndex,
+                         kIBLDebugModeLabels.data(),
+                         static_cast<int>(kIBLDebugModeLabels.size()))) {
+            iblDebugMode = static_cast<IBLDebugMode>(iblModeIndex);
+        }
+
+        const float maxMip = stats.iblPrefilteredMipCount > 0
+                                 ? static_cast<float>(stats.iblPrefilteredMipCount - 1)
+                                 : 0.0f;
+        iblDebugPrefilteredMip = std::clamp(iblDebugPrefilteredMip, 0.0f, maxMip);
+        ImGui::BeginDisabled(stats.iblPrefilteredMipCount <= 1);
+        ImGui::SliderFloat("Prefiltered Mip##ibl", &iblDebugPrefilteredMip, 0.0f, maxMip, "%.1f");
+        ImGui::EndDisabled();
+
+        ImGui::Separator();
+        ImGui::Text("Source cubemap   : %u", stats.iblSourceTextureId);
+        ImGui::Text("Irradiance map   : %u", stats.iblIrradianceTextureId);
+        ImGui::Text("Prefiltered map  : %u", stats.iblPrefilteredTextureId);
+        ImGui::Text("Prefiltered mips : %u", stats.iblPrefilteredMipCount);
+        ImGui::Text("BRDF LUT         : %u", stats.iblBrdfLutTextureId);
+
         if (stats.iblBrdfLutTextureId != 0) {
             ImGui::TextWrapped("BRDF integration LUT (RG = scale, bias).");
             const float pw = std::min(256.0f, kSidebarWidth - 40.0f);

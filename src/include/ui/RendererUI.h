@@ -1,6 +1,7 @@
 #pragma once
 #include <cstddef>
 #include <vector>
+#include "core/IBLDebugMode.h"
 
 class Scene;
 class Renderer;
@@ -61,6 +62,8 @@ public:
     float bloomRadius           = 1.0f;
     int   bloomBlurIterations   = 10;
     int   postFxDebugView       = 0;   // 0=Final, 1=HDR only, 2=Bright-pass, 3=Blurred bloom, 4=No bloom
+    IBLDebugMode iblDebugMode = kDefaultIBLDebugMode;
+    float iblDebugPrefilteredMip = 0.0f;
     bool showHelpWindow = false;
     bool showSidebar = true;
 
