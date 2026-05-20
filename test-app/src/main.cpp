@@ -8,6 +8,7 @@
 #include "NeonCityScene.h"
 #include "PbrValidationScene.h"
 #include "NormalMapScene.h"
+#include "IblValidationScene.h"
 
 int main()
 {
@@ -56,7 +57,18 @@ int main()
     JapanScene japanScene;
     if (!japanScene.Setup())
         spdlog::warn("[TestApp] JapanScene::Setup() failed");
-    app.Run({&japanScene});
+
+    PbrValidationScene pbrValidationScene;
+    if (!pbrValidationScene.Setup())
+        spdlog::warn("[TestApp] PbrValidationScene::Setup() failed");
+
+    IblValidationScene iblScene;
+    if (!iblScene.Setup())
+        spdlog::warn("[TestApp] IblValidationScene::Setup() failed");
+
+    spdlog::info("[TestApp] Press 1 for JapanScene | Press 2 for PbrValidationScene | Press 3 for IblValidationScene");
+
+    app.Run({&japanScene, &pbrValidationScene, &iblScene}, 0);
 
     spdlog::info("[TestApp] Shutting down");
     return 0;
