@@ -23,8 +23,8 @@ private:
     std::shared_ptr<Material> m_planeMaterial;
     std::vector<std::unique_ptr<MaterialInstance>> m_materials;
     
-    std::shared_ptr<MeshBuffer> m_avocado;
-    std::shared_ptr<Material> m_avocadoMat;
+    std::shared_ptr<MeshBuffer> m_bench;
+    std::shared_ptr<Material> m_benchMat;
 
     glm::vec3 m_cameraAnchor{0.0f, 1.0f, 0.0f};
 

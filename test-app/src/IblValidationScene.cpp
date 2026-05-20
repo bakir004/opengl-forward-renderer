@@ -279,33 +279,34 @@ bool IblValidationScene::Setup()
     AddObject(roughDielectricSphere);
     objectCount++;
 
-    // 6. Normal-mapped object (Avocado)
-    m_avocado = AssetImporter::Import<MeshBuffer>("assets/models/gltf/avocado/Avocado.gltf");
-    if (m_avocado)
+    // 6. Normal-mapped object (Bench)
+    m_bench = AssetImporter::Import<MeshBuffer>("assets/models/gltf/bench/scene.gltf");
+    if (m_bench)
     {
-        m_avocadoMat = std::make_shared<Material>(meshShader);
-        m_avocadoMat->SetTexture(TextureSlot::Albedo,
+        m_benchMat = std::make_shared<Material>(meshShader);
+        m_benchMat->SetTexture(TextureSlot::Albedo,
             AssetImporter::LoadTexture(
-                "assets/models/gltf/avocado/Avocado_baseColor.png",
+                "assets/models/gltf/bench/MesaBanco.Comedor_baseColor.png",
                 TextureColorSpace::sRGB));
-        m_avocadoMat->SetTexture(TextureSlot::Normal,
+        m_benchMat->SetTexture(TextureSlot::Normal,
             AssetImporter::LoadTexture(
-                "assets/models/gltf/avocado/Avocado_normal.png",
+                "assets/models/gltf/bench/MesaBanco.Comedor_normal.png",
                 TextureColorSpace::Linear));
         
-        auto avocadoRoughMetal = AssetImporter::LoadTexture(
-            "assets/models/gltf/avocado/Avocado_roughnessMetallic.png",
+        auto benchRoughMetal = AssetImporter::LoadTexture(
+            "assets/models/gltf/bench/MesaBanco.Comedor_metallicRoughness.png",
             TextureColorSpace::Linear);
-        m_avocadoMat->SetTexture(TextureSlot::Roughness, avocadoRoughMetal);
-        m_avocadoMat->SetTexture(TextureSlot::Metallic,  avocadoRoughMetal);
-        m_avocadoMat->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
+        m_benchMat->SetTexture(TextureSlot::Roughness, benchRoughMetal);
+        m_benchMat->SetTexture(TextureSlot::Metallic,  benchRoughMetal);
+        m_benchMat->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
 
-        auto inst = std::make_unique<MaterialInstance>(m_avocadoMat);
+        auto inst = std::make_unique<MaterialInstance>(m_benchMat);
         RenderItem item;
-        item.mesh     = m_avocado.get();
+        item.mesh     = m_bench.get();
         item.material = inst.get();
-        item.transform.SetTranslation({0.0f, -0.2f, 2.5f});
-        item.transform.SetScale({15.0f, 15.0f, 15.0f});
+        item.transform.SetTranslation({0.0f, -1.275f, 0.5f});
+        item.transform.SetScale({2.5f, 2.5f, 4.0f});
+        item.transform.SetRotationEulerDegrees({0.0f, 90.0f, 0.0f});
         item.flags.castShadow    = true;
         item.flags.receiveShadow = true;
         AddObject(item);
@@ -314,7 +315,7 @@ bool IblValidationScene::Setup()
     }
     else
     {
-        spdlog::warn("[IblValidationScene] Avocado mesh failed to load");
+        spdlog::warn("[IblValidationScene] Bench mesh failed to load");
     }
 
     spdlog::info("[IblValidationScene] Added {} validation objects", objectCount);
