@@ -277,7 +277,11 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
     m_inFrame = true;
 
     ReflectionProbe *activeProbe = submission.activeReflectionProbe;
-    if (!activeProbe && submission.skybox)
+    if (!submission.skybox)
+    {
+        activeProbe = nullptr;
+    }
+    else if (!activeProbe)
     {
         if (!m_defaultReflectionProbe)
             m_defaultReflectionProbe = std::make_shared<ReflectionProbe>();
