@@ -33,6 +33,10 @@ private:
     float m_dirLightIntensity = 4.0f;
     std::shared_ptr<Skybox> m_mountainsSkybox;
     std::shared_ptr<Skybox> m_moodySkybox;
+    std::shared_ptr<Skybox> m_neutralSkybox;
+    std::shared_ptr<Skybox> m_outdoorSkybox;
     std::shared_ptr<ReflectionProbe> m_mountainsProbe;
     std::shared_ptr<ReflectionProbe> m_moodyProbe;
+    std::shared_ptr<ReflectionProbe> m_neutralProbe;
+    std::shared_ptr<ReflectionProbe> m_outdoorProbe;
 };
