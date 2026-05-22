@@ -186,6 +186,28 @@ bool IblValidationScene::Setup()
     m_moodySkybox = std::make_shared<Skybox>(moodyFaces);
     m_moodySkybox->SetExposure(1.5f);
 
+    std::vector<std::string> neutralFaces = {
+        "assets/skybox/NeutralRoom/px.png",
+        "assets/skybox/NeutralRoom/nx.png",
+        "assets/skybox/NeutralRoom/py.png",
+        "assets/skybox/NeutralRoom/ny.png",
+        "assets/skybox/NeutralRoom/pz.png",
+        "assets/skybox/NeutralRoom/nz.png",
+    };
+    m_neutralSkybox = std::make_shared<Skybox>(neutralFaces);
+    m_neutralSkybox->SetExposure(1.5f);
+
+    std::vector<std::string> outdoorFaces = {
+        "assets/skybox/OutdoorSky/px.png",
+        "assets/skybox/OutdoorSky/nx.png",
+        "assets/skybox/OutdoorSky/py.png",
+        "assets/skybox/OutdoorSky/ny.png",
+        "assets/skybox/OutdoorSky/pz.png",
+        "assets/skybox/OutdoorSky/nz.png",
+    };
+    m_outdoorSkybox = std::make_shared<Skybox>(outdoorFaces);
+    m_outdoorSkybox->SetExposure(1.0f);
+
     SetSkybox(m_mountainsSkybox);
     m_skyboxMode = 0;
 
@@ -196,6 +218,14 @@ bool IblValidationScene::Setup()
     m_moodyProbe = std::make_shared<ReflectionProbe>();
     m_moodyProbe->sourceCubemap = m_moodySkybox->GetTexture();
     m_moodyProbe->intensity = 1.2f;
+
+    m_neutralProbe = std::make_shared<ReflectionProbe>();
+    m_neutralProbe->sourceCubemap = m_neutralSkybox->GetTexture();
+    m_neutralProbe->intensity = 1.0f;
+
+    m_outdoorProbe = std::make_shared<ReflectionProbe>();
+    m_outdoorProbe->sourceCubemap = m_outdoorSkybox->GetTexture();
+    m_outdoorProbe->intensity = 1.0f;
 
     SetReflectionProbe(m_mountainsProbe);
 
@@ -356,17 +386,29 @@ void IblValidationScene::OnImGuiRender()
     ImGui::Separator();
 
     ImGui::Text("Skybox Environment");
-    if (ImGui::RadioButton("Outdoor Sky (Mountains)", m_skyboxMode == 0))
+    if (ImGui::RadioButton("Night Sky (Mountain)", m_skyboxMode == 0))
     {
         m_skyboxMode = 0;
         SetSkybox(m_mountainsSkybox);
         SetReflectionProbe(m_mountainsProbe);
     }
-    if (ImGui::RadioButton("Night Sky (Moody)", m_skyboxMode == 1))
+    if (ImGui::RadioButton("Night Sky (Mody)", m_skyboxMode == 1))
     {
         m_skyboxMode = 1;
         SetSkybox(m_moodySkybox);
         SetReflectionProbe(m_moodyProbe);
+    }
+    if (ImGui::RadioButton("Outdoor Sky (Daytime)", m_skyboxMode == 3))
+    {
+        m_skyboxMode = 3;
+        SetSkybox(m_outdoorSkybox);
+        SetReflectionProbe(m_outdoorProbe);
+    }
+    if (ImGui::RadioButton("Neutral Room", m_skyboxMode == 2))
+    {
+        m_skyboxMode = 2;
+        SetSkybox(m_neutralSkybox);
+        SetReflectionProbe(m_neutralProbe);
     }
 
     ImGui::End();
