@@ -313,7 +313,7 @@ bool JapanScene::Setup() {
         DirectionalLightBuilder()
         .Direction({-0.35f, -1.0f, -0.25f})
         .Color({1.0f, 0.98f, 0.92f})
-        .Intensity(0.0f)
+        .Intensity(1.5f)
         .CastShadow(true)
         .ShadowResolution(2048, 2048)
         .Name("JapanSun")

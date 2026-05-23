@@ -142,6 +142,10 @@ void ApplyPbrFallbackUniformDefaults(const ShaderProgram& shader)
     SetOptionalFloatUniform(programId, "u_EmissiveStrength", 1.0f);
     SetOptionalFloatUniform(programId, "u_AoStrength", 1.0f);
     SetOptionalFloatUniform(programId, "u_NormalScale", 1.0f);
+    SetOptionalFloatUniform(programId, "u_FlipNormalMapY", 0.0f);
+    SetOptionalVec3Uniform(programId, "u_SpecularFactor", glm::vec3(1.0f));
+    SetOptionalFloatUniform(programId, "u_GlossinessFactor", 1.0f);
+    SetOptionalIntUniform(programId, "u_IsSpecularGlossiness", 0);
     SetOptionalIntUniform(programId, "u_UseNormalMap", 1);
     SetOptionalIntUniform(programId, "u_HasAlbedoMap", 0);
     SetOptionalIntUniform(programId, "u_HasNormalMap", 0);

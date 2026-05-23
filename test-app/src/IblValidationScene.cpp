@@ -240,11 +240,24 @@ bool IblValidationScene::Setup()
             .Direction({-0.32f, -0.78f, -0.54f})
             .Color({1.0f, 0.99f, 0.975f})
             .Intensity(4.0f)
-            .CastShadow(false)
+            .CastShadow(true)
             .Name("ValidationSun")
             .Build());
 
     int objectCount = 0;
+
+    auto floorInst = std::make_unique<MaterialInstance>(m_planeMaterial);
+    RenderItem floor;
+    floor.meshMulti = m_planeMesh.get();
+    floor.subMeshIndex = 0;
+    floor.material = floorInst.get();
+    floor.transform.SetTranslation({0.0f, -1.30f, 0.5f});
+    floor.transform.SetScale({0.45f, 1.0f, 0.28f});
+    floor.flags.castShadow = false;
+    floor.flags.receiveShadow = true;
+    m_materials.push_back(std::move(floorInst));
+    AddObject(floor);
+    objectCount++;
 
     // 1. Polished Chrome Sphere (Metal=1, Rough=0)
     auto chromeMaterial = MakeSphereMaterial(m_gridBaseMaterial, {1.0f, 1.0f, 1.0f}, 1.0f, 0.0f);
@@ -412,7 +425,7 @@ bool IblValidationScene::Setup()
     }
 
     spdlog::info("[IblValidationScene] Added {} validation objects", objectCount);
-    return objectCount == 6;
+    return objectCount == 7;
 }
 
 void IblValidationScene::OnUpdate(float deltaTime, IInputProvider &input)

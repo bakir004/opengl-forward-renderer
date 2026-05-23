@@ -138,6 +138,14 @@ namespace
         SetOptionalFloatUniform(programId, "u_MetallicValue", kDefaultPbrMetallicValue);
         SetOptionalFloatUniform(programId, "u_RoughnessValue", kDefaultPbrRoughnessValue);
         SetOptionalVec3Uniform(programId, "u_EmissiveColor", kDefaultPbrEmissiveColor);
+        SetOptionalFloatUniform(programId, "u_EmissiveStrength", 1.0f);
+        SetOptionalFloatUniform(programId, "u_AoStrength", 1.0f);
+        SetOptionalFloatUniform(programId, "u_NormalScale", 1.0f);
+        SetOptionalFloatUniform(programId, "u_FlipNormalMapY", 0.0f);
+        SetOptionalVec3Uniform(programId, "u_SpecularFactor", glm::vec3(1.0f));
+        SetOptionalFloatUniform(programId, "u_GlossinessFactor", 1.0f);
+        SetOptionalIntUniform(programId, "u_IsSpecularGlossiness", 0);
+        SetOptionalIntUniform(programId, "u_UseNormalMap", 1);
         SetOptionalIntUniform(programId, "u_HasAlbedoMap", 0);
         SetOptionalIntUniform(programId, "u_HasNormalMap", 0);
         SetOptionalIntUniform(programId, "u_HasMetallicMap", 0);
@@ -339,7 +347,7 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
 
             activeShader->SetUniform("u_Model", model);
 
-            activeShader->SetUniform("u_ReceiveShadow", item.flags.receiveShadow ? 1 : 0);
+            activeShader->SetUniform("u_ReceiveShadow", (item.flags.receiveShadow && m_hasShadowData) ? 1 : 0);
 
             // ── Cascaded shadow data (directional light only) ─────────────
             if (m_hasShadowData)
