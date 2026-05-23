@@ -364,15 +364,19 @@ void Renderer::EndFrame()
     assert(m_inFrame && "EndFrame() called without a matching BeginFrame()");
 
     // Pass cascade matrices + split distances + depth array + PCF radius to the queue.
-    if (m_directionalShadowMap && m_directionalShadowMap->IsValid())
+    // If this frame did not render a shadow pass, explicitly disable shadow sampling;
+    // otherwise scenes with receivers but no shadow-casting directional light can sample
+    // stale cascade data from a previous scene/frame.
+    if (m_debugStats.shadowPassDataAvailable && m_directionalShadowMap && m_directionalShadowMap->IsValid())
     {
-        int pcfRadius = 1;
-        if (m_debugStats.shadowPassDataAvailable)
-            pcfRadius = m_shadowPcfRadius;
         m_queue.SetDirectionalShadowData(m_cascadeViewProj,
                                          m_cascadeSplits,
                                          m_directionalShadowMap->GetDepthTextureArray(),
-                                         pcfRadius);
+                                         m_shadowPcfRadius);
+    }
+    else
+    {
+        m_queue.SetDirectionalShadowData({}, {}, 0, 0);
     }
 
     m_queue.Sort();
