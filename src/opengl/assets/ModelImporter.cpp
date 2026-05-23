@@ -156,6 +156,41 @@ static std::string ResolveTexturePath(
 
         // External file reference — prepend the model directory.
         fs::path full = fs::path(modelDir) / raw;
+
+        if (fs::exists(full))
+        {
+            return full.lexically_normal().string();
+        }
+
+        // Fallback 1: Try in the parent directory of modelDir (since textures are often placed in the parent directory of the model folder)
+        fs::path parentFull = fs::path(modelDir).parent_path() / raw;
+        if (fs::exists(parentFull))
+        {
+            return parentFull.lexically_normal().string();
+        }
+
+        // Fallback 2: Try looking for the filename directly in modelDir
+        fs::path justFilename = fs::path(modelDir) / fs::path(raw).filename();
+        if (fs::exists(justFilename))
+        {
+            return justFilename.lexically_normal().string();
+        }
+
+        // Fallback 3: Try looking for filename in modelDir/textures
+        fs::path modelDirTextures = fs::path(modelDir) / "textures" / fs::path(raw).filename();
+        if (fs::exists(modelDirTextures))
+        {
+            return modelDirTextures.lexically_normal().string();
+        }
+
+        // Fallback 4: Try looking for filename in the parent's textures directory
+        fs::path parentTextures = fs::path(modelDir).parent_path() / "textures" / fs::path(raw).filename();
+        if (fs::exists(parentTextures))
+        {
+            return parentTextures.lexically_normal().string();
+        }
+
+        // Fallback 5: Return canonical full path anyway
         return full.lexically_normal().string();
     }
     return {};

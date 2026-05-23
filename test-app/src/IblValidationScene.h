@@ -1,6 +1,8 @@
 #pragma once
 
 #include "scene/Scene.h"
+#include "assets/AssetImporter.h"
+#include "assets/ModelData.h"
 #include <memory>
 #include <vector>
 
@@ -8,6 +10,7 @@ class Mesh;
 class MeshBuffer;
 class Material;
 class MaterialInstance;
+class Texture2D;
 
 class IblValidationScene : public Scene
 {
@@ -25,6 +28,11 @@ private:
     
     std::shared_ptr<MeshBuffer> m_bench;
     std::shared_ptr<Material> m_benchMat;
+
+    // FBX indoor plant placed on the bench end
+    ModelData                                       m_fbxPlant;
+    std::shared_ptr<Material>                       m_fbxPlantBase;
+    std::vector<std::unique_ptr<MaterialInstance>>  m_fbxPlantMats;
 
     glm::vec3 m_cameraAnchor{0.0f, 1.0f, 0.0f};
 

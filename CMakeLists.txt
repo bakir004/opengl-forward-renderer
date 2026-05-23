@@ -62,10 +62,11 @@ set(ASSIMP_INSTALL            OFF CACHE BOOL "" FORCE)
 set(ASSIMP_INJECT_DEBUG_POSTFIX OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS         OFF CACHE BOOL "" FORCE)
 set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE) 
-# CI optimization: build only importers used by this project (OBJ + glTF).
+# CI optimization: build only importers used by this project (OBJ + glTF + FBX).
 set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_OBJ_IMPORTER  ON CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_FBX_IMPORTER  ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(glfw spdlog json glm stb assimp)
 
 FetchContent_GetProperties(imgui)
