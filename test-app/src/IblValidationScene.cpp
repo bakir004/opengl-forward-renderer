@@ -8,6 +8,8 @@
 #include "core/Skybox.h"
 #include "scene/LightBuilder.h"
 #include "core/MeshBuffer.h"
+#include "core/Texture2D.h"
+#include "assets/ModelData.h"
 #include "scene/ReflectionProbe.h"
 #include <imgui.h>
 
@@ -334,8 +336,8 @@ bool IblValidationScene::Setup()
         RenderItem item;
         item.mesh     = m_bench.get();
         item.material = inst.get();
-        item.transform.SetTranslation({0.0f, -1.275f, 0.5f});
-        item.transform.SetScale({2.5f, 2.5f, 4.0f});
+        item.transform.SetTranslation({1.0f, -1.275f, 0.5f});
+        item.transform.SetScale({2.5f, 2.5f, 5.0f});
         item.transform.SetRotationEulerDegrees({0.0f, 90.0f, 0.0f});
         item.flags.castShadow    = true;
         item.flags.receiveShadow = true;
@@ -346,6 +348,55 @@ bool IblValidationScene::Setup()
     else
     {
         spdlog::warn("[IblValidationScene] Bench mesh failed to load");
+    }
+
+    // 7. FBX Indoor Plant – placed on the bench end, next to the PBR spheres
+    m_fbxPlant = AssetImporter::LoadModel(
+        "assets/models/fbx/plant/indoor plant_02_fbx/indoor plant_02_+2.fbx");
+    if (m_fbxPlant.IsValid())
+    {
+        m_fbxPlantBase = std::make_shared<Material>(meshShader);
+        m_fbxPlantBase->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
+
+        auto colTex = AssetImporter::LoadTexture(
+            "assets/models/fbx/plant/textures/indoor plant_2_COL.jpg",
+            TextureColorSpace::sRGB);
+        auto norTex = AssetImporter::LoadTexture(
+            "assets/models/fbx/plant/textures/indoor plant_2_NOR.jpg",
+            TextureColorSpace::Linear);
+        auto whiteFallback = std::make_shared<Texture2D>(
+            Texture2D::CreateFallback(200, 200, 200, 255));
+
+        const uint32_t subCount = m_fbxPlant.mesh->SubMeshCount();
+        for (uint32_t i = 0; i < subCount; ++i)
+        {
+            auto inst = std::make_unique<MaterialInstance>(m_fbxPlantBase);
+            inst->SetTexture(TextureSlot::Albedo, colTex ? colTex : whiteFallback);
+            if (norTex)
+                inst->SetTexture(TextureSlot::Normal, norTex);
+            inst->SetVec3("u_AlbedoColor", {1.0f, 1.0f, 1.0f});
+            inst->SetFloat("u_MetallicValue", 0.0f);
+            inst->SetFloat("u_RoughnessValue", 0.6f);
+
+            const SubMesh& sm = m_fbxPlant.mesh->GetSubMesh(i);
+            RenderItem plantItem;
+            plantItem.meshMulti    = m_fbxPlant.mesh.get();
+            plantItem.subMeshIndex = i;
+            plantItem.material = (sm.materialIndex < m_fbxPlant.materials.size())
+                ? inst.get() : inst.get();
+            plantItem.transform.SetTranslation({6.0f, 0.45f, 0.5f});
+            plantItem.transform.SetScale({0.005f, 0.005f, 0.005f});
+            plantItem.transform.SetRotationEulerDegrees({0.0f, 0.0f, 0.0f});
+            plantItem.flags.castShadow    = true;
+            plantItem.flags.receiveShadow = true;
+            AddObject(plantItem);
+            m_fbxPlantMats.push_back(std::move(inst));
+        }
+        spdlog::info("[IblValidationScene] FBX plant loaded ({} submeshes)", subCount);
+    }
+    else
+    {
+        spdlog::warn("[IblValidationScene] FBX plant failed to load — check path/filename");
     }
 
     spdlog::info("[IblValidationScene] Added {} validation objects", objectCount);
