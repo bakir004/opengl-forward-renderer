@@ -192,6 +192,7 @@ bool PbrValidationScene::Setup()
             .Build());
 
     auto floorInst = std::make_unique<MaterialInstance>(m_planeMaterial);
+    floorInst->SetName("Floor");
     RenderItem floor;
     floor.meshMulti = m_planeMesh.get();
     floor.subMeshIndex = 0;
@@ -204,6 +205,7 @@ bool PbrValidationScene::Setup()
     AddObject(floor);
 
     auto wallInst = std::make_unique<MaterialInstance>(m_planeMaterial);
+    wallInst->SetName("Wall");
     wallInst->SetVec3("u_AlbedoColor", {0.17f, 0.18f, 0.20f});
     RenderItem wall;
     wall.meshMulti = m_planeMesh.get();
@@ -218,6 +220,7 @@ bool PbrValidationScene::Setup()
     AddObject(wall);
 
     auto podiumInst = std::make_unique<MaterialInstance>(m_planeMaterial);
+    podiumInst->SetName("Podium");
     podiumInst->SetVec3("u_AlbedoColor", {0.24f, 0.24f, 0.26f});
     RenderItem podium;
     podium.meshMulti = m_planeMesh.get();
@@ -245,6 +248,7 @@ bool PbrValidationScene::Setup()
             const float roughness = static_cast<float>(x) / static_cast<float>(gridSize - 1);
 
             auto material = MakeSphereMaterial(m_gridBaseMaterial, baseAlbedo, metallic, roughness);
+            material->SetName("Grid Sphere [Row " + std::to_string(y) + ", Col " + std::to_string(x) + "]");
 
             RenderItem sphere;
             sphere.meshMulti = m_sphereMesh.get();
@@ -263,6 +267,7 @@ bool PbrValidationScene::Setup()
     }
 
     auto goldMaterial = MakeSphereMaterial(m_gridBaseMaterial, {1.0f, 0.766f, 0.336f}, 1.0f, 0.1f);
+    goldMaterial->SetName("Gold Reference Sphere");
     RenderItem goldSphere;
     goldSphere.meshMulti = m_sphereMesh.get();
     goldSphere.subMeshIndex = 0;
@@ -275,6 +280,7 @@ bool PbrValidationScene::Setup()
     AddObject(goldSphere);
 
     auto redMaterial = MakeSphereMaterial(m_gridBaseMaterial, {1.0f, 0.1f, 0.1f}, 0.0f, 0.5f);
+    redMaterial->SetName("Red Reference Sphere");
     RenderItem redSphere;
     redSphere.meshMulti = m_sphereMesh.get();
     redSphere.subMeshIndex = 0;

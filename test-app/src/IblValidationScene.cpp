@@ -248,6 +248,7 @@ bool IblValidationScene::Setup()
 
     // 1. Polished Chrome Sphere (Metal=1, Rough=0)
     auto chromeMaterial = MakeSphereMaterial(m_gridBaseMaterial, {1.0f, 1.0f, 1.0f}, 1.0f, 0.0f);
+    chromeMaterial->SetName("Polished Chrome Sphere");
     RenderItem chromeSphere;
     chromeSphere.meshMulti = m_sphereMesh.get();
     chromeSphere.subMeshIndex = 0;
@@ -261,6 +262,7 @@ bool IblValidationScene::Setup()
 
     // 2. Rough Metal Sphere (Metal=1, Rough=0.8)
     auto roughMetalMaterial = MakeSphereMaterial(m_gridBaseMaterial, {1.0f, 1.0f, 1.0f}, 1.0f, 0.8f);
+    roughMetalMaterial->SetName("Rough Metal Sphere");
     RenderItem roughMetalSphere;
     roughMetalSphere.meshMulti = m_sphereMesh.get();
     roughMetalSphere.subMeshIndex = 0;
@@ -274,6 +276,7 @@ bool IblValidationScene::Setup()
 
     // 3. Gold Sphere (Metal=1, Rough=0.2, Albedo=Gold)
     auto goldMaterial = MakeSphereMaterial(m_gridBaseMaterial, {1.0f, 0.766f, 0.336f}, 1.0f, 0.2f);
+    goldMaterial->SetName("Gold Sphere");
     RenderItem goldSphere;
     goldSphere.meshMulti = m_sphereMesh.get();
     goldSphere.subMeshIndex = 0;
@@ -287,6 +290,7 @@ bool IblValidationScene::Setup()
 
     // 4. Plastic/Dielectric Sphere (Metal=0, Rough=0.1)
     auto plasticMaterial = MakeSphereMaterial(m_gridBaseMaterial, {1.0f, 0.1f, 0.1f}, 0.0f, 0.1f);
+    plasticMaterial->SetName("Plastic Sphere");
     RenderItem plasticSphere;
     plasticSphere.meshMulti = m_sphereMesh.get();
     plasticSphere.subMeshIndex = 0;
@@ -300,6 +304,7 @@ bool IblValidationScene::Setup()
 
     // 5. Rough Dielectric Sphere (Metal=0, Rough=0.8)
     auto roughDielectricMaterial = MakeSphereMaterial(m_gridBaseMaterial, {0.1f, 0.1f, 1.0f}, 0.0f, 0.8f);
+    roughDielectricMaterial->SetName("Rough Dielectric Sphere");
     RenderItem roughDielectricSphere;
     roughDielectricSphere.meshMulti = m_sphereMesh.get();
     roughDielectricSphere.subMeshIndex = 0;
@@ -333,6 +338,7 @@ bool IblValidationScene::Setup()
         m_benchMat->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
 
         auto inst = std::make_unique<MaterialInstance>(m_benchMat);
+        inst->SetName("Bench");
         RenderItem item;
         item.mesh     = m_bench.get();
         item.material = inst.get();
@@ -371,6 +377,12 @@ bool IblValidationScene::Setup()
         for (uint32_t i = 0; i < subCount; ++i)
         {
             auto inst = std::make_unique<MaterialInstance>(m_fbxPlantBase);
+            std::string partName = "Indoor Plant Part " + std::to_string(i);
+            if (i == 0) partName = "Plant Leaves";
+            else if (i == 1) partName = "Plant Stem";
+            else if (i == 2) partName = "Plant Vase";
+            else if (i == 3) partName = "Plant Soil";
+            inst->SetName(partName);
             inst->SetTexture(TextureSlot::Albedo, colTex ? colTex : whiteFallback);
             if (norTex)
                 inst->SetTexture(TextureSlot::Normal, norTex);
