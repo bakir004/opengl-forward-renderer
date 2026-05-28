@@ -196,12 +196,12 @@ bool BistroScene::Setup()
 
     auto whiteFallback = std::make_shared<Texture2D>(Texture2D::CreateFallback(220, 220, 220, 255));
     auto neutralFaces = std::vector<std::string>{
-        "assets/skybox/NeutralRoom/px.png",
-        "assets/skybox/NeutralRoom/nx.png",
-        "assets/skybox/NeutralRoom/py.png",
-        "assets/skybox/NeutralRoom/ny.png",
-        "assets/skybox/NeutralRoom/pz.png",
-        "assets/skybox/NeutralRoom/nz.png",
+        "assets/skybox/BistroSky/px.png",
+        "assets/skybox/BistroSky/nx.png",
+        "assets/skybox/BistroSky/py.png",
+        "assets/skybox/BistroSky/ny.png",
+        "assets/skybox/BistroSky/pz.png",
+        "assets/skybox/BistroSky/nz.png",
     };
     m_skybox = std::make_shared<Skybox>(neutralFaces);
     m_skybox->SetExposure(0.9f);
