@@ -203,7 +203,7 @@ bool BistroScene::Setup()
         "assets/skybox/BistroSky/pz.png",
         "assets/skybox/BistroSky/nz.png",
     };
-    m_skybox = std::make_shared<Skybox>(outdoorSkyFaces);
+    m_skybox = std::make_shared<Skybox>(neutralFaces);
     m_skybox->SetExposure(0.9f);
     SetSkybox(m_skybox);
 
