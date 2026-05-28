@@ -129,6 +129,18 @@ ExtractEmbeddedTextures(const aiScene* scene, const std::string& modelPath)
 //  - External file references: joined with modelDir as before.
 // ---------------------------------------------------------------------------
 
+static std::string NormalizeImportedTexturePath(std::string path)
+{
+#ifndef _WIN32
+    for (char& ch : path)
+    {
+        if (ch == '\\')
+            ch = '/';
+    }
+#endif
+    return path;
+}
+
 static std::string ResolveTexturePath(
     const aiMaterial*                                      mat,
     aiTextureType                                          type,
@@ -138,7 +150,7 @@ static std::string ResolveTexturePath(
     aiString aiPath;
     if (mat->GetTexture(type, 0, &aiPath) == AI_SUCCESS)
     {
-        const std::string raw = aiPath.C_Str();
+        const std::string raw = NormalizeImportedTexturePath(aiPath.C_Str());
         if (raw.empty())
             return {};
 
@@ -292,8 +304,7 @@ ModelData ImportModelFromFile(const std::string& path)
         aiProcess_GenSmoothNormals      |
         aiProcess_CalcTangentSpace      |   // ← tangent/bitangent generation
         aiProcess_JoinIdenticalVertices |
-        aiProcess_PreTransformVertices  |   // bake node transforms → static city
-        aiProcess_FixInfacingNormals);      // fix normals flipped by negative-scale nodes
+        aiProcess_PreTransformVertices);    // bake node transforms → static city
 
     if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || !scene->mRootNode)
     {

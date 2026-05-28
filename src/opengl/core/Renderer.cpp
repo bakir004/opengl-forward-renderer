@@ -29,8 +29,10 @@ namespace
     // Deliberately smaller than the world far plane so near-camera cascades stay tight.
     constexpr float kCascadeShadowMaxDistance = 150.0f;
     // Practical split lambda: 0 = uniform splits, 1 = logarithmic splits.
-    // Values near 1.0 put most shadow-map resolution into near cascades.
-    constexpr float kCascadeSplitLambda = 0.9f;
+    // Keep this moderate so the first cascade covers a useful distance; values
+    // near 1.0 made the first split too short and cascade transitions obvious
+    // while rotating the camera in large scenes like Bistro.
+    constexpr float kCascadeSplitLambda = 0.20f;
     // World-space distance the light-space near plane is pulled back so casters
     // between the light and the view slice (e.g. tree canopies above the camera)
     // still write into the depth map. Must be a fixed absolute value — a ratio
