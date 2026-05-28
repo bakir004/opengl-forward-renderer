@@ -17,6 +17,7 @@ class BistroScene : public Scene
 public:
     bool Setup();
     void OnUpdate(float deltaTime, IInputProvider& input) override;
+    void OnImGuiRender() override;
 
 private:
     ModelData m_bistroInteriorModel;
@@ -24,7 +25,16 @@ private:
     std::shared_ptr<Material> m_bistroBaseMaterial;
     std::vector<std::unique_ptr<MaterialInstance>> m_interiorMaterials;
     std::vector<std::unique_ptr<MaterialInstance>> m_exteriorMaterials;
-    std::shared_ptr<Skybox> m_skybox;
-    std::shared_ptr<ReflectionProbe> m_probe;
+    int m_skyboxMode = 0;
+    std::shared_ptr<Skybox> m_bistroSkybox;
+    std::shared_ptr<Skybox> m_mountainsSkybox;
+    std::shared_ptr<Skybox> m_moodySkybox;
+    std::shared_ptr<Skybox> m_neutralSkybox;
+    std::shared_ptr<Skybox> m_outdoorSkybox;
+    std::shared_ptr<ReflectionProbe> m_bistroProbe;
+    std::shared_ptr<ReflectionProbe> m_mountainsProbe;
+    std::shared_ptr<ReflectionProbe> m_moodyProbe;
+    std::shared_ptr<ReflectionProbe> m_neutralProbe;
+    std::shared_ptr<ReflectionProbe> m_outdoorProbe;
     glm::vec3 m_cameraAnchor{0.0f, 1.7f, 0.0f};
 };

@@ -8,6 +8,8 @@
 #include "scene/LightBuilder.h"
 #include "scene/ReflectionProbe.h"
 
+#include <imgui.h>
+
 #include <algorithm>
 #include <cctype>
 #include <glm/glm.hpp>
@@ -195,7 +197,7 @@ bool BistroScene::Setup()
     m_bistroBaseMaterial->SetFloat("u_NormalScale", 1.0f);
 
     auto whiteFallback = std::make_shared<Texture2D>(Texture2D::CreateFallback(220, 220, 220, 255));
-    auto neutralFaces = std::vector<std::string>{
+    std::vector<std::string> bistroFaces = {
         "assets/skybox/BistroSky/px.png",
         "assets/skybox/BistroSky/nx.png",
         "assets/skybox/BistroSky/py.png",
@@ -203,14 +205,77 @@ bool BistroScene::Setup()
         "assets/skybox/BistroSky/pz.png",
         "assets/skybox/BistroSky/nz.png",
     };
-    m_skybox = std::make_shared<Skybox>(neutralFaces);
-    m_skybox->SetExposure(0.9f);
-    SetSkybox(m_skybox);
+    m_bistroSkybox = std::make_shared<Skybox>(bistroFaces);
+    m_bistroSkybox->SetExposure(0.9f);
 
-    m_probe = std::make_shared<ReflectionProbe>();
-    m_probe->sourceCubemap = m_skybox->GetTexture();
-    m_probe->intensity = 0.85f;
-    SetReflectionProbe(m_probe);
+    std::vector<std::string> mountainsFaces = {
+        "assets/skybox/Mountains/px.png",
+        "assets/skybox/Mountains/nx.png",
+        "assets/skybox/Mountains/py.png",
+        "assets/skybox/Mountains/ny.png",
+        "assets/skybox/Mountains/pz.png",
+        "assets/skybox/Mountains/nz.png",
+    };
+    m_mountainsSkybox = std::make_shared<Skybox>(mountainsFaces);
+    m_mountainsSkybox->SetExposure(2.0f);
+
+    std::vector<std::string> moodyFaces = {
+        "assets/skybox/Moody/vz_moody_right.png",
+        "assets/skybox/Moody/vz_moody_left.png",
+        "assets/skybox/Moody/vz_moody_up.png",
+        "assets/skybox/Moody/vz_moody_down.png",
+        "assets/skybox/Moody/vz_moody_front.png",
+        "assets/skybox/Moody/vz_moody_back.png",
+    };
+    m_moodySkybox = std::make_shared<Skybox>(moodyFaces);
+    m_moodySkybox->SetExposure(1.5f);
+
+    std::vector<std::string> neutralFaces = {
+        "assets/skybox/NeutralRoom/px.png",
+        "assets/skybox/NeutralRoom/nx.png",
+        "assets/skybox/NeutralRoom/py.png",
+        "assets/skybox/NeutralRoom/ny.png",
+        "assets/skybox/NeutralRoom/pz.png",
+        "assets/skybox/NeutralRoom/nz.png",
+    };
+    m_neutralSkybox = std::make_shared<Skybox>(neutralFaces);
+    m_neutralSkybox->SetExposure(1.5f);
+
+    std::vector<std::string> outdoorFaces = {
+        "assets/skybox/OutdoorSky/px.png",
+        "assets/skybox/OutdoorSky/nx.png",
+        "assets/skybox/OutdoorSky/py.png",
+        "assets/skybox/OutdoorSky/ny.png",
+        "assets/skybox/OutdoorSky/pz.png",
+        "assets/skybox/OutdoorSky/nz.png",
+    };
+    m_outdoorSkybox = std::make_shared<Skybox>(outdoorFaces);
+    m_outdoorSkybox->SetExposure(1.0f);
+
+    SetSkybox(m_bistroSkybox);
+    m_skyboxMode = 0;
+
+    m_bistroProbe = std::make_shared<ReflectionProbe>();
+    m_bistroProbe->sourceCubemap = m_bistroSkybox->GetTexture();
+    m_bistroProbe->intensity = 0.85f;
+
+    m_mountainsProbe = std::make_shared<ReflectionProbe>();
+    m_mountainsProbe->sourceCubemap = m_mountainsSkybox->GetTexture();
+    m_mountainsProbe->intensity = 1.2f;
+
+    m_moodyProbe = std::make_shared<ReflectionProbe>();
+    m_moodyProbe->sourceCubemap = m_moodySkybox->GetTexture();
+    m_moodyProbe->intensity = 1.2f;
+
+    m_neutralProbe = std::make_shared<ReflectionProbe>();
+    m_neutralProbe->sourceCubemap = m_neutralSkybox->GetTexture();
+    m_neutralProbe->intensity = 1.0f;
+
+    m_outdoorProbe = std::make_shared<ReflectionProbe>();
+    m_outdoorProbe->sourceCubemap = m_outdoorSkybox->GetTexture();
+    m_outdoorProbe->intensity = 1.0f;
+
+    SetReflectionProbe(m_bistroProbe);
     SetIblIntensity(0.85f);
 
     SetAmbientLight({0.03f, 0.03f, 0.035f}, 0.08f);
@@ -275,4 +340,50 @@ void BistroScene::OnUpdate(float deltaTime, IInputProvider& input)
 {
     glm::vec3 moveDirXZ{0.0f};
     UpdateStandardCameraAndPlayer(deltaTime, input, m_cameraAnchor, moveDirXZ, 0.0f);
+}
+
+void BistroScene::OnImGuiRender()
+{
+    ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+    ImGui::SetNextWindowPos(ImVec2(displaySize.x - 15.0f, 15.0f), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+    ImGui::Begin("Bistro", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove);
+
+    ImGui::Text("Skybox Environment");
+    if (ImGui::RadioButton("Bistro Sky", m_skyboxMode == 0))
+    {
+        m_skyboxMode = 0;
+        SetSkybox(m_bistroSkybox);
+        SetReflectionProbe(m_bistroProbe);
+        SetIblIntensity(0.85f);
+    }
+    if (ImGui::RadioButton("Night Sky (Mountain)", m_skyboxMode == 1))
+    {
+        m_skyboxMode = 1;
+        SetSkybox(m_mountainsSkybox);
+        SetReflectionProbe(m_mountainsProbe);
+        SetIblIntensity(1.2f);
+    }
+    if (ImGui::RadioButton("Night Sky (Mody)", m_skyboxMode == 2))
+    {
+        m_skyboxMode = 2;
+        SetSkybox(m_moodySkybox);
+        SetReflectionProbe(m_moodyProbe);
+        SetIblIntensity(1.2f);
+    }
+    if (ImGui::RadioButton("Neutral Room", m_skyboxMode == 3))
+    {
+        m_skyboxMode = 3;
+        SetSkybox(m_neutralSkybox);
+        SetReflectionProbe(m_neutralProbe);
+        SetIblIntensity(1.0f);
+    }
+    if (ImGui::RadioButton("Outdoor Sky (Daytime)", m_skyboxMode == 4))
+    {
+        m_skyboxMode = 4;
+        SetSkybox(m_outdoorSkybox);
+        SetReflectionProbe(m_outdoorProbe);
+        SetIblIntensity(1.0f);
+    }
+
+    ImGui::End();
 }
