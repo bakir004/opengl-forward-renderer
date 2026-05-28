@@ -49,7 +49,6 @@ add_library(${PROJECT_NAME} STATIC
 
 target_include_directories(${PROJECT_NAME} PUBLIC
     include
-    ${CMAKE_SOURCE_DIR}/external/tinyddsloader
 )
 
 find_package(OpenGL REQUIRED)
@@ -93,6 +92,10 @@ if(TARGET stb)
 else()
     # Fallback: if FetchContent populated stb, add its include directory directly.
     target_include_directories(${PROJECT_NAME} PUBLIC ${stb_SOURCE_DIR})
+endif()
+
+if(TARGET tinyddsloader)
+    target_link_libraries(${PROJECT_NAME} PUBLIC tinyddsloader)
 endif()
 
 if(TARGET assimp::assimp)
