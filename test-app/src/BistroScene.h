@@ -17,13 +17,22 @@ class BistroScene : public Scene
 public:
     bool Setup();
     void OnUpdate(float deltaTime, IInputProvider& input) override;
+    void OnImGuiRender() override;
 
 private:
+    void SetActiveSkybox(int skyboxMode);
+
     ModelData m_bistroInteriorModel;
     ModelData m_bistroExteriorModel;
     std::shared_ptr<Material> m_bistroBaseMaterial;
     std::vector<std::unique_ptr<MaterialInstance>> m_interiorMaterials;
     std::vector<std::unique_ptr<MaterialInstance>> m_exteriorMaterials;
+    int m_skyboxMode = 0;
+    std::shared_ptr<Skybox> m_bistroSkybox;
+    std::shared_ptr<Skybox> m_mountainsSkybox;
+    std::shared_ptr<Skybox> m_moodySkybox;
+    std::shared_ptr<Skybox> m_neutralSkybox;
+    std::shared_ptr<Skybox> m_outdoorSkybox;
     std::shared_ptr<Skybox> m_skybox;
     std::shared_ptr<ReflectionProbe> m_probe;
     glm::vec3 m_cameraAnchor{0.0f, 1.7f, 0.0f};
