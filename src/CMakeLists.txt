@@ -47,7 +47,10 @@ add_library(${PROJECT_NAME} STATIC
         opengl/ui/RendererUI.cpp
 )
 
-target_include_directories(${PROJECT_NAME} PUBLIC include)
+target_include_directories(${PROJECT_NAME} PUBLIC
+    include
+    ${CMAKE_SOURCE_DIR}/external/tinyddsloader
+)
 
 find_package(OpenGL REQUIRED)
 

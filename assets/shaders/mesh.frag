@@ -69,6 +69,7 @@ uniform bool           u_HasAoMap = false;
 uniform bool           u_HasEmissiveMap = false;
 uniform bool           u_HasSpecularGlossinessMap = false;
 uniform bool           u_IsSpecularGlossiness = false;
+uniform bool           u_IsPackedMetalRough = false;
 uniform bool           u_UseNormalMap = true;
 uniform vec4           u_TintColor = vec4(1.0);
 uniform vec3           u_AlbedoColor = vec3(1.0);
@@ -99,6 +100,8 @@ vec3 GetAlbedo()
 float GetMetallic()
 {
     float metallic = u_MetallicValue;
+    if (u_IsPackedMetalRough && u_HasSpecularGlossinessMap)
+        metallic *= texture(u_SpecularGlossinessMap, v_UV).b;
     if (u_HasMetallicMap)
         metallic *= texture(u_MetallicMap, v_UV).r;
     return clamp(metallic, 0.0, 1.0);
@@ -107,6 +110,8 @@ float GetMetallic()
 float GetRoughness()
 {
     float roughness = u_RoughnessValue;
+    if (u_IsPackedMetalRough && u_HasSpecularGlossinessMap)
+        roughness *= texture(u_SpecularGlossinessMap, v_UV).g;
     if (u_HasRoughnessMap)
         roughness *= texture(u_RoughnessMap, v_UV).r;
     return clamp(roughness, 0.04, 1.0);
@@ -115,6 +120,8 @@ float GetRoughness()
 float GetAO()
 {
     float ao = 1.0;
+    if (u_IsPackedMetalRough && u_HasSpecularGlossinessMap)
+        ao = texture(u_SpecularGlossinessMap, v_UV).r;
     if (u_HasAoMap)
         ao = texture(u_AOMap, v_UV).r;
     return mix(1.0, ao, u_AoStrength);

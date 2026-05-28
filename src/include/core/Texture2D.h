@@ -56,6 +56,15 @@ public:
                                         GLenum type,
                                         SamplerDesc sampler = {});
 
+    /// Creates a runtime-generated 2-D texture from RGBA8 pixel data.
+    /// Useful for unpacking packed material textures into channel-specific maps.
+    static Texture2D CreateFromRGBAData(int width,
+                                        int height,
+                                        const unsigned char* rgbaData,
+                                        TextureColorSpace colorSpace,
+                                        SamplerDesc sampler = {},
+                                        bool generateMipmaps = true);
+
     ~Texture2D();
 
     Texture2D(const Texture2D&)            = delete;
