@@ -278,6 +278,12 @@ void Renderer::SetIBLDebugState(IBLDebugMode mode, float prefilteredMipLevel)
     m_iblDebugPrefilteredMip = std::max(0.0f, prefilteredMipLevel);
 }
 
+void Renderer::SetLightingDebugControls(float ambientFloorStrength, float maxShadowOcclusion)
+{
+    m_ambientFloorStrength = std::max(0.0f, ambientFloorStrength);
+    m_maxShadowOcclusion = std::clamp(maxShadowOcclusion, 0.0f, 1.0f);
+}
+
 void Renderer::BeginFrame(const FrameSubmission &submission)
 {
     assert(!m_inFrame && "BeginFrame() called without a matching EndFrame()");
@@ -364,6 +370,7 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
     m_currentCamera = submission.camera;
     m_queue.SetEnvironmentData(activeProbe);
     m_queue.SetIBLDebugState(m_iblDebugMode, m_iblDebugPrefilteredMip);
+    m_queue.SetLightingDebugControls(m_ambientFloorStrength, m_maxShadowOcclusion);
 }
 
 void Renderer::EndFrame()

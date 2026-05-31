@@ -47,6 +47,28 @@ namespace
         return ContainsAny(lower, {"lamp", "light", "emissive", "sign"});
     }
 
+    bool ShouldSkipInteriorSubMesh(const SubMesh& subMesh, const ModelMaterialInfo* matInfo)
+    {
+        const std::string meshName = ToLowerCopy(subMesh.name);
+        const std::string materialName = matInfo ? ToLowerCopy(matInfo->name) : std::string{};
+
+        // BistroInterior_Wine.fbx is not a pure interior asset: it also contains
+        // an extra copy of the main door.  Do not skip the whole exterior/facade
+        // group here: some of those meshes are trim/edge pieces needed to avoid
+        // holes around the door openings.
+        if (materialName == "master_bistro_main_door")
+            return true;
+
+        // The "_Wine" variant includes loose wine/liquid demo meshes that are
+        // not spatially aligned with the final bistro set and appear as floating
+        // artifacts. Keep the actual indoor glass geometry; only drop the loose
+        // wine contents meshes.
+        if (meshName == "wine" || materialName == "red_wine" || materialName == "white_wine")
+            return true;
+
+        return false;
+    }
+
     std::vector<std::unique_ptr<MaterialInstance>> BuildMaterialInstances(
         const ModelData& model,
         const std::shared_ptr<Material>& baseMaterial,
@@ -149,6 +171,9 @@ namespace
             if (subMesh.materialIndex < model.materials.size())
                 matInfo = &model.materials[subMesh.materialIndex];
 
+            if (std::string(logLabel) == "interior" && ShouldSkipInteriorSubMesh(subMesh, matInfo))
+                continue;
+
             const bool transparent = matInfo && IsTransparentMaterial(matInfo->name);
             const MaterialInstance* material = nullptr;
             if (subMesh.materialIndex < materials.size())
@@ -166,7 +191,8 @@ namespace
             items.push_back(item);
         }
 
-        spdlog::info("[BistroScene] Built {} submesh render items from {}", subMeshCount, logLabel);
+        spdlog::info("[BistroScene] Built {} render items from {} ({} source submeshes)",
+                     items.size(), logLabel, subMeshCount);
         return items;
     }
 }

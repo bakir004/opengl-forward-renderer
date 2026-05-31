@@ -783,6 +783,12 @@ void RendererUI::DrawTabLights(Scene &scene, const RendererDebugStats & /*stats*
     if (SectionHeader("Global Ambient")) {
         ImGui::ColorEdit3("Ambient Color", &lights.ambientColor.x);
         ImGui::SliderFloat("Ambient Intensity", &lights.ambientIntensity, 0.0f, 5.0f);
+        ImGui::SliderFloat("Ambient Floor", &ambientFloorStrength, 0.0f, 1.0f, "%.3f");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Minimum diffuse ambient added to back-facing/unlit triangles.");
+        ImGui::SliderFloat("Max Shadow Occlusion", &maxShadowOcclusion, 0.0f, 1.0f, "%.2f");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Caps directional shadow darkness. Lower = brighter shadows, higher = darker shadows.");
         ImGui::Spacing();
     }
 

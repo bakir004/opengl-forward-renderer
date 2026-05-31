@@ -234,6 +234,7 @@ void Application::RunFrame(Scene &scene,
         vpH > 0 ? vpH : fbH};
 
     m_renderer->SetIBLDebugState(m_ui->iblDebugMode, m_ui->iblDebugPrefilteredMip);
+    m_renderer->SetLightingDebugControls(m_ui->ambientFloorStrength, m_ui->maxShadowOcclusion);
     m_renderer->BeginFrame(sub);
     for (const auto &item : sub.objects)
     {

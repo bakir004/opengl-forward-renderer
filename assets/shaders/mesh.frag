@@ -56,6 +56,8 @@ uniform bool           u_HasIBL = false;
 uniform float          u_IBLIntensity     = 1.0;
 uniform int            u_IBLDebugMode = IBL_DEBUG_FULL_LIGHTING;
 uniform float          u_IBLDebugPrefilteredMip = 0.0;
+uniform float          u_AmbientFloorStrength = 0.18;
+uniform float          u_MaxShadowOcclusion = 0.75;
 
 uniform mat4           u_CascadeViewProj[NUM_CASCADES];
 uniform float          u_CascadeSplits[NUM_CASCADES];
@@ -384,7 +386,7 @@ vec3 DirectionalLighting(vec3 albedo, vec3 n, vec3 v, vec3 F0, float roughness, 
         // Do not let directional shadows erase all direct light. This keeps
         // shadowed surfaces readable instead of pitch black while ambient/IBL
         // and local lights provide the rest of the scene lighting.
-        shadow = min(shadow, 0.75);
+        shadow = min(shadow, clamp(u_MaxShadowOcclusion, 0.0, 1.0));
     }
     return directLight * (1.0 - shadow);
 }
@@ -617,6 +619,14 @@ void main()
         ambient = iblDiffuse + iblSpecular;
     else
         ambient = sceneAmbient;
+
+    // Readability floor for surfaces facing away from direct lights.  Those
+    // triangles correctly get little/no NdotL contribution, but several scenes
+    // use very low ambient values, making unlit faces almost black.  Keep a
+    // small diffuse ambient minimum so form remains visible without changing
+    // the actual shadow test.
+    vec3 ambientFloor = kD_direct * albedo * vec3(max(u_AmbientFloorStrength, 0.0));
+    ambient = max(ambient, ambientFloor);
 
     vec3 Lo = DirectionalLighting(albedo, N, V, F0, roughness, metallic);
     Lo += PointLighting(albedo, v_WorldPos, N, V, F0, roughness, metallic);

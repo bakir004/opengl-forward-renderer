@@ -244,6 +244,12 @@ void RenderQueue::SetIBLDebugState(IBLDebugMode mode, float prefilteredMipLevel)
     m_iblDebugPrefilteredMip = prefilteredMipLevel;
 }
 
+void RenderQueue::SetLightingDebugControls(float ambientFloorStrength, float maxShadowOcclusion)
+{
+    m_ambientFloorStrength = std::max(0.0f, ambientFloorStrength);
+    m_maxShadowOcclusion = std::clamp(maxShadowOcclusion, 0.0f, 1.0f);
+}
+
 void RenderQueue::Sort()
 {
     // Sort by the resolved shader pointer to minimise program switches.
@@ -348,6 +354,8 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
             activeShader->SetUniform("u_Model", model);
 
             activeShader->SetUniform("u_ReceiveShadow", (item.flags.receiveShadow && m_hasShadowData) ? 1 : 0);
+            activeShader->SetUniform("u_AmbientFloorStrength", m_ambientFloorStrength);
+            activeShader->SetUniform("u_MaxShadowOcclusion", m_maxShadowOcclusion);
 
             // ── Cascaded shadow data (directional light only) ─────────────
             if (m_hasShadowData)

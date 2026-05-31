@@ -64,6 +64,8 @@ public:
     int   postFxDebugView       = 0;   // 0=Final, 1=HDR only, 2=Bright-pass, 3=Blurred bloom, 4=No bloom
     IBLDebugMode iblDebugMode = kDefaultIBLDebugMode;
     float iblDebugPrefilteredMip = 0.0f;
+    float ambientFloorStrength = 0.18f;
+    float maxShadowOcclusion = 0.75f;
     bool showHelpWindow = false;
     bool showSidebar = true;
 
