@@ -508,10 +508,19 @@ namespace
                                                 centroid,
                                                 up);
 
-        // Snap the light-space centroid to whole-texel increments. The ortho
-        // covers [-radius, +radius], so one texel is (2*radius)/shadowMapSize
-        // world units wide.
-        const float texelSize = (2.0f * radius) / static_cast<float>(shadowMapSize);
+        // Expand the ortho extent beyond the tight frustum sphere so shadow
+        // casters outside the camera frustum (e.g. tall buildings just off to
+        // the side) still write into the shadow map when their shadows fall
+        // inside the view. Without expansion, rotating the camera causes those
+        // casters to exit the ortho volume and their shadows disappear from
+        // streets that are still in view. 1.35 gives ~35% extra margin on each
+        // side without significant resolution loss at 2048.
+        constexpr float kCasterExpansion = 1.35f;
+        const float casterExtent = radius * kCasterExpansion;
+
+        // Snap the light-space centroid to whole-texel increments. Use the
+        // expanded extent for the texel size so the snap grid matches the ortho.
+        const float texelSize = (2.0f * casterExtent) / static_cast<float>(shadowMapSize);
         glm::vec3 centroidLightSpace = glm::vec3(lightView * glm::vec4(centroid, 1.0f));
         centroidLightSpace.x = std::floor(centroidLightSpace.x / texelSize) * texelSize;
         centroidLightSpace.y = std::floor(centroidLightSpace.y / texelSize) * texelSize;
@@ -521,13 +530,13 @@ namespace
                                                       snappedCentroidWorld,
                                                       up);
 
-        // Square, camera-rotation-invariant ortho. Z extends on the light-facing
+        // Square ortho using the expanded extent. Z extends on the light-facing
         // side to catch casters above the view slice (kCascadeCasterPullback).
-        const float nearZ = -(radius + kCascadeCasterPullback);
-        const float farZ  = +(radius + kCascadeFarPadding);
+        const float nearZ = -(casterExtent + kCascadeCasterPullback);
+        const float farZ  = +(casterExtent + kCascadeFarPadding);
         const glm::mat4 lightProj = glm::ortho(
-            -radius, +radius,
-            -radius, +radius,
+            -casterExtent, +casterExtent,
+            -casterExtent, +casterExtent,
             nearZ, farZ);
 
         return lightProj * stableLightView;

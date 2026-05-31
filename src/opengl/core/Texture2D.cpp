@@ -49,15 +49,22 @@ namespace
         switch (format)
         {
         case DXGIFormat::BC1_UNorm:
-            return {kGlCompressedRgbaS3tcDxt1Ext, 0, 0, true};
+            // Honor the caller's colorSpace when the DDS file has no sRGB tag.
+            return {colorSpace == TextureColorSpace::sRGB
+                        ? kGlCompressedSrgbAlphaS3tcDxt1Ext
+                        : kGlCompressedRgbaS3tcDxt1Ext, 0, 0, true};
         case DXGIFormat::BC1_UNorm_SRGB:
             return {kGlCompressedSrgbAlphaS3tcDxt1Ext, 0, 0, true};
         case DXGIFormat::BC2_UNorm:
-            return {kGlCompressedRgbaS3tcDxt3Ext, 0, 0, true};
+            return {colorSpace == TextureColorSpace::sRGB
+                        ? kGlCompressedSrgbAlphaS3tcDxt3Ext
+                        : kGlCompressedRgbaS3tcDxt3Ext, 0, 0, true};
         case DXGIFormat::BC2_UNorm_SRGB:
             return {kGlCompressedSrgbAlphaS3tcDxt3Ext, 0, 0, true};
         case DXGIFormat::BC3_UNorm:
-            return {kGlCompressedRgbaS3tcDxt5Ext, 0, 0, true};
+            return {colorSpace == TextureColorSpace::sRGB
+                        ? kGlCompressedSrgbAlphaS3tcDxt5Ext
+                        : kGlCompressedRgbaS3tcDxt5Ext, 0, 0, true};
         case DXGIFormat::BC3_UNorm_SRGB:
             return {kGlCompressedSrgbAlphaS3tcDxt5Ext, 0, 0, true};
         case DXGIFormat::BC4_UNorm:
@@ -73,7 +80,9 @@ namespace
         case DXGIFormat::BC6H_SF16:
             return {GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT, 0, 0, true};
         case DXGIFormat::BC7_UNorm:
-            return {GL_COMPRESSED_RGBA_BPTC_UNORM, 0, 0, true};
+            return {colorSpace == TextureColorSpace::sRGB
+                        ? GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM
+                        : GL_COMPRESSED_RGBA_BPTC_UNORM, 0, 0, true};
         case DXGIFormat::BC7_UNorm_SRGB:
             return {GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM, 0, 0, true};
 

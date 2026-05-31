@@ -183,7 +183,10 @@ int SelectCascade(float viewDepth)
 // Inside this zone we sample both cascades and lerp; outside, only one. A wider
 // band hides visible CSM boundaries during camera rotation in large scenes.
 const float CASCADE_BLEND_FRACTION = 0.85;
-const float CASCADE_EDGE_BLEND_START = 0.85;
+// The caster ortho is 1.35× the frustum sphere radius, so the camera frustum
+// edge lands at NDC ≈ 0.74 inside the expanded ortho. Start blending at 0.65
+// so the transition fires well before the camera-frustum edge, hiding the seam.
+const float CASCADE_EDGE_BLEND_START = 0.65;
 
 // Samples one cascade with PCF. Returns [0,1] occlusion where 1 is fully shadowed.
 // The normal is used for normal-offset bias: the world position is shifted

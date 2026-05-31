@@ -97,6 +97,12 @@ namespace
                 {
                     inst->SetTexture(TextureSlot::SpecularGlossiness, packed);
                     inst->SetBool("u_IsPackedMetalRough", true);
+                    // Bistro ORM: R=AO, G=Roughness, B=Metallic.
+                    // FBX doesn't export metallic/roughness factors, so defaults (0 and 0.5)
+                    // would scale the texture values down. Set both to 1.0 so the texture
+                    // drives the values directly (unless a transparent override comes later).
+                    inst->SetFloat("u_MetallicValue", 1.0f);
+                    inst->SetFloat("u_RoughnessValue", 1.0f);
                 }
             }
 
@@ -276,45 +282,55 @@ bool BistroScene::Setup()
     m_outdoorProbe->intensity = 1.0f;
 
     SetReflectionProbe(m_bistroProbe);
-    SetIblIntensity(0.85f);
+    SetIblIntensity(1.4f);
 
-    SetAmbientLight({0.03f, 0.03f, 0.035f}, 0.08f);
+    // Slightly elevated ambient so deeply shadowed areas are readable.
+    SetAmbientLight({0.05f, 0.05f, 0.055f}, 0.18f);
     auto& lights = GetLights();
     lights.GetPointLights().clear();
     lights.GetSpotLights().clear();
     lights.SetDirectionalLight(
         DirectionalLightBuilder()
-            .Direction({-0.42f, -0.88f, -0.22f})
+            .Direction({0.117f, -0.940f, 0.321f})
             .Color({1.0f, 0.97f, 0.92f})
-            .Intensity(1.2f)
+            .Intensity(1.0f)
             .CastShadow(true)
-            .ShadowResolution(4096, 4096)
+            // 2048 gives good quality at far less GPU cost than 4096;
+            // without frustum culling all shadow passes are expensive.
+            .ShadowResolution(2048, 2048)
             .ShadowBias(0.0025f, 0.03f)
             .Name("BistroSun")
             .Build());
 
+    // Warm interior fill lights. AttenuationCoeffs(1,0,0) = constant physical
+    // term, so falloff is purely (1-d/r)^2 — stays bright across the scene and
+    // fades cleanly at the radius edge without the harsh drop-off of the default
+    // (1, 0.09, 0.032) tutorial coefficients.
     lights.AddPointLight(
         PointLightBuilder()
             .Position({-12.0f, 4.5f, 6.0f})
             .Color({1.0f, 0.84f, 0.62f})
-            .Intensity(4.5f)
-            .Radius(24.0f)
+            .Intensity(1.0f)
+            .Radius(100.0f)
+            .AttenuationCoeffs(1.0f, 0.0f, 0.0f)
             .Name("BistroWarmFillA")
             .Build());
     lights.AddPointLight(
         PointLightBuilder()
             .Position({7.5f, 4.2f, 1.5f})
             .Color({1.0f, 0.76f, 0.52f})
-            .Intensity(3.8f)
-            .Radius(22.0f)
+            .Intensity(1.0f)
+            .Radius(100.0f)
+            .AttenuationCoeffs(1.0f, 0.0f, 0.0f)
             .Name("BistroWarmFillB")
             .Build());
     lights.AddPointLight(
         PointLightBuilder()
             .Position({-2.0f, 5.0f, -8.0f})
             .Color({0.95f, 0.88f, 0.72f})
-            .Intensity(3.5f)
-            .Radius(18.0f)
+            .Intensity(1.0f)
+            .Radius(100.0f)
+            .AttenuationCoeffs(1.0f, 0.0f, 0.0f)
             .Name("BistroCeilingGlow")
             .Build());
 
@@ -354,35 +370,35 @@ void BistroScene::OnImGuiRender()
         m_skyboxMode = 0;
         SetSkybox(m_bistroSkybox);
         SetReflectionProbe(m_bistroProbe);
-        SetIblIntensity(0.85f);
+        SetIblIntensity(1.4f);
     }
     if (ImGui::RadioButton("Night Sky (Mountain)", m_skyboxMode == 1))
     {
         m_skyboxMode = 1;
         SetSkybox(m_mountainsSkybox);
         SetReflectionProbe(m_mountainsProbe);
-        SetIblIntensity(1.2f);
+        SetIblIntensity(1.6f);
     }
     if (ImGui::RadioButton("Night Sky (Mody)", m_skyboxMode == 2))
     {
         m_skyboxMode = 2;
         SetSkybox(m_moodySkybox);
         SetReflectionProbe(m_moodyProbe);
-        SetIblIntensity(1.2f);
+        SetIblIntensity(1.6f);
     }
     if (ImGui::RadioButton("Neutral Room", m_skyboxMode == 3))
     {
         m_skyboxMode = 3;
         SetSkybox(m_neutralSkybox);
         SetReflectionProbe(m_neutralProbe);
-        SetIblIntensity(1.0f);
+        SetIblIntensity(1.4f);
     }
     if (ImGui::RadioButton("Outdoor Sky (Daytime)", m_skyboxMode == 4))
     {
         m_skyboxMode = 4;
         SetSkybox(m_outdoorSkybox);
         SetReflectionProbe(m_outdoorProbe);
-        SetIblIntensity(1.0f);
+        SetIblIntensity(1.6f);
     }
 
     ImGui::End();
