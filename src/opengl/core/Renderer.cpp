@@ -37,9 +37,14 @@ namespace
     // between the light and the view slice (e.g. tree canopies above the camera)
     // still write into the depth map. Must be a fixed absolute value — a ratio
     // collapses to near-zero for tight near cascades.
-    constexpr float kCascadeCasterPullback = 80.0f;
-    // Small padding on the far side (away from the light) to cover numerical slop.
-    constexpr float kCascadeFarPadding = 5.0f;
+    constexpr float kCascadeCasterPullback = 200.0f;
+    // Padding on the far side (away from the light) so receivers do not fall out
+    // of the cascade as the sun direction changes.
+    constexpr float kCascadeFarPadding = 80.0f;
+    // Extra XY padding on cascade projections.  Tight frustum-only cascades gave
+    // very noticeable shadow cutoffs while rotating the camera; a modest margin
+    // trades a little resolution for much more stable coverage.
+    constexpr float kCascadeRadiusPadding = 1.35f;
 
     GLenum ToGLPrimitive(PrimitiveTopology topology)
     {
@@ -500,7 +505,7 @@ namespace
             radius = std::max(radius, glm::length(c - centroid));
         // Round up slightly so the sphere size is quantized and doesn't breathe
         // with sub-pixel camera translation.
-        radius = std::ceil(radius * 16.0f) / 16.0f;
+        radius = std::ceil(radius * kCascadeRadiusPadding * 16.0f) / 16.0f;
 
         const glm::vec3 up = (std::abs(glm::dot(lightDirection, glm::vec3(0, 1, 0))) < 0.99f)
                                  ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0);

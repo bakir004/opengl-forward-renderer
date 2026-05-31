@@ -188,7 +188,8 @@ const float CASCADE_BLEND_FRACTION = 0.85;
 // so the transition fires well before the camera-frustum edge, hiding the seam.
 const float CASCADE_EDGE_BLEND_START = 0.65;
 
-// Samples one cascade with PCF. Returns [0,1] occlusion where 1 is fully shadowed.
+// Samples one cascade with PCF. Returns [0,1] occlusion where 1 is fully shadowed,
+// or -1 when the fragment is outside that cascade's light-space coverage.
 // The normal is used for normal-offset bias: the world position is shifted
 // along the surface normal before the light-space projection, which moves the
 // shadow test point away from the surface and reduces both acne and peter-panning
@@ -205,7 +206,7 @@ float SampleCascade(int cascade, vec3 worldPos, vec3 normal, float bias)
 
     if (projCoords.z > 1.0 || projCoords.x < 0.0 || projCoords.x > 1.0 ||
         projCoords.y < 0.0 || projCoords.y > 1.0)
-        return 0.0;
+        return -1.0;
 
     vec2 texelSize = 1.0 / vec2(textureSize(u_CascadeShadowMaps, 0).xy);
     float currentDepth = projCoords.z;
@@ -270,6 +271,22 @@ float CalculateShadow(vec3 worldPos, vec3 normal, vec3 lightDir, float viewDepth
 
     float shadow = SampleCascade(cascade, worldPos, normal, CascadeBias(cascade, slope));
 
+    // If the depth-selected cascade does not cover this world position in
+    // light-space XY/Z, do not treat it as lit.  Camera rotation can move the
+    // tight near cascade bounds across a receiver while a larger cascade still
+    // covers it; falling forward prevents hard shadow cutoffs from tracking the
+    // mouse.  If no cascade covers the point, the fragment is genuinely outside
+    // the shadowed range and stays unshadowed.
+    if (shadow < 0.0) {
+        for (int i = cascade + 1; i < NUM_CASCADES; ++i) {
+            shadow = SampleCascade(i, worldPos, normal, CascadeBias(i, slope));
+            if (shadow >= 0.0)
+                break;
+        }
+        if (shadow < 0.0)
+            return 0.0;
+    }
+
     if (cascade < NUM_CASCADES - 1) {
         float edgeFactor = CascadeEdgeBlendFactor(cascade, worldPos, normal);
 
@@ -288,7 +305,8 @@ float CalculateShadow(vec3 worldPos, vec3 normal, vec3 lightDir, float viewDepth
                                              worldPos,
                                              normal,
                                              CascadeBias(cascade + 1, slope));
-            shadow = mix(shadow, nextShadow, t);
+            if (nextShadow >= 0.0)
+                shadow = mix(shadow, nextShadow, t);
         }
     }
 
