@@ -42,71 +42,138 @@ namespace
     }
 
     DdsGlFormat TranslateDdsFormat(tinyddsloader::DDSFile::DXGIFormat format,
-                                   TextureColorSpace colorSpace)
+                               TextureColorSpace colorSpace)
     {
         using DXGIFormat = tinyddsloader::DDSFile::DXGIFormat;
 
         switch (format)
         {
         case DXGIFormat::BC1_UNorm:
-            // Honor the caller's colorSpace when the DDS file has no sRGB tag.
-            return {colorSpace == TextureColorSpace::sRGB
+            return {
+                static_cast<GLenum>(
+                    colorSpace == TextureColorSpace::sRGB
                         ? kGlCompressedSrgbAlphaS3tcDxt1Ext
-                        : kGlCompressedRgbaS3tcDxt1Ext, 0, 0, true};
+                        : kGlCompressedRgbaS3tcDxt1Ext),
+                0, 0, true};
+
         case DXGIFormat::BC1_UNorm_SRGB:
-            return {kGlCompressedSrgbAlphaS3tcDxt1Ext, 0, 0, true};
+            return {static_cast<GLenum>(kGlCompressedSrgbAlphaS3tcDxt1Ext), 0, 0, true};
+
         case DXGIFormat::BC2_UNorm:
-            return {colorSpace == TextureColorSpace::sRGB
+            return {
+                static_cast<GLenum>(
+                    colorSpace == TextureColorSpace::sRGB
                         ? kGlCompressedSrgbAlphaS3tcDxt3Ext
-                        : kGlCompressedRgbaS3tcDxt3Ext, 0, 0, true};
+                        : kGlCompressedRgbaS3tcDxt3Ext),
+                0, 0, true};
+
         case DXGIFormat::BC2_UNorm_SRGB:
-            return {kGlCompressedSrgbAlphaS3tcDxt3Ext, 0, 0, true};
+            return {static_cast<GLenum>(kGlCompressedSrgbAlphaS3tcDxt3Ext), 0, 0, true};
+
         case DXGIFormat::BC3_UNorm:
-            return {colorSpace == TextureColorSpace::sRGB
+            return {
+                static_cast<GLenum>(
+                    colorSpace == TextureColorSpace::sRGB
                         ? kGlCompressedSrgbAlphaS3tcDxt5Ext
-                        : kGlCompressedRgbaS3tcDxt5Ext, 0, 0, true};
+                        : kGlCompressedRgbaS3tcDxt5Ext),
+                0, 0, true};
+
         case DXGIFormat::BC3_UNorm_SRGB:
-            return {kGlCompressedSrgbAlphaS3tcDxt5Ext, 0, 0, true};
+            return {static_cast<GLenum>(kGlCompressedSrgbAlphaS3tcDxt5Ext), 0, 0, true};
+
         case DXGIFormat::BC4_UNorm:
-            return {GL_COMPRESSED_RED_RGTC1, 0, 0, true};
+            return {static_cast<GLenum>(GL_COMPRESSED_RED_RGTC1), 0, 0, true};
+
         case DXGIFormat::BC4_SNorm:
-            return {GL_COMPRESSED_SIGNED_RED_RGTC1, 0, 0, true};
+            return {static_cast<GLenum>(GL_COMPRESSED_SIGNED_RED_RGTC1), 0, 0, true};
+
         case DXGIFormat::BC5_UNorm:
-            return {GL_COMPRESSED_RG_RGTC2, 0, 0, true};
+            return {static_cast<GLenum>(GL_COMPRESSED_RG_RGTC2), 0, 0, true};
+
         case DXGIFormat::BC5_SNorm:
-            return {GL_COMPRESSED_SIGNED_RG_RGTC2, 0, 0, true};
+            return {static_cast<GLenum>(GL_COMPRESSED_SIGNED_RG_RGTC2), 0, 0, true};
+
         case DXGIFormat::BC6H_UF16:
-            return {GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT, 0, 0, true};
+            return {static_cast<GLenum>(GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT), 0, 0, true};
+
         case DXGIFormat::BC6H_SF16:
-            return {GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT, 0, 0, true};
+            return {static_cast<GLenum>(GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT), 0, 0, true};
+
         case DXGIFormat::BC7_UNorm:
-            return {colorSpace == TextureColorSpace::sRGB
+            return {
+                static_cast<GLenum>(
+                    colorSpace == TextureColorSpace::sRGB
                         ? GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM
-                        : GL_COMPRESSED_RGBA_BPTC_UNORM, 0, 0, true};
+                        : GL_COMPRESSED_RGBA_BPTC_UNORM),
+                0, 0, true};
+
         case DXGIFormat::BC7_UNorm_SRGB:
-            return {GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM, 0, 0, true};
+            return {static_cast<GLenum>(GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM), 0, 0, true};
 
         case DXGIFormat::R8G8B8A8_UNorm:
-            return {static_cast<GLenum>(colorSpace == TextureColorSpace::sRGB ? GL_SRGB8_ALPHA8 : GL_RGBA8), GL_RGBA, GL_UNSIGNED_BYTE, false};
+            return {
+                static_cast<GLenum>(
+                    colorSpace == TextureColorSpace::sRGB
+                        ? GL_SRGB8_ALPHA8
+                        : GL_RGBA8),
+                static_cast<GLenum>(GL_RGBA),
+                static_cast<GLenum>(GL_UNSIGNED_BYTE),
+                false};
+
         case DXGIFormat::B8G8R8A8_UNorm:
-            return {static_cast<GLenum>(colorSpace == TextureColorSpace::sRGB ? GL_SRGB8_ALPHA8 : GL_RGBA8), GL_BGRA, GL_UNSIGNED_BYTE, false};
+            return {
+                static_cast<GLenum>(
+                    colorSpace == TextureColorSpace::sRGB
+                        ? GL_SRGB8_ALPHA8
+                        : GL_RGBA8),
+                static_cast<GLenum>(GL_BGRA),
+                static_cast<GLenum>(GL_UNSIGNED_BYTE),
+                false};
+
         case DXGIFormat::B8G8R8X8_UNorm:
-            return {static_cast<GLenum>(colorSpace == TextureColorSpace::sRGB ? GL_SRGB8_ALPHA8 : GL_RGBA8), GL_BGRA, GL_UNSIGNED_BYTE, false};
+            return {
+                static_cast<GLenum>(
+                    colorSpace == TextureColorSpace::sRGB
+                        ? GL_SRGB8_ALPHA8
+                        : GL_RGBA8),
+                static_cast<GLenum>(GL_BGRA),
+                static_cast<GLenum>(GL_UNSIGNED_BYTE),
+                false};
+
         case DXGIFormat::R8_UNorm:
-            return {GL_R8, GL_RED, GL_UNSIGNED_BYTE, false};
+            return {
+                static_cast<GLenum>(GL_R8),
+                static_cast<GLenum>(GL_RED),
+                static_cast<GLenum>(GL_UNSIGNED_BYTE),
+                false};
+
         case DXGIFormat::R8G8_UNorm:
-            return {GL_RG8, GL_RG, GL_UNSIGNED_BYTE, false};
+            return {
+                static_cast<GLenum>(GL_RG8),
+                static_cast<GLenum>(GL_RG),
+                static_cast<GLenum>(GL_UNSIGNED_BYTE),
+                false};
+
         case DXGIFormat::R16_UNorm:
-            return {GL_R16, GL_RED, GL_UNSIGNED_SHORT, false};
+            return {
+                static_cast<GLenum>(GL_R16),
+                static_cast<GLenum>(GL_RED),
+                static_cast<GLenum>(GL_UNSIGNED_SHORT),
+                false};
+
         case DXGIFormat::R16G16_UNorm:
-            return {GL_RG16, GL_RG, GL_UNSIGNED_SHORT, false};
+            return {
+                static_cast<GLenum>(GL_RG16),
+                static_cast<GLenum>(GL_RG),
+                static_cast<GLenum>(GL_UNSIGNED_SHORT),
+                false};
+
         default:
             break;
         }
 
         return {};
     }
-
     bool LoadDdsTexture(const std::string& path,
                         TextureColorSpace colorSpace,
                         SamplerDesc sampler,
