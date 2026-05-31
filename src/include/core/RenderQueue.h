@@ -65,6 +65,9 @@ public:
     /// Sets the active IBL debug visualization sent to PBR shaders.
     void SetIBLDebugState(IBLDebugMode mode, float prefilteredMipLevel);
 
+    /// Sets global lighting readability controls sent to PBR shaders.
+    void SetLightingDebugControls(float ambientFloorStrength, float maxShadowOcclusion);
+
 private:
     std::vector<RenderItem> m_items;
     const ShaderProgram *m_errorShader = nullptr;
@@ -76,4 +79,6 @@ private:
     const ReflectionProbe *m_activeReflectionProbe = nullptr;
     IBLDebugMode m_iblDebugMode = kDefaultIBLDebugMode;
     float m_iblDebugPrefilteredMip = 0.0f;
+    float m_ambientFloorStrength = 0.18f;
+    float m_maxShadowOcclusion = 0.75f;
 };

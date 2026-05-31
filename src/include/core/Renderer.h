@@ -117,6 +117,8 @@ class Renderer
     int m_shadowPcfRadius = 1;
     IBLDebugMode m_iblDebugMode = kDefaultIBLDebugMode;
     float m_iblDebugPrefilteredMip = 0.0f;
+    float m_ambientFloorStrength = 0.18f;
+    float m_maxShadowOcclusion = 0.75f;
     RendererDebugStats m_debugStats;
     bool m_reportedInvalidPackedLights = false;
     bool m_inFrame = false;
@@ -153,6 +155,11 @@ public:
     /// Selects the PBR IBL inspection mode used while flushing scene materials.
     void SetIBLDebugState(IBLDebugMode mode, float prefilteredMipLevel);
 
+    /// Sets global lighting readability controls used by PBR shaders.
+    void SetLightingDebugControls(float ambientFloorStrength, float maxShadowOcclusion);
+
     [[nodiscard]] IBLDebugMode GetIBLDebugMode() const { return m_iblDebugMode; }
     [[nodiscard]] float GetIBLDebugPrefilteredMipLevel() const { return m_iblDebugPrefilteredMip; }
+    [[nodiscard]] float GetAmbientFloorStrength() const { return m_ambientFloorStrength; }
+    [[nodiscard]] float GetMaxShadowOcclusion() const { return m_maxShadowOcclusion; }
 };

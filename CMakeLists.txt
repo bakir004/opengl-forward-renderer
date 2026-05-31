@@ -46,6 +46,13 @@ FetchContent_Declare(assimp
         GIT_SHALLOW    TRUE
 )
 
+FetchContent_Declare(tinyddsloader
+        GIT_REPOSITORY https://github.com/benikabocha/tinyddsloader.git
+        GIT_TAG        master
+        GIT_SHALLOW    TRUE
+        SOURCE_SUBDIR  "non_existent_subdir"
+)
+
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_DOCS     OFF CACHE BOOL "" FORCE)
@@ -67,7 +74,7 @@ set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_OBJ_IMPORTER  ON CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_FBX_IMPORTER  ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(glfw spdlog json glm stb assimp)
+FetchContent_MakeAvailable(glfw spdlog json glm stb assimp tinyddsloader)
 
 FetchContent_GetProperties(imgui)
 if(NOT imgui_POPULATED)
@@ -87,6 +94,11 @@ target_include_directories(glad PUBLIC
 if(NOT TARGET stb)
     add_library(stb INTERFACE)
     target_include_directories(stb INTERFACE ${stb_SOURCE_DIR})
+endif()
+
+if(NOT TARGET tinyddsloader)
+    add_library(tinyddsloader INTERFACE)
+    target_include_directories(tinyddsloader INTERFACE ${tinyddsloader_SOURCE_DIR})
 endif()
 
 add_subdirectory(src)

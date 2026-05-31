@@ -29,15 +29,22 @@ namespace
     // Deliberately smaller than the world far plane so near-camera cascades stay tight.
     constexpr float kCascadeShadowMaxDistance = 150.0f;
     // Practical split lambda: 0 = uniform splits, 1 = logarithmic splits.
-    // Values near 1.0 put most shadow-map resolution into near cascades.
-    constexpr float kCascadeSplitLambda = 0.9f;
+    // Keep this moderate so the first cascade covers a useful distance; values
+    // near 1.0 made the first split too short and cascade transitions obvious
+    // while rotating the camera in large scenes like Bistro.
+    constexpr float kCascadeSplitLambda = 0.20f;
     // World-space distance the light-space near plane is pulled back so casters
     // between the light and the view slice (e.g. tree canopies above the camera)
     // still write into the depth map. Must be a fixed absolute value — a ratio
     // collapses to near-zero for tight near cascades.
-    constexpr float kCascadeCasterPullback = 80.0f;
-    // Small padding on the far side (away from the light) to cover numerical slop.
-    constexpr float kCascadeFarPadding = 5.0f;
+    constexpr float kCascadeCasterPullback = 200.0f;
+    // Padding on the far side (away from the light) so receivers do not fall out
+    // of the cascade as the sun direction changes.
+    constexpr float kCascadeFarPadding = 80.0f;
+    // Extra XY padding on cascade projections.  Tight frustum-only cascades gave
+    // very noticeable shadow cutoffs while rotating the camera; a modest margin
+    // trades a little resolution for much more stable coverage.
+    constexpr float kCascadeRadiusPadding = 1.35f;
 
     GLenum ToGLPrimitive(PrimitiveTopology topology)
     {
@@ -271,6 +278,12 @@ void Renderer::SetIBLDebugState(IBLDebugMode mode, float prefilteredMipLevel)
     m_iblDebugPrefilteredMip = std::max(0.0f, prefilteredMipLevel);
 }
 
+void Renderer::SetLightingDebugControls(float ambientFloorStrength, float maxShadowOcclusion)
+{
+    m_ambientFloorStrength = std::max(0.0f, ambientFloorStrength);
+    m_maxShadowOcclusion = std::clamp(maxShadowOcclusion, 0.0f, 1.0f);
+}
+
 void Renderer::BeginFrame(const FrameSubmission &submission)
 {
     assert(!m_inFrame && "BeginFrame() called without a matching EndFrame()");
@@ -357,6 +370,7 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
     m_currentCamera = submission.camera;
     m_queue.SetEnvironmentData(activeProbe);
     m_queue.SetIBLDebugState(m_iblDebugMode, m_iblDebugPrefilteredMip);
+    m_queue.SetLightingDebugControls(m_ambientFloorStrength, m_maxShadowOcclusion);
 }
 
 void Renderer::EndFrame()
@@ -498,7 +512,7 @@ namespace
             radius = std::max(radius, glm::length(c - centroid));
         // Round up slightly so the sphere size is quantized and doesn't breathe
         // with sub-pixel camera translation.
-        radius = std::ceil(radius * 16.0f) / 16.0f;
+        radius = std::ceil(radius * kCascadeRadiusPadding * 16.0f) / 16.0f;
 
         const glm::vec3 up = (std::abs(glm::dot(lightDirection, glm::vec3(0, 1, 0))) < 0.99f)
                                  ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0);
@@ -506,10 +520,19 @@ namespace
                                                 centroid,
                                                 up);
 
-        // Snap the light-space centroid to whole-texel increments. The ortho
-        // covers [-radius, +radius], so one texel is (2*radius)/shadowMapSize
-        // world units wide.
-        const float texelSize = (2.0f * radius) / static_cast<float>(shadowMapSize);
+        // Expand the ortho extent beyond the tight frustum sphere so shadow
+        // casters outside the camera frustum (e.g. tall buildings just off to
+        // the side) still write into the shadow map when their shadows fall
+        // inside the view. Without expansion, rotating the camera causes those
+        // casters to exit the ortho volume and their shadows disappear from
+        // streets that are still in view. 1.35 gives ~35% extra margin on each
+        // side without significant resolution loss at 2048.
+        constexpr float kCasterExpansion = 1.35f;
+        const float casterExtent = radius * kCasterExpansion;
+
+        // Snap the light-space centroid to whole-texel increments. Use the
+        // expanded extent for the texel size so the snap grid matches the ortho.
+        const float texelSize = (2.0f * casterExtent) / static_cast<float>(shadowMapSize);
         glm::vec3 centroidLightSpace = glm::vec3(lightView * glm::vec4(centroid, 1.0f));
         centroidLightSpace.x = std::floor(centroidLightSpace.x / texelSize) * texelSize;
         centroidLightSpace.y = std::floor(centroidLightSpace.y / texelSize) * texelSize;
@@ -519,13 +542,13 @@ namespace
                                                       snappedCentroidWorld,
                                                       up);
 
-        // Square, camera-rotation-invariant ortho. Z extends on the light-facing
+        // Square ortho using the expanded extent. Z extends on the light-facing
         // side to catch casters above the view slice (kCascadeCasterPullback).
-        const float nearZ = -(radius + kCascadeCasterPullback);
-        const float farZ  = +(radius + kCascadeFarPadding);
+        const float nearZ = -(casterExtent + kCascadeCasterPullback);
+        const float farZ  = +(casterExtent + kCascadeFarPadding);
         const glm::mat4 lightProj = glm::ortho(
-            -radius, +radius,
-            -radius, +radius,
+            -casterExtent, +casterExtent,
+            -casterExtent, +casterExtent,
             nearZ, farZ);
 
         return lightProj * stableLightView;

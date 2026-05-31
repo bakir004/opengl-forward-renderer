@@ -47,7 +47,9 @@ add_library(${PROJECT_NAME} STATIC
         opengl/ui/RendererUI.cpp
 )
 
-target_include_directories(${PROJECT_NAME} PUBLIC include)
+target_include_directories(${PROJECT_NAME} PUBLIC
+    include
+)
 
 find_package(OpenGL REQUIRED)
 
@@ -90,6 +92,10 @@ if(TARGET stb)
 else()
     # Fallback: if FetchContent populated stb, add its include directory directly.
     target_include_directories(${PROJECT_NAME} PUBLIC ${stb_SOURCE_DIR})
+endif()
+
+if(TARGET tinyddsloader)
+    target_link_libraries(${PROJECT_NAME} PUBLIC tinyddsloader)
 endif()
 
 if(TARGET assimp::assimp)
