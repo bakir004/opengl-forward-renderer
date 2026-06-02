@@ -39,6 +39,7 @@ add_library(${PROJECT_NAME} STATIC
         opengl/core/PostProcessPass.cpp
         opengl/core/shadows/CascadedShadowMap.cpp
         opengl/terrain/TerrainGenerator.cpp
+        opengl/terrain/TerrainMeshBuilder.cpp
         opengl/core/Material.cpp
         opengl/assets/AssetImporter.cpp
         opengl/assets/MeshImporter.cpp
@@ -46,6 +47,7 @@ add_library(${PROJECT_NAME} STATIC
         opengl/core/Mesh.cpp
         include/ui/RendererUI.h
         opengl/ui/RendererUI.cpp
+        
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
