@@ -31,6 +31,12 @@ struct TerrainGenerationSettings
     float macroScale     = 0.0012f; ///< Spatial frequency of broad landform noise
     float macroAmplitude = 1.0f;    ///< Contribution weight of macro layer [0..1]
 
+    // ── Macro landform shaping ────────────────────────────────────────────────
+    float broadHillScale    = 0.0012f; ///< Spatial frequency of broad hill noise
+    float broadHillStrength = 0.0f;    ///< Contribution strength of broad hill shaping [0..1]
+    float valleyScale       = 0.0012f; ///< Spatial frequency of valley noise
+    float valleyStrength    = 0.0f;    ///< Contribution strength of valley shaping [0..1]
+
     // ── Rolling hills layer ───────────────────────────────────────────────────
     float hillScale     = 0.004f;  ///< Spatial frequency of rolling hills
     float hillAmplitude = 0.45f;   ///< Contribution weight of hill layer [0..1]
@@ -39,16 +45,24 @@ struct TerrainGenerationSettings
     float hillLacunarity  = 2.0f;
 
     // ── Mountain region layer ─────────────────────────────────────────────────
+    float mountainRegionMaskScale = 0.0006f; ///< Spatial frequency of mountain-region mask
     float mountainScale     = 0.003f; ///< Spatial frequency of mountain noise
     float mountainAmplitude = 0.85f;  ///< Peak contribution weight [0..1]
     int   mountainOctaves   = 6;
     float mountainPersistence = 0.5f;
     float mountainLacunarity  = 2.1f;
     float ridgeSharpness      = 2.0f; ///< Exponent for ridged-noise shaping
+    float mountainRidgeScale       = 0.003f; ///< Spatial frequency of mountain ridge noise
+    float mountainRidgeStrength    = 0.85f;  ///< Contribution strength of mountain ridges [0..1]
+    int   mountainRidgeOctaves     = 6;      ///< fBM octaves for mountain ridge noise
+    float mountainRidgePersistence = 0.5f;
+    float mountainRidgeLacunarity  = 2.1f;
 
     // ── Plateau shaping ───────────────────────────────────────────────────────
-    float plateauThreshold = 0.62f; ///< Normalized height above which terrain flattens
-    float plateauStrength  = 0.35f; ///< How strongly the plateau effect is applied [0..1]
+    float plateauRegionScale     = 0.0006f; ///< Spatial frequency of plateau-region mask
+    float plateauThreshold       = 0.62f;   ///< Normalized height above which terrain flattens
+    float plateauStrength        = 0.35f;   ///< How strongly the plateau effect is applied [0..1]
+    float plateauFlatteningAmount = 0.78f;  ///< Height variation removed above plateau threshold [0..1]
 
     // ── Small detail layer ────────────────────────────────────────────────────
     float detailScale     = 0.025f; ///< Spatial frequency of fine-grained detail
