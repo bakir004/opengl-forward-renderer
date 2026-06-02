@@ -186,23 +186,40 @@ float MountainRidgeVariation(float wx, float wz, const TerrainGenerationSettings
                      settings.ridgeSharpness);
 }
 
-TerrainMaterialZone Classify(float h, float slope, const TerrainMaterialThresholds& t)
+TerrainMaterialZone ChooseDominantZone(float deepWaterW,
+                                       float shallowWaterW,
+                                       float sandW,
+                                       float grassW,
+                                       float forestW,
+                                       float rockW,
+                                       float snowW)
 {
-    if (h < t.deepWaterHeight) return TerrainMaterialZone::DeepWater;
-    if (h < t.shallowWaterHeight) return TerrainMaterialZone::ShallowWater;
-    if (h < t.sandHeight && slope < t.grassMaxSlope) return TerrainMaterialZone::Sand;
-    if (slope >= t.rockMinSlope) return TerrainMaterialZone::Rock;
-    if (h < t.grassMaxHeight && slope < t.grassMaxSlope) return TerrainMaterialZone::Grass;
-    if (h < t.forestMaxHeight && slope < t.rockMinSlope) return TerrainMaterialZone::Forest;
-    if (h < t.rockMaxHeight) return TerrainMaterialZone::Rock;
-    return TerrainMaterialZone::Snow;
+    TerrainMaterialZone zone = TerrainMaterialZone::Grass;
+    float bestW = grassW;
+
+    auto consider = [&](TerrainMaterialZone z, float w)
+    {
+        if (w > bestW)
+        {
+            bestW = w;
+            zone = z;
+        }
+    };
+
+    consider(TerrainMaterialZone::DeepWater, deepWaterW);
+    consider(TerrainMaterialZone::ShallowWater, shallowWaterW);
+    consider(TerrainMaterialZone::Sand, sandW);
+    consider(TerrainMaterialZone::Forest, forestW);
+    consider(TerrainMaterialZone::Rock, rockW);
+    consider(TerrainMaterialZone::Snow, snowW);
+    return zone;
 }
 }
 
 namespace TerrainGenerator
 {
 TerrainHeightfield GenerateHeightfield(const TerrainGenerationSettings& settings,
-                                       const TerrainMaterialThresholds& thresholds)
+                                       const TerrainClassificationSettings& classificationSettings)
 {
     TerrainHeightfield hf;
     hf.width = std::max(2u, settings.gridWidth);
@@ -252,11 +269,11 @@ TerrainHeightfield GenerateHeightfield(const TerrainGenerationSettings& settings
         }
     }
 
-    RebuildDerivedData(hf, thresholds);
+    RebuildDerivedData(hf, classificationSettings);
     return hf;
 }
 
-void RebuildDerivedData(TerrainHeightfield& hf, const TerrainMaterialThresholds& thresholds)
+void RebuildDerivedData(TerrainHeightfield& hf, const TerrainClassificationSettings& c)
 {
     if (!hf.IsValid()) return;
     const float dx = hf.settings.worldWidth / static_cast<float>(hf.width - 1);
@@ -276,11 +293,82 @@ void RebuildDerivedData(TerrainHeightfield& hf, const TerrainMaterialThresholds&
             TerrainSample& s = hf.At(x, z);
             s.normal = glm::normalize(glm::vec3(-dhdx, 1.0f, -dhdz));
             s.slope = Clamp01(1.0f - s.normal.y);
-            s.materialZone = Classify(s.normalizedHeight, s.slope, thresholds);
-            s.steepExclusion = Smoothstep(thresholds.grassMaxSlope, thresholds.steepThreshold, s.slope);
-            s.grassSuitability = Clamp01((1.0f - s.steepExclusion) * (1.0f - s.mountainMask) * Smoothstep(thresholds.sandHeight, thresholds.grassMaxHeight, s.normalizedHeight));
-            s.treeSuitability = Clamp01((1.0f - s.steepExclusion) * (1.0f - s.mountainMask) * Smoothstep(0.18f, thresholds.forestMaxHeight, s.normalizedHeight) * (1.0f - Smoothstep(thresholds.forestMaxHeight, thresholds.rockMaxHeight, s.normalizedHeight)));
-            s.rockSuitability = Clamp01(std::max(s.mountainMask, Smoothstep(thresholds.rockMinSlope * 0.65f, thresholds.rockMinSlope, s.slope)));
+
+            // Height and slope are already normalized deterministically:
+            // - normalizedHeight comes from the generator stack (0..1)
+            // - slope is derived from the world-space gradient (dx/dz)
+            const float h01 = Clamp01(s.normalizedHeight);
+            const float slope01 = Clamp01(s.slope);
+
+            // ── Material zone weights (smooth transitions) ─────────────────────
+            const float deepWaterW = 1.0f - Smoothstep(c.deepWaterHeight, c.shallowWaterHeight, h01);
+            const float shallowWaterW =
+                Smoothstep(c.deepWaterHeight, c.shallowWaterHeight, h01) *
+                (1.0f - Smoothstep(c.shallowWaterHeight, c.sandHeight, h01));
+
+            const float sandHeightW = Smoothstep(c.shallowWaterHeight, c.sandHeight, h01) *
+                                      (1.0f - Smoothstep(c.sandHeight, c.grassMinEnd, h01));
+            const float sandSlopeW = 1.0f - Smoothstep(c.sandSlopeStart, c.sandSlopeEnd, slope01);
+            const float sandW = Clamp01(sandHeightW * sandSlopeW);
+
+            const float grassHeightW =
+                Smoothstep(c.grassMinStart, c.grassMinEnd, h01) *
+                (1.0f - Smoothstep(c.grassMaxStart, c.grassMaxEnd, h01));
+            const float grassSlopeW = 1.0f - Smoothstep(c.grassSlopeStart, c.grassSlopeEnd, slope01);
+            const float grassW = Clamp01(grassHeightW * grassSlopeW);
+
+            const float forestHeightW =
+                Smoothstep(c.forestMinStart, c.forestMinEnd, h01) *
+                (1.0f - Smoothstep(c.forestMaxStart, c.forestMaxEnd, h01));
+            const float forestSlopeW = 1.0f - Smoothstep(c.forestSlopeStart, c.forestSlopeEnd, slope01);
+            const float forestW = Clamp01(forestHeightW * forestSlopeW);
+
+            const float rockBySlopeW = Smoothstep(c.rockSlopeStart, c.rockSlopeEnd, slope01);
+            const float rockByHeightW = Smoothstep(c.forestMaxStart, c.mountainStart, h01);
+            const float rockW = Clamp01(std::max(rockBySlopeW, rockByHeightW));
+
+            const float snowHeightW = Smoothstep(c.snowStart, c.snowFull, h01);
+            const float snowStickW = 1.0f - Smoothstep(c.snowSlopeStart, c.snowSlopeEnd, slope01);
+            const float snowW = Clamp01(snowHeightW * snowStickW);
+
+            // Choose dominant zone for debug coloring / future texturing.
+            s.materialZone = ChooseDominantZone(deepWaterW, shallowWaterW, sandW, grassW, forestW, rockW, snowW);
+
+            // ── Suitability masks (Sprint 10, Task 4) ──────────────────────────
+            // steepSlopeExclusion: 1 on plantable ground, 0 on steep slopes.
+            s.steepSlopeExclusion = Clamp01(1.0f - Smoothstep(c.excludeSlopeStart, c.excludeSlopeEnd, slope01));
+
+            // Mountain mask: keep the existing region-based mountain signal, and
+            // reinforce with a height-derived component for predictable treeline.
+            const float mountainByHeight = Smoothstep(c.mountainStart, c.mountainFull, h01);
+            s.mountainMask = Clamp01(std::max(s.mountainMask, mountainByHeight));
+
+            // Grass mask: low-mid heights + gentle slopes, multiplied by plantable gate.
+            const float grassMask =
+                (1.0f - Smoothstep(c.grassMaxStart, c.grassMaxEnd, h01)) *
+                Smoothstep(c.grassMinStart, c.grassMinEnd, h01) *
+                (1.0f - Smoothstep(c.grassSlopeStart, c.grassSlopeEnd, slope01)) *
+                s.steepSlopeExclusion;
+            s.grassMask = Clamp01(grassMask);
+
+            // Tree mask: bounded by treeline and max slope, also multiplied by plantable gate.
+            const float treeHeightW =
+                Smoothstep(c.treeMinStart, c.treeMinEnd, h01) *
+                (1.0f - Smoothstep(c.treeMaxStart, c.treeMaxEnd, h01));
+            const float treeSlopeW = 1.0f - Smoothstep(c.treeSlopeStart, c.treeSlopeEnd, slope01);
+            s.treeMask = Clamp01(treeHeightW * treeSlopeW * s.steepSlopeExclusion);
+
+            // Rock scatter mask: prefers rocky slopes / higher regions where vegetation is sparse.
+            const float rockHeightMaskW = Smoothstep(c.rockMaskHeightStart, c.rockMaskHeightEnd, h01);
+            const float rockSlopeMaskW = Smoothstep(c.rockMaskSlopeStart, c.rockMaskSlopeEnd, slope01);
+            s.rockMask = Clamp01(std::max(rockHeightMaskW, rockSlopeMaskW) * (1.0f - s.grassMask) * (1.0f - s.treeMask));
+
+            // Maintain legacy fields for existing code paths (mesh packing / debug)
+            // while keeping the new Task 4 semantics explicit.
+            s.grassSuitability = s.grassMask;
+            s.treeSuitability  = s.treeMask;
+            s.rockSuitability  = s.rockMask;
+            s.steepExclusion   = Clamp01(1.0f - s.steepSlopeExclusion);
         }
     }
 }
