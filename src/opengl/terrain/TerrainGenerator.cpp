@@ -3,11 +3,34 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <vector>
 #include <glm/geometric.hpp>
 
 namespace
 {
 constexpr float kInvUintMax = 1.0f / 4294967295.0f;
+constexpr int   kRegionMaskOctaves = 2;
+constexpr int   kMacroShapeOctaves = 2;
+
+struct TerrainRegionMaskSample
+{
+    float broadHills = 0.0f;
+    float valleys    = 0.0f;
+    float plateaus   = 0.0f;
+    float mountains  = 0.0f;
+};
+
+struct TerrainRegionMasks
+{
+    uint32_t width  = 0;
+    uint32_t height = 0;
+    std::vector<TerrainRegionMaskSample> samples;
+
+    [[nodiscard]] const TerrainRegionMaskSample& At(uint32_t x, uint32_t z) const
+    {
+        return samples[z * width + x];
+    }
+};
 
 float Clamp01(float v) { return std::clamp(v, 0.0f, 1.0f); }
 float Smoothstep(float edge0, float edge1, float x)
@@ -65,6 +88,79 @@ float Fbm(float x, float y, uint32_t seed, int octaves, float persistence, float
     return norm > 0.0f ? value / norm : 0.0f;
 }
 
+float RegionMask(float wx, float wz, float scale, uint32_t seed)
+{
+    const float n = Fbm(wx * scale, wz * scale, seed, kRegionMaskOctaves, 0.55f, 2.0f);
+    return Smoothstep(0.25f, 0.75f, n);
+}
+
+TerrainRegionMaskSample ComposeTerrainRegionMasks(const TerrainRegionMaskSample& raw)
+{
+    TerrainRegionMaskSample masks;
+    masks.mountains = Clamp01(raw.mountains);
+    masks.plateaus = Clamp01(raw.plateaus * (1.0f - masks.mountains * 0.65f));
+    masks.valleys = Clamp01(raw.valleys * (1.0f - masks.mountains * 0.75f) *
+                            (1.0f - masks.plateaus * 0.55f));
+    masks.broadHills = Clamp01(raw.broadHills * (1.0f - masks.valleys * 0.85f) *
+                               (1.0f - masks.plateaus * 0.45f) *
+                               (1.0f - masks.mountains * 0.85f));
+    return masks;
+}
+
+float MacroShapeVariation(float wx, float wz, float scale, uint32_t seed)
+{
+    const float n = Fbm(wx * scale, wz * scale, seed, kMacroShapeOctaves, 0.55f, 2.0f);
+    return Smoothstep(0.20f, 0.85f, n);
+}
+
+float PlateauTargetHeight(float wx, float wz, const TerrainGenerationSettings& settings)
+{
+    const float n = Fbm(wx * settings.plateauRegionScale, wz * settings.plateauRegionScale,
+                        settings.seed + 1009u, kMacroShapeOctaves, 0.55f, 2.0f);
+    return Lerp(settings.plateauThreshold, 0.86f, Smoothstep(0.20f, 0.85f, n));
+}
+
+float ApplyPlateauShaping(float h, float wx, float wz, const TerrainRegionMaskSample& regionMask,
+                          const TerrainGenerationSettings& settings)
+{
+    const float plateauBlend = regionMask.plateaus * Clamp01(settings.plateauStrength);
+    const float flattening = Clamp01(settings.plateauFlatteningAmount);
+    const float targetHeight = PlateauTargetHeight(wx, wz, settings);
+    const float flattened = targetHeight + (h - targetHeight) * (1.0f - flattening);
+    return Lerp(h, flattened, plateauBlend);
+}
+
+TerrainRegionMaskSample SampleTerrainRegionMasks(float wx, float wz, const TerrainGenerationSettings& settings)
+{
+    const TerrainRegionMaskSample rawMasks = {
+        RegionMask(wx, wz, settings.broadHillScale, settings.seed + 401u),
+        RegionMask(wx, wz, settings.valleyScale, settings.seed + 503u),
+        RegionMask(wx, wz, settings.plateauRegionScale, settings.seed + 607u),
+        RegionMask(wx, wz, settings.mountainRegionMaskScale, settings.seed + 709u)
+    };
+    return ComposeTerrainRegionMasks(rawMasks);
+}
+
+TerrainRegionMasks BuildTerrainRegionMasks(const TerrainGenerationSettings& settings, uint32_t width, uint32_t height)
+{
+    TerrainRegionMasks masks;
+    masks.width = width;
+    masks.height = height;
+    masks.samples.resize(static_cast<size_t>(width) * height);
+
+    for (uint32_t z = 0; z < height; ++z)
+    {
+        for (uint32_t x = 0; x < width; ++x)
+        {
+            const float wx = (static_cast<float>(x) / static_cast<float>(width - 1) - 0.5f) * settings.worldWidth;
+            const float wz = (static_cast<float>(z) / static_cast<float>(height - 1) - 0.5f) * settings.worldHeight;
+            masks.samples[z * width + x] = SampleTerrainRegionMasks(wx, wz, settings);
+        }
+    }
+
+    return masks;
+}
+
 float RidgedFbm(float x, float y, uint32_t seed, int octaves, float persistence, float lacunarity, float sharpness)
 {
     float value = 0.0f;
@@ -80,6 +176,14 @@ float RidgedFbm(float x, float y, uint32_t seed, int octaves, float persistence,
         frequency *= lacunarity;
     }
     return norm > 0.0f ? value / norm : 0.0f;
+}
+
+float MountainRidgeVariation(float wx, float wz, const TerrainGenerationSettings& settings)
+{
+    return RidgedFbm(wx * settings.mountainRidgeScale, wz * settings.mountainRidgeScale,
+                     settings.seed + 1217u, settings.mountainRidgeOctaves,
+                     settings.mountainRidgePersistence, settings.mountainRidgeLacunarity,
+                     settings.ridgeSharpness);
 }
 
 TerrainMaterialZone Classify(float h, float slope, const TerrainMaterialThresholds& t)
@@ -108,6 +212,8 @@ TerrainHeightfield GenerateHeightfield(const TerrainGenerationSettings& settings
     hf.minHeight = std::numeric_limits<float>::max();
     hf.maxHeight = std::numeric_limits<float>::lowest();
 
+    const TerrainRegionMasks regionMasks = BuildTerrainRegionMasks(settings, hf.width, hf.height);
+
     for (uint32_t z = 0; z < hf.height; ++z)
     {
         for (uint32_t x = 0; x < hf.width; ++x)
@@ -115,29 +221,27 @@ TerrainHeightfield GenerateHeightfield(const TerrainGenerationSettings& settings
             const float wx = (static_cast<float>(x) / static_cast<float>(hf.width - 1) - 0.5f) * settings.worldWidth;
             const float wz = (static_cast<float>(z) / static_cast<float>(hf.height - 1) - 0.5f) * settings.worldHeight;
 
+            const TerrainRegionMaskSample& regionMask = regionMasks.At(x, z);
+
+            const float mountainMask = regionMask.mountains;
             const float macro = Fbm(wx * settings.macroScale, wz * settings.macroScale, settings.seed + 11u, 3, 0.55f, 2.0f);
-            const float region = Fbm(wx * settings.regionMaskScale, wz * settings.regionMaskScale, settings.seed + 29u, 3, 0.6f, 2.0f);
-            const float mountainMask = Smoothstep(0.48f, 0.78f, region);
-            const float plateauMask = Smoothstep(0.58f, 0.86f, Fbm(wx * settings.regionMaskScale, wz * settings.regionMaskScale, settings.seed + 47u, 2, 0.55f, 2.0f));
             const float hills = Fbm(wx * settings.hillScale, wz * settings.hillScale, settings.seed + 101u,
                                     settings.hillOctaves, settings.hillPersistence, settings.hillLacunarity);
-            const float ridges = RidgedFbm(wx * settings.mountainScale, wz * settings.mountainScale, settings.seed + 211u,
-                                           settings.mountainOctaves, settings.mountainPersistence,
-                                           settings.mountainLacunarity, settings.ridgeSharpness);
+            const float mountainRidges = MountainRidgeVariation(wx, wz, settings);
             const float detail = ValueNoise(wx * settings.detailScale, wz * settings.detailScale, settings.seed + 307u) - 0.5f;
+            const float broadHillShape = MacroShapeVariation(wx, wz, settings.broadHillScale, settings.seed + 811u);
+            const float valleyShape = MacroShapeVariation(wx, wz, settings.valleyScale, settings.seed + 907u);
 
             float h = 0.18f;
             h += (macro - 0.5f) * settings.macroAmplitude * 0.55f;
+            h += broadHillShape * Clamp01(settings.broadHillStrength) * regionMask.broadHills;
+            h -= valleyShape * Clamp01(settings.valleyStrength) * regionMask.valleys;
             h += hills * settings.hillAmplitude * (1.0f - mountainMask * 0.35f);
-            h += ridges * settings.mountainAmplitude * mountainMask;
+            h += mountainRidges * Clamp01(settings.mountainRidgeStrength) * mountainMask;
             h += detail * settings.detailAmplitude;
             h = Clamp01(h);
 
-            if (plateauMask > 0.0f && h > settings.plateauThreshold)
-            {
-                const float flattened = settings.plateauThreshold + (h - settings.plateauThreshold) * 0.22f;
-                h = Lerp(h, flattened, Clamp01(settings.plateauStrength * plateauMask));
-            }
+            h = Clamp01(ApplyPlateauShaping(h, wx, wz, regionMask, settings));
 
             TerrainSample& sample = hf.At(x, z);
             sample.normalizedHeight = Clamp01(h);
