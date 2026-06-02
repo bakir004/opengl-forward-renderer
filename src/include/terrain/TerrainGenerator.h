@@ -22,10 +22,10 @@ namespace TerrainGenerator
     /// Same settings and seed always produce byte-identical sample heights.
     [[nodiscard]] TerrainHeightfield GenerateHeightfield(
         const TerrainGenerationSettings& settings,
-        const TerrainMaterialThresholds& thresholds = {});
+        const TerrainClassificationSettings& classificationSettings = {});
 
     /// Recomputes normals, slope, material zone, and placement masks for an
     /// existing heightfield. Useful after a later erosion pass edits heights.
     void RebuildDerivedData(TerrainHeightfield& heightfield,
-                            const TerrainMaterialThresholds& thresholds = {});
+                            const TerrainClassificationSettings& classificationSettings = {});
 }
