@@ -56,6 +56,22 @@ uniform vec3  u_ZoneColor[7];
 uniform float u_ZoneRoughness[7];
 uniform float u_ZoneMetallic[7];
 
+// Sprint 10 — Terrain texture samplers for zone-specific visual materials.
+// Texture units 12-18 reserved for terrain zone textures.
+// These sample procedurally or from artist-provided textures.
+uniform sampler2D u_GrassAlbedo;      // Unit 12 — Grass zone base color
+uniform sampler2D u_RockAlbedo;       // Unit 13 — Rock zone base color
+uniform sampler2D u_SnowAlbedo;       // Unit 14 — Snow zone base color
+uniform sampler2D u_SandAlbedo;       // Unit 15 — Sand zone base color
+uniform sampler2D u_ForestAlbedo;     // Unit 16 — Forest zone base color
+uniform sampler2D u_GrassNormal;      // Unit 17 — Grass normal map (optional)
+uniform sampler2D u_RockNormal;       // Unit 18 — Rock normal map (optional)
+
+// Texture blending controls
+uniform bool  u_UseTerrainTextures   = true;   ///< Enable texture sampling; fallback to u_ZoneColor if false
+uniform float u_TextureScale         = 0.5f;   ///< World-space texture repeat scale
+uniform float u_SlopeToRockTransition = 0.4f;  ///< Steepness threshold for rock appearance
+
 // World-space terrain height range, used to normalize the heightmap debug view.
 uniform float u_HeightScale = 80.0;
 
@@ -207,6 +223,153 @@ void ZoneWeights(float zoneF, out int zoneA, out int zoneB, out float t)
     t = t * t * (3.0 - 2.0 * t);
 }
 
+// ─── Sprint 10: Terrain texture sampling with mask-driven blending ──────────
+
+/// Sample zone-specific texture with world-space UV tiling.
+/// Uses v_UV which is derived from the heightfield grid coordinates.
+vec3 SampleZoneTexture(sampler2D tex, float scale)
+{
+    return texture(tex, v_UV * scale).rgb;
+}
+
+/// Blend between two zone textures based on zone transition factor.
+vec3 BlendZoneTextures(sampler2D texA, sampler2D texB, float t, float scale)
+{
+    vec3 colorA = SampleZoneTexture(texA, scale);
+    vec3 colorB = SampleZoneTexture(texB, scale);
+    return mix(colorA, colorB, t);
+}
+
+/// Sample terrain albedo with texture blending by material zone and masks.
+/// Integrates height, slope, and mask-driven transitions (grass/rock/snow).
+/// Falls back to u_ZoneColor if u_UseTerrainTextures is false.
+vec3 TerrainAlbedoTextured(float zoneF, float slope, float h01,
+                           float grassM, float mountMask,
+                           out float outRoughness, out float outMetallic)
+{
+    int zoneA, zoneB; float zoneMix;
+    ZoneWeights(zoneF, zoneA, zoneB, zoneMix);
+
+    vec3 albedo = vec3(0.0);
+
+    if (!u_UseTerrainTextures)
+    {
+        // Fallback: solid zone colors
+        albedo = mix(u_ZoneColor[zoneA], u_ZoneColor[zoneB], zoneMix);
+        outRoughness = mix(u_ZoneRoughness[zoneA], u_ZoneRoughness[zoneB], zoneMix);
+        outMetallic  = mix(u_ZoneMetallic[zoneA], u_ZoneMetallic[zoneB], zoneMix);
+        return albedo;
+    }
+
+    // ─── Terrain zone material sampling ──────────────────────────────────────
+    // Each zone contributes its textured appearance based on:
+    //   - Base zone float value (zoneF)
+    //   - Height and slope masks (for rock scatter on slopes)
+    //   - Grass/tree/mountain masks (for vegetation override)
+    
+    float scale = u_TextureScale;
+
+    // Grass (zone 3): appears on moderate slopes in grass-suitable areas
+    float grassBlend = 0.0;
+    if (zoneA == 3 || zoneB == 3)
+    {
+        grassBlend = (zoneA == 3) ? zoneMix : (1.0 - zoneMix);
+        // Suppress grass on very steep slopes
+        grassBlend *= smoothstep(0.7, 0.2, slope);
+        // Enhance grass in grass-suitable areas
+        grassBlend *= grassM;
+    }
+
+    // Rock (zone 5): appears on steep slopes and in mountain scatter areas
+    float rockBlend = 0.0;
+    if (zoneA == 5 || zoneB == 5)
+    {
+        rockBlend = (zoneA == 5) ? zoneMix : (1.0 - zoneMix);
+        // Enhance rock on steep slopes
+        rockBlend *= smoothstep(u_SlopeToRockTransition - 0.1, u_SlopeToRockTransition + 0.1, slope);
+        // Mountain scatter overlay
+        rockBlend = mix(rockBlend, 1.0, mountMask * 0.4);
+    }
+
+    // Snow (zone 6): appears at high elevations and on steep frozen slopes
+    float snowBlend = 0.0;
+    if (zoneA == 6 || zoneB == 6)
+    {
+        snowBlend = (zoneA == 6) ? zoneMix : (1.0 - zoneMix);
+        // Suppress snow on very steep slopes (slides off)
+        snowBlend *= smoothstep(0.8, 0.4, slope);
+    }
+
+    // Sand (zone 2): mostly horizontal, suppressed on slopes
+    float sandBlend = 0.0;
+    if (zoneA == 2 || zoneB == 2)
+    {
+        sandBlend = (zoneA == 2) ? zoneMix : (1.0 - zoneMix);
+        sandBlend *= smoothstep(0.4, 0.0, slope);
+    }
+
+    // Forest (zone 4): canopy color, suppressed on steeper slopes
+    float forestBlend = 0.0;
+    if (zoneA == 4 || zoneB == 4)
+    {
+        forestBlend = (zoneA == 4) ? zoneMix : (1.0 - zoneMix);
+        forestBlend *= smoothstep(0.5, 0.1, slope);
+    }
+
+    // ─── Build final albedo with mask-driven transitions ────────────────────
+
+    // Normalize blends to 1.0 for smooth transitions
+    float totalBlend = grassBlend + rockBlend + snowBlend + sandBlend + forestBlend;
+    if (totalBlend < 0.0001)
+    {
+        // Fallback if no mask blends: use zone-based texture
+        int mainZone = (zoneMix < 0.5) ? zoneA : zoneB;
+        if (mainZone == 3)
+            albedo = SampleZoneTexture(u_GrassAlbedo, scale);
+        else if (mainZone == 5)
+            albedo = SampleZoneTexture(u_RockAlbedo, scale);
+        else if (mainZone == 6)
+            albedo = SampleZoneTexture(u_SnowAlbedo, scale);
+        else if (mainZone == 2)
+            albedo = SampleZoneTexture(u_SandAlbedo, scale);
+        else if (mainZone == 4)
+            albedo = SampleZoneTexture(u_ForestAlbedo, scale);
+        else
+            albedo = mix(u_ZoneColor[zoneA], u_ZoneColor[zoneB], zoneMix);
+    }
+    else
+    {
+        // Blend multiple textures based on mask contributions
+        grassBlend /= totalBlend;
+        rockBlend /= totalBlend;
+        snowBlend /= totalBlend;
+        sandBlend /= totalBlend;
+        forestBlend /= totalBlend;
+
+        albedo = vec3(0.0);
+        if (grassBlend > 0.001)
+            albedo += SampleZoneTexture(u_GrassAlbedo, scale) * grassBlend;
+        if (rockBlend > 0.001)
+            albedo += SampleZoneTexture(u_RockAlbedo, scale) * rockBlend;
+        if (snowBlend > 0.001)
+            albedo += SampleZoneTexture(u_SnowAlbedo, scale) * snowBlend;
+        if (sandBlend > 0.001)
+            albedo += SampleZoneTexture(u_SandAlbedo, scale) * sandBlend;
+        if (forestBlend > 0.001)
+            albedo += SampleZoneTexture(u_ForestAlbedo, scale) * forestBlend;
+    }
+
+    // Ensure we always have a valid color
+    if (length(albedo) < 0.001)
+        albedo = mix(u_ZoneColor[zoneA], u_ZoneColor[zoneB], zoneMix);
+
+    // ─── PBR parameters: blend roughness/metallic between zones ─────────────
+    outRoughness = mix(u_ZoneRoughness[zoneA], u_ZoneRoughness[zoneB], zoneMix);
+    outMetallic  = mix(u_ZoneMetallic[zoneA], u_ZoneMetallic[zoneB], zoneMix);
+
+    return albedo;
+}
+
 vec3 TerrainAlbedo(float zoneF)
 {
     int a, b; float t;
@@ -309,11 +472,14 @@ void main()
     vec3 N = nrm;
     vec3 V = normalize(cameraPos - v_WorldPos);
 
-    // ── Zone-blended PBR material ─────────────────────────────────────────────
-    vec3  albedo    = TerrainAlbedo(zoneF);
-    float roughness = TerrainRoughness(zoneF);
-    float metallic  = TerrainMetallic(zoneF);
-    float ao        = 1.0;
+    // ── Zone-blended PBR material with texture blending ──────────────────────
+    // Sprint 10: TerrainAlbedoTextured samples zone textures based on height,
+    // slope, and mask data (grass, mountain, tree suitability masks).
+    float roughness, metallic;
+    vec3  albedo = TerrainAlbedoTextured(zoneF, slope, h01, grassM, mountMask,
+                                         roughness, metallic);
+
+    float ao = 1.0;
 
     vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
