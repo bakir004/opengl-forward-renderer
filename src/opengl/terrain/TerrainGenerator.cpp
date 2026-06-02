@@ -94,6 +94,19 @@ float RegionMask(float wx, float wz, float scale, uint32_t seed)
     return Smoothstep(0.25f, 0.75f, n);
 }
 
+TerrainRegionMaskSample ComposeTerrainRegionMasks(const TerrainRegionMaskSample& raw)
+{
+    TerrainRegionMaskSample masks;
+    masks.mountains = Clamp01(raw.mountains);
+    masks.plateaus = Clamp01(raw.plateaus * (1.0f - masks.mountains * 0.65f));
+    masks.valleys = Clamp01(raw.valleys * (1.0f - masks.mountains * 0.75f) *
+                            (1.0f - masks.plateaus * 0.55f));
+    masks.broadHills = Clamp01(raw.broadHills * (1.0f - masks.valleys * 0.85f) *
+                               (1.0f - masks.plateaus * 0.45f) *
+                               (1.0f - masks.mountains * 0.85f));
+    return masks;
+}
+
 float MacroShapeVariation(float wx, float wz, float scale, uint32_t seed)
 {
     const float n = Fbm(wx * scale, wz * scale, seed, kMacroShapeOctaves, 0.55f, 2.0f);
@@ -119,12 +132,13 @@ float ApplyPlateauShaping(float h, float wx, float wz, const TerrainRegionMaskSa
 
 TerrainRegionMaskSample SampleTerrainRegionMasks(float wx, float wz, const TerrainGenerationSettings& settings)
 {
-    return {
+    const TerrainRegionMaskSample rawMasks = {
         RegionMask(wx, wz, settings.broadHillScale, settings.seed + 401u),
         RegionMask(wx, wz, settings.valleyScale, settings.seed + 503u),
         RegionMask(wx, wz, settings.plateauRegionScale, settings.seed + 607u),
         RegionMask(wx, wz, settings.mountainRegionMaskScale, settings.seed + 709u)
     };
+    return ComposeTerrainRegionMasks(rawMasks);
 }
 
 TerrainRegionMasks BuildTerrainRegionMasks(const TerrainGenerationSettings& settings, uint32_t width, uint32_t height)
