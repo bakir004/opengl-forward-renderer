@@ -23,6 +23,8 @@ add_executable(${PROJECT_NAME}
         src/IblValidationScene.cpp
         src/BistroScene.h
         src/BistroScene.cpp
+        src/TerrainScene.h
+        src/TerrainScene.cpp
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE

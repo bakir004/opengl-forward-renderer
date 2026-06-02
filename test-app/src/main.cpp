@@ -2,6 +2,7 @@
 #include <spdlog/spdlog.h>
 
 #include "BistroScene.h"
+#include "TerrainScene.h"
 
 int main()
 {
@@ -13,13 +14,22 @@ int main()
         spdlog::error("[TestApp] Application::Initialize() failed — aborting");
         return -1;
     }
-    BistroScene bistroScene;
-    if (!bistroScene.Setup())
-        spdlog::error("[TestApp] BistroScene::Setup() failed — aborting");
-    else
+
+    TerrainScene terrainScene;
+    BistroScene  bistroScene;
+
+    bool terrainOk = terrainScene.Setup();
+    bool bistroOk  = bistroScene.Setup();
+
+    if (!terrainOk)
+        spdlog::error("[TestApp] TerrainScene::Setup() failed");
+    if (!bistroOk)
+        spdlog::error("[TestApp] BistroScene::Setup() failed");
+
+    if (terrainOk || bistroOk)
     {
-        spdlog::info("[TestApp] Press 1 for BistroScene");
-        app.Run({&bistroScene}, 0);
+        spdlog::info("[TestApp] Press 1 for TerrainScene, 2 for BistroScene");
+        app.Run({&terrainScene, &bistroScene}, 0);
     }
 
     spdlog::info("[TestApp] Shutting down");
