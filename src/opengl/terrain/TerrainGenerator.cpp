@@ -100,6 +100,23 @@ float MacroShapeVariation(float wx, float wz, float scale, uint32_t seed)
     return Smoothstep(0.20f, 0.85f, n);
 }
 
+float PlateauTargetHeight(float wx, float wz, const TerrainGenerationSettings& settings)
+{
+    const float n = Fbm(wx * settings.plateauRegionScale, wz * settings.plateauRegionScale,
+                        settings.seed + 1009u, kMacroShapeOctaves, 0.55f, 2.0f);
+    return Lerp(settings.plateauThreshold, 0.86f, Smoothstep(0.20f, 0.85f, n));
+}
+
+float ApplyPlateauShaping(float h, float wx, float wz, const TerrainRegionMaskSample& regionMask,
+                          const TerrainGenerationSettings& settings)
+{
+    const float plateauBlend = regionMask.plateaus * Clamp01(settings.plateauStrength);
+    const float flattening = Clamp01(settings.plateauFlatteningAmount);
+    const float targetHeight = PlateauTargetHeight(wx, wz, settings);
+    const float flattened = targetHeight + (h - targetHeight) * (1.0f - flattening);
+    return Lerp(h, flattened, plateauBlend);
+}
+
 TerrainRegionMaskSample SampleTerrainRegionMasks(float wx, float wz, const TerrainGenerationSettings& settings)
 {
     return {
@@ -187,7 +204,6 @@ TerrainHeightfield GenerateHeightfield(const TerrainGenerationSettings& settings
             const float macro = Fbm(wx * settings.macroScale, wz * settings.macroScale, settings.seed + 11u, 3, 0.55f, 2.0f);
             const float region = Fbm(wx * settings.regionMaskScale, wz * settings.regionMaskScale, settings.seed + 29u, 3, 0.6f, 2.0f);
             const float mountainMask = Smoothstep(0.48f, 0.78f, region);
-            const float plateauMask = Smoothstep(0.58f, 0.86f, Fbm(wx * settings.regionMaskScale, wz * settings.regionMaskScale, settings.seed + 47u, 2, 0.55f, 2.0f));
             const float hills = Fbm(wx * settings.hillScale, wz * settings.hillScale, settings.seed + 101u,
                                     settings.hillOctaves, settings.hillPersistence, settings.hillLacunarity);
             const float ridges = RidgedFbm(wx * settings.mountainScale, wz * settings.mountainScale, settings.seed + 211u,
@@ -206,11 +222,7 @@ TerrainHeightfield GenerateHeightfield(const TerrainGenerationSettings& settings
             h += detail * settings.detailAmplitude;
             h = Clamp01(h);
 
-            if (plateauMask > 0.0f && h > settings.plateauThreshold)
-            {
-                const float flattened = settings.plateauThreshold + (h - settings.plateauThreshold) * 0.22f;
-                h = Lerp(h, flattened, Clamp01(settings.plateauStrength * plateauMask));
-            }
+            h = Clamp01(ApplyPlateauShaping(h, wx, wz, regionMask, settings));
 
             TerrainSample& sample = hf.At(x, z);
             sample.normalizedHeight = Clamp01(h);
