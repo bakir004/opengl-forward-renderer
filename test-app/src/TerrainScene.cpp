@@ -13,17 +13,21 @@
 #include <glm/glm.hpp>
 #include <chrono>
 
+// GLFW pulls in windows.h which defines GetObject as GetObjectA/W.
+// Undefine after all headers so Scene::GetObject resolves correctly.
+#undef GetObject
+
 // ─── Zone PBR properties ─────────────────────────────────────────────────────
 // Order matches TerrainMaterialZone enum: DeepWater, ShallowWater, Sand, Grass, Forest, Rock, Snow
 
 static const glm::vec3 kZoneColor[7] = {
-    {0.04f, 0.10f, 0.35f},  // DeepWater
-    {0.10f, 0.45f, 0.60f},  // ShallowWater
-    {0.82f, 0.72f, 0.50f},  // Sand
-    {0.28f, 0.55f, 0.12f},  // Grass
-    {0.10f, 0.30f, 0.08f},  // Forest
-    {0.46f, 0.42f, 0.38f},  // Rock
-    {0.93f, 0.95f, 0.97f},  // Snow
+    {0.02f, 0.05f, 0.28f},  // DeepWater    — dark navy blue
+    {0.05f, 0.38f, 0.55f},  // ShallowWater — teal
+    {0.76f, 0.65f, 0.38f},  // Sand         — warm tan
+    {0.18f, 0.52f, 0.06f},  // Grass        — saturated green
+    {0.06f, 0.24f, 0.04f},  // Forest       — dark green
+    {0.38f, 0.33f, 0.28f},  // Rock         — dark grey-brown
+    {0.90f, 0.92f, 0.96f},  // Snow         — near-white blue tint
 };
 
 static const float kZoneRoughness[7] = {
@@ -80,7 +84,9 @@ bool TerrainScene::Setup()
     SetSkyboxVisible(false);
 
     // ── Lights ───────────────────────────────────────────────────────────────
-    SetAmbientLight({0.55f, 0.62f, 0.72f}, 0.40f);
+    // Moderate sky ambient so shaded slopes stay readable without washing out
+    // the zone colours (a high ambient flattens the material differences).
+    SetAmbientLight({0.45f, 0.52f, 0.62f}, 0.25f);
 
     auto& lights = GetLights();
     lights.SetDirectionalLight(
@@ -139,11 +145,8 @@ void TerrainScene::UploadToGpu()
         return;
     }
 
-    // Apply the per-frame zone uniforms via the shader directly.
-    // We do this once here; debug-view toggle re-applies in OnUpdate via
-    // ApplyMaterialUniforms(), called each frame.
-
-    // Rebuild the RenderItem (or add it on first call).
+    // Submit through the standard scene API. Zone/debug uniforms are pushed
+    // each frame in ApplyMaterialUniforms(); here we only wire up the mesh.
     RenderItem item;
     item.mesh     = m_terrainBuffer.get();
     item.material = m_terrainInstance.get();
@@ -160,7 +163,8 @@ void TerrainScene::UploadToGpu()
     else
     {
         // Subsequent regeneration — patch the existing item.
-        GetObject(m_terrainObjectIndex).mesh = m_terrainBuffer.get();
+        RenderItem& existing = GetObject(m_terrainObjectIndex);
+        existing.mesh = m_terrainBuffer.get();
     }
 }
 
@@ -169,17 +173,24 @@ void TerrainScene::ApplyMaterialUniforms() const
     if (!m_terrainShader || !m_terrainShader->IsValid())
         return;
 
+    // These uniforms are not part of the standard PBR material schema, so the
+    // Material::Bind path does not touch them. We set them directly on the
+    // program; GL keeps uniform state in the program object, so values set here
+    // persist through the renderer's later material bind and into the draw call.
+    // The terrain shader is exclusive to this scene, so nothing else can clobber
+    // them between frames.
     m_terrainShader->Bind();
 
-    // Zone colours and PBR scalars
+    // Per-zone material table (constant, but cheap to re-upload each frame).
     for (int i = 0; i < 7; ++i)
     {
-        m_terrainShader->SetUniform("u_ZoneColor[" + std::to_string(i) + "]",   kZoneColor[i]);
+        m_terrainShader->SetUniform("u_ZoneColor[" + std::to_string(i) + "]",     kZoneColor[i]);
         m_terrainShader->SetUniform("u_ZoneRoughness[" + std::to_string(i) + "]", kZoneRoughness[i]);
         m_terrainShader->SetUniform("u_ZoneMetallic[" + std::to_string(i) + "]",  kZoneMetallic[i]);
     }
 
-    m_terrainShader->SetUniform("u_DebugView", static_cast<int>(m_debugView));
+    m_terrainShader->SetUniform("u_DebugView",  static_cast<int>(m_debugView));
+    m_terrainShader->SetUniform("u_HeightScale", m_genSettings.heightScale);
 
     ShaderProgram::Unbind();
 }
@@ -228,58 +239,74 @@ void TerrainScene::OnImGuiRender()
         m_debugView = static_cast<TerrainDebugView>(viewIdx);
 
     // ── Generation parameters ────────────────────────────────────────────────
+    // Editing a parameter only stages it; generation runs when "Regenerate" is
+    // pressed (or auto-regen is enabled) so dragging a slider does not rebuild
+    // a 65k-vertex mesh every frame.
     ImGui::SeparatorText("Generation");
 
-    bool changed = false;
-    changed |= ImGui::DragInt("Seed",   reinterpret_cast<int*>(&m_genSettings.seed));
-    changed |= ImGui::DragInt("Grid W", reinterpret_cast<int*>(&m_genSettings.gridWidth),  1.0f, 32, 512);
-    changed |= ImGui::DragInt("Grid H", reinterpret_cast<int*>(&m_genSettings.gridHeight), 1.0f, 32, 512);
-    changed |= ImGui::DragFloat("World Width",  &m_genSettings.worldWidth,  1.0f, 64.0f, 2048.0f);
-    changed |= ImGui::DragFloat("World Height (Z)", &m_genSettings.worldHeight, 1.0f, 64.0f, 2048.0f);
-    changed |= ImGui::DragFloat("Height Scale", &m_genSettings.heightScale, 0.5f, 10.0f, 500.0f);
+    bool dirty = false;
+    dirty |= ImGui::DragInt("Seed",   reinterpret_cast<int*>(&m_genSettings.seed));
+    dirty |= ImGui::DragInt("Grid W", reinterpret_cast<int*>(&m_genSettings.gridWidth),  1.0f, 32, 512);
+    dirty |= ImGui::DragInt("Grid H", reinterpret_cast<int*>(&m_genSettings.gridHeight), 1.0f, 32, 512);
+    dirty |= ImGui::DragFloat("World Width",  &m_genSettings.worldWidth,  1.0f, 64.0f, 2048.0f);
+    dirty |= ImGui::DragFloat("World Height (Z)", &m_genSettings.worldHeight, 1.0f, 64.0f, 2048.0f);
+    dirty |= ImGui::DragFloat("Height Scale", &m_genSettings.heightScale, 0.5f, 10.0f, 500.0f);
 
     ImGui::Spacing();
     ImGui::Text("Rolling Hills");
-    changed |= ImGui::DragFloat("Hill Scale",    &m_genSettings.hillScale,     0.0001f, 0.0001f, 0.05f, "%.4f");
-    changed |= ImGui::DragFloat("Hill Amplitude",&m_genSettings.hillAmplitude, 0.01f,  0.0f, 1.0f);
-    changed |= ImGui::DragInt  ("Hill Octaves",  &m_genSettings.hillOctaves,   1.0f,   1, 8);
+    dirty |= ImGui::DragFloat("Hill Scale",    &m_genSettings.hillScale,     0.0001f, 0.0001f, 0.05f, "%.4f");
+    dirty |= ImGui::DragFloat("Hill Amplitude",&m_genSettings.hillAmplitude, 0.01f,  0.0f, 1.0f);
+    dirty |= ImGui::DragInt  ("Hill Octaves",  &m_genSettings.hillOctaves,   1.0f,   1, 8);
 
     ImGui::Spacing();
     ImGui::Text("Mountains");
-    changed |= ImGui::DragFloat("Mountain Amplitude", &m_genSettings.mountainAmplitude, 0.01f, 0.0f, 1.0f);
-    changed |= ImGui::DragFloat("Ridge Sharpness",    &m_genSettings.ridgeSharpness,    0.1f,  0.5f, 6.0f);
+    dirty |= ImGui::DragFloat("Mountain Amplitude", &m_genSettings.mountainAmplitude, 0.01f, 0.0f, 1.0f);
+    dirty |= ImGui::DragFloat("Ridge Sharpness",    &m_genSettings.ridgeSharpness,    0.1f,  0.5f, 6.0f);
 
     ImGui::Spacing();
     ImGui::Text("Detail");
-    changed |= ImGui::DragFloat("Detail Scale",    &m_genSettings.detailScale,     0.001f, 0.001f, 0.1f, "%.3f");
-    changed |= ImGui::DragFloat("Detail Amplitude",&m_genSettings.detailAmplitude, 0.005f, 0.0f,  0.3f);
+    dirty |= ImGui::DragFloat("Detail Scale",    &m_genSettings.detailScale,     0.001f, 0.001f, 0.1f, "%.3f");
+    dirty |= ImGui::DragFloat("Detail Amplitude",&m_genSettings.detailAmplitude, 0.005f, 0.0f,  0.3f);
 
     // ── Classification thresholds ─────────────────────────────────────────────
     ImGui::SeparatorText("Material Thresholds");
-    changed |= ImGui::DragFloat("Grass Max H",  &m_classSettings.grassMaxStart,  0.01f, 0.0f, 1.0f);
-    changed |= ImGui::DragFloat("Forest Max H", &m_classSettings.forestMaxStart, 0.01f, 0.0f, 1.0f);
-    changed |= ImGui::DragFloat("Snow Start H", &m_classSettings.snowStart,      0.01f, 0.0f, 1.0f);
-    changed |= ImGui::DragFloat("Rock Slope",   &m_classSettings.rockSlopeStart, 0.01f, 0.0f, 1.0f);
+    dirty |= ImGui::DragFloat("Grass Max H",  &m_classSettings.grassMaxStart,  0.01f, 0.0f, 1.0f);
+    dirty |= ImGui::DragFloat("Forest Max H", &m_classSettings.forestMaxStart, 0.01f, 0.0f, 1.0f);
+    dirty |= ImGui::DragFloat("Snow Start H", &m_classSettings.snowStart,      0.01f, 0.0f, 1.0f);
+    dirty |= ImGui::DragFloat("Rock Slope",   &m_classSettings.rockSlopeStart, 0.01f, 0.0f, 1.0f);
 
     // ── Erosion ───────────────────────────────────────────────────────────────
     ImGui::SeparatorText("Erosion (Stretch)");
-    changed |= ImGui::Checkbox("Enable Erosion", &m_genSettings.erosionEnabled);
+    dirty |= ImGui::Checkbox("Enable Erosion", &m_genSettings.erosionEnabled);
     if (m_genSettings.erosionEnabled)
     {
-        changed |= ImGui::DragInt  ("Erosion Iterations", &m_genSettings.erosionIterations, 1000, 1000, 500000);
-        changed |= ImGui::DragFloat("Erosion Capacity",   &m_genSettings.erosionCapacity,   0.1f, 0.5f, 20.0f);
-        changed |= ImGui::DragFloat("Erosion Inertia",    &m_genSettings.erosionInertia,    0.01f, 0.0f, 1.0f);
-        changed |= ImGui::DragFloat("Erosion Deposition", &m_genSettings.erosionDeposition, 0.01f, 0.0f, 1.0f);
-        changed |= ImGui::DragFloat("Evaporation",        &m_genSettings.erosionEvaporation,0.001f, 0.0f, 0.1f);
+        dirty |= ImGui::DragInt  ("Erosion Iterations", &m_genSettings.erosionIterations, 1000, 1000, 500000);
+        dirty |= ImGui::DragFloat("Erosion Capacity",   &m_genSettings.erosionCapacity,   0.1f, 0.5f, 20.0f);
+        dirty |= ImGui::DragFloat("Erosion Inertia",    &m_genSettings.erosionInertia,    0.01f, 0.0f, 1.0f);
+        dirty |= ImGui::DragFloat("Erosion Deposition", &m_genSettings.erosionDeposition, 0.01f, 0.0f, 1.0f);
+        dirty |= ImGui::DragFloat("Evaporation",        &m_genSettings.erosionEvaporation,0.001f, 0.0f, 0.1f);
     }
 
-    // ── Regenerate button ─────────────────────────────────────────────────────
-    ImGui::Spacing();
-    if (ImGui::Button("Regenerate") || (changed && false))
-        m_needsRegenerate = true;
+    // Track whether the staged settings differ from what is currently uploaded.
+    if (dirty)
+        m_settingsDirty = true;
 
-    ImGui::SameLine();
-    ImGui::TextDisabled("(or press Regenerate after changing params)");
+    // ── Regenerate ─────────────────────────────────────────────────────────────
+    ImGui::SeparatorText("Apply");
+    ImGui::Checkbox("Auto-regenerate", &m_autoRegenerate);
+
+    const bool pressed = ImGui::Button("Regenerate");
+    if (pressed || (m_autoRegenerate && m_settingsDirty))
+    {
+        m_needsRegenerate = true;
+        m_settingsDirty   = false;
+    }
+
+    if (m_settingsDirty)
+    {
+        ImGui::SameLine();
+        ImGui::TextColored({1.0f, 0.8f, 0.2f, 1.0f}, "* unsaved changes");
+    }
 
     ImGui::End();
 }

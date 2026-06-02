@@ -66,4 +66,6 @@ private:
     TerrainDebugView m_debugView  = TerrainDebugView::Off;
     bool m_needsRegenerate        = false;
     bool m_terrainAdded           = false;
+    bool m_settingsDirty          = false; ///< Staged param edits not yet applied
+    bool m_autoRegenerate         = false; ///< Regenerate immediately on edit
 };

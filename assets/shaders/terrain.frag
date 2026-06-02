@@ -56,8 +56,16 @@ uniform vec3  u_ZoneColor[7];
 uniform float u_ZoneRoughness[7];
 uniform float u_ZoneMetallic[7];
 
-// Extra per-vertex mask passed from vertex shader (rock scatter, unused here)
-uniform float u_RockMask = 0.0;
+// World-space terrain height range, used to normalize the heightmap debug view.
+uniform float u_HeightScale = 80.0;
+
+// Rock-scatter mask is not packed per-vertex (the terrain vertex only carries
+// zone, mountain, grass and tree in its 4-float channel). For the debug view it
+// is reconstructed here from slope + height, mirroring the generator's logic.
+uniform float u_RockMaskHeightStart = 0.55;
+uniform float u_RockMaskHeightEnd   = 0.80;
+uniform float u_RockMaskSlopeStart  = 0.35;
+uniform float u_RockMaskSlopeEnd    = 0.65;
 
 out vec4 FragColor;
 
@@ -229,22 +237,27 @@ void main()
     float grassM   = v_TerrainData.z;
     float treeM    = v_TerrainData.w;
 
+    // Slope and normalized height are reconstructed once for both the debug
+    // views and the in-shader rock mask. The generator defines:
+    //   slope = clamp(1 - N.y, 0, 1)   (0 = flat, 1 = vertical)
+    //   h01   = worldPosY / heightScale
+    vec3  nrm    = normalize(v_Normal);
+    float slope  = clamp(1.0 - nrm.y, 0.0, 1.0);
+    float h01    = clamp(v_WorldPos.y / max(u_HeightScale, 0.0001), 0.0, 1.0);
+
     // ── Debug views ──────────────────────────────────────────────────────────
     if (u_DebugView == DEBUG_HEIGHTMAP)
     {
-        float nh = clamp(v_WorldPos.y / 80.0, 0.0, 1.0);
-        FragColor = vec4(vec3(nh), 1.0);
+        FragColor = vec4(vec3(h01), 1.0);
         return;
     }
     if (u_DebugView == DEBUG_NORMALS)
     {
-        FragColor = vec4(normalize(v_Normal) * 0.5 + 0.5, 1.0);
+        FragColor = vec4(nrm * 0.5 + 0.5, 1.0);
         return;
     }
-    // For slope we estimate from the deviation of normal from up.
     if (u_DebugView == DEBUG_SLOPE)
     {
-        float slope = 1.0 - abs(dot(normalize(v_Normal), vec3(0.0, 1.0, 0.0)));
         FragColor = vec4(vec3(slope), 1.0);
         return;
     }
@@ -283,12 +296,17 @@ void main()
     }
     if (u_DebugView == DEBUG_ROCK_MASK)
     {
-        FragColor = vec4(vec3(u_RockMask), 1.0);
+        // Reconstruct rock-scatter suitability the same way the generator does:
+        // max(height-band, slope-band), suppressed where grass/tree dominate.
+        float rockH = smoothstep(u_RockMaskHeightStart, u_RockMaskHeightEnd, h01);
+        float rockS = smoothstep(u_RockMaskSlopeStart,  u_RockMaskSlopeEnd,  slope);
+        float rock  = clamp(max(rockH, rockS) * (1.0 - grassM) * (1.0 - treeM), 0.0, 1.0);
+        FragColor = vec4(vec3(rock), 1.0);
         return;
     }
 
     // ── Normal ───────────────────────────────────────────────────────────────
-    vec3 N = normalize(v_Normal);
+    vec3 N = nrm;
     vec3 V = normalize(cameraPos - v_WorldPos);
 
     // ── Zone-blended PBR material ─────────────────────────────────────────────
