@@ -10,6 +10,7 @@ namespace
 {
 constexpr float kInvUintMax = 1.0f / 4294967295.0f;
 constexpr int   kRegionMaskOctaves = 2;
+constexpr int   kMacroShapeOctaves = 2;
 
 struct TerrainRegionMaskSample
 {
@@ -91,6 +92,12 @@ float RegionMask(float wx, float wz, float scale, uint32_t seed)
 {
     const float n = Fbm(wx * scale, wz * scale, seed, kRegionMaskOctaves, 0.55f, 2.0f);
     return Smoothstep(0.25f, 0.75f, n);
+}
+
+float MacroShapeVariation(float wx, float wz, float scale, uint32_t seed)
+{
+    const float n = Fbm(wx * scale, wz * scale, seed, kMacroShapeOctaves, 0.55f, 2.0f);
+    return Smoothstep(0.20f, 0.85f, n);
 }
 
 TerrainRegionMaskSample SampleTerrainRegionMasks(float wx, float wz, const TerrainGenerationSettings& settings)
@@ -175,7 +182,7 @@ TerrainHeightfield GenerateHeightfield(const TerrainGenerationSettings& settings
             const float wx = (static_cast<float>(x) / static_cast<float>(hf.width - 1) - 0.5f) * settings.worldWidth;
             const float wz = (static_cast<float>(z) / static_cast<float>(hf.height - 1) - 0.5f) * settings.worldHeight;
 
-            [[maybe_unused]] const TerrainRegionMaskSample& regionMask = regionMasks.At(x, z);
+            const TerrainRegionMaskSample& regionMask = regionMasks.At(x, z);
 
             const float macro = Fbm(wx * settings.macroScale, wz * settings.macroScale, settings.seed + 11u, 3, 0.55f, 2.0f);
             const float region = Fbm(wx * settings.regionMaskScale, wz * settings.regionMaskScale, settings.seed + 29u, 3, 0.6f, 2.0f);
@@ -187,9 +194,13 @@ TerrainHeightfield GenerateHeightfield(const TerrainGenerationSettings& settings
                                            settings.mountainOctaves, settings.mountainPersistence,
                                            settings.mountainLacunarity, settings.ridgeSharpness);
             const float detail = ValueNoise(wx * settings.detailScale, wz * settings.detailScale, settings.seed + 307u) - 0.5f;
+            const float broadHillShape = MacroShapeVariation(wx, wz, settings.broadHillScale, settings.seed + 811u);
+            const float valleyShape = MacroShapeVariation(wx, wz, settings.valleyScale, settings.seed + 907u);
 
             float h = 0.18f;
             h += (macro - 0.5f) * settings.macroAmplitude * 0.55f;
+            h += broadHillShape * Clamp01(settings.broadHillStrength) * regionMask.broadHills;
+            h -= valleyShape * Clamp01(settings.valleyStrength) * regionMask.valleys;
             h += hills * settings.hillAmplitude * (1.0f - mountainMask * 0.35f);
             h += ridges * settings.mountainAmplitude * mountainMask;
             h += detail * settings.detailAmplitude;

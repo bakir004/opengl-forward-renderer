@@ -33,9 +33,9 @@ struct TerrainGenerationSettings
 
     // ── Macro landform shaping ────────────────────────────────────────────────
     float broadHillScale    = 0.0012f; ///< Spatial frequency of broad hill noise
-    float broadHillStrength = 0.0f;    ///< Contribution strength of broad hill shaping [0..1]
+    float broadHillStrength = 0.16f;   ///< Contribution strength of broad hill shaping [0..1]
     float valleyScale       = 0.0012f; ///< Spatial frequency of valley noise
-    float valleyStrength    = 0.0f;    ///< Contribution strength of valley shaping [0..1]
+    float valleyStrength    = 0.14f;   ///< Contribution strength of valley shaping [0..1]
 
     // ── Rolling hills layer ───────────────────────────────────────────────────
     float hillScale     = 0.004f;  ///< Spatial frequency of rolling hills
