@@ -100,6 +100,10 @@ enum class TerrainMaterialZone : uint8_t
     Count
 };
 
+/// Alias used by later terrain systems (texturing/vegetation) to avoid leaking
+/// the "Terrain" prefix everywhere.
+using MaterialZone = TerrainMaterialZone;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TerrainSample
 // Per-vertex data produced by the terrain generator.
@@ -120,7 +124,16 @@ struct TerrainSample
     float grassSuitability = 0.0f; ///< Suitability for grass coverage
     float treeSuitability  = 0.0f; ///< Suitability for tree placement
     float rockSuitability  = 0.0f; ///< Suitability for rock scatter
-    float steepExclusion   = 0.0f; ///< 1 = too steep for vegetation
+    float steepExclusion   = 0.0f; ///< 1 = too steep for vegetation (legacy semantics)
+
+    // ── Sprint 10 (Task 4) masks — values in [0..1] ──────────────────────────
+    // These are the CPU-side metadata used for later vegetation placement and
+    // texture splatting. "steepSlopeExclusion" is a plantable-ground gate:
+    // 1 = safe/flat enough, 0 = too steep.
+    float grassMask            = 0.0f;
+    float treeMask             = 0.0f;
+    float rockMask             = 0.0f;
+    float steepSlopeExclusion  = 1.0f;
 
     // ── Optional erosion debug masks ─────────────────────────────────────────
     float erosionAmount    = 0.0f; ///< How much material was eroded here
@@ -237,6 +250,71 @@ struct TerrainMaterialThresholds
     float grassMaxSlope  = 0.30f; ///< Steeper than this → Rock instead of Grass/Forest
     float rockMinSlope   = 0.55f; ///< Above this slope, force Rock regardless of height
     float steepThreshold = 0.70f; ///< Above this slope, set steepExclusion = 1
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TerrainClassificationSettings (Sprint 10, Task 4)
+// All thresholds + blend widths used for height/slope material zoning and
+// suitability masks. Designed to be tweakable later from ImGui.
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct TerrainClassificationSettings
+{
+    // Height bands (h01 in [0..1])
+    float deepWaterHeight   = 0.02f;
+    float shallowWaterHeight = 0.06f;
+    float sandHeight        = 0.10f;
+
+    float grassMinStart     = 0.06f;
+    float grassMinEnd       = 0.10f;
+    float grassMaxStart     = 0.50f;
+    float grassMaxEnd       = 0.60f;
+
+    float forestMinStart    = 0.20f;
+    float forestMinEnd      = 0.28f;
+    float forestMaxStart    = 0.55f;
+    float forestMaxEnd      = 0.72f;
+
+    float mountainStart     = 0.70f;
+    float mountainFull      = 0.88f;
+
+    float snowStart         = 0.86f;
+    float snowFull          = 0.94f;
+
+    // Slope thresholds (slope01 in [0..1])
+    float sandSlopeStart    = 0.10f;
+    float sandSlopeEnd      = 0.25f;
+
+    float grassSlopeStart   = 0.18f;
+    float grassSlopeEnd     = 0.40f;
+
+    float forestSlopeStart  = 0.22f;
+    float forestSlopeEnd    = 0.55f;
+
+    float rockSlopeStart    = 0.45f;
+    float rockSlopeEnd      = 0.65f;
+
+    // Snow doesn't stick to cliffs: above this slope, snow fades out to rock.
+    float snowSlopeStart    = 0.25f;
+    float snowSlopeEnd      = 0.45f;
+
+    // Vegetation exclusion: 1 = plantable, 0 = too steep.
+    float excludeSlopeStart = 0.45f;
+    float excludeSlopeEnd   = 0.70f;
+
+    // Trees: treeline and slope limits
+    float treeMinStart      = 0.10f;
+    float treeMinEnd        = 0.16f;
+    float treeMaxStart      = 0.55f;
+    float treeMaxEnd        = 0.72f;
+    float treeSlopeStart    = 0.20f;
+    float treeSlopeEnd      = 0.45f;
+
+    // Rock scatter suitability
+    float rockMaskHeightStart = 0.55f;
+    float rockMaskHeightEnd   = 0.80f;
+    float rockMaskSlopeStart  = 0.35f;
+    float rockMaskSlopeEnd    = 0.65f;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
