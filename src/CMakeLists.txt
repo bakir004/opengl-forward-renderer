@@ -38,6 +38,7 @@ add_library(${PROJECT_NAME} STATIC
         opengl/core/FullscreenQuad.cpp
         opengl/core/PostProcessPass.cpp
         opengl/core/shadows/CascadedShadowMap.cpp
+        opengl/terrain/TerrainGenerator.cpp
         opengl/core/Material.cpp
         opengl/assets/AssetImporter.cpp
         opengl/assets/MeshImporter.cpp
