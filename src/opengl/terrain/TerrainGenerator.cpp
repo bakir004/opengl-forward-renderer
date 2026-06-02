@@ -164,6 +164,14 @@ float RidgedFbm(float x, float y, uint32_t seed, int octaves, float persistence,
     return norm > 0.0f ? value / norm : 0.0f;
 }
 
+float MountainRidgeVariation(float wx, float wz, const TerrainGenerationSettings& settings)
+{
+    return RidgedFbm(wx * settings.mountainRidgeScale, wz * settings.mountainRidgeScale,
+                     settings.seed + 1217u, settings.mountainRidgeOctaves,
+                     settings.mountainRidgePersistence, settings.mountainRidgeLacunarity,
+                     settings.ridgeSharpness);
+}
+
 TerrainMaterialZone Classify(float h, float slope, const TerrainMaterialThresholds& t)
 {
     if (h < t.deepWaterHeight) return TerrainMaterialZone::DeepWater;
@@ -201,14 +209,11 @@ TerrainHeightfield GenerateHeightfield(const TerrainGenerationSettings& settings
 
             const TerrainRegionMaskSample& regionMask = regionMasks.At(x, z);
 
+            const float mountainMask = regionMask.mountains;
             const float macro = Fbm(wx * settings.macroScale, wz * settings.macroScale, settings.seed + 11u, 3, 0.55f, 2.0f);
-            const float region = Fbm(wx * settings.regionMaskScale, wz * settings.regionMaskScale, settings.seed + 29u, 3, 0.6f, 2.0f);
-            const float mountainMask = Smoothstep(0.48f, 0.78f, region);
             const float hills = Fbm(wx * settings.hillScale, wz * settings.hillScale, settings.seed + 101u,
                                     settings.hillOctaves, settings.hillPersistence, settings.hillLacunarity);
-            const float ridges = RidgedFbm(wx * settings.mountainScale, wz * settings.mountainScale, settings.seed + 211u,
-                                           settings.mountainOctaves, settings.mountainPersistence,
-                                           settings.mountainLacunarity, settings.ridgeSharpness);
+            const float mountainRidges = MountainRidgeVariation(wx, wz, settings);
             const float detail = ValueNoise(wx * settings.detailScale, wz * settings.detailScale, settings.seed + 307u) - 0.5f;
             const float broadHillShape = MacroShapeVariation(wx, wz, settings.broadHillScale, settings.seed + 811u);
             const float valleyShape = MacroShapeVariation(wx, wz, settings.valleyScale, settings.seed + 907u);
@@ -218,7 +223,7 @@ TerrainHeightfield GenerateHeightfield(const TerrainGenerationSettings& settings
             h += broadHillShape * Clamp01(settings.broadHillStrength) * regionMask.broadHills;
             h -= valleyShape * Clamp01(settings.valleyStrength) * regionMask.valleys;
             h += hills * settings.hillAmplitude * (1.0f - mountainMask * 0.35f);
-            h += ridges * settings.mountainAmplitude * mountainMask;
+            h += mountainRidges * Clamp01(settings.mountainRidgeStrength) * mountainMask;
             h += detail * settings.detailAmplitude;
             h = Clamp01(h);
 
