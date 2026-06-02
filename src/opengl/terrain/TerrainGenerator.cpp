@@ -3,11 +3,33 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <vector>
 #include <glm/geometric.hpp>
 
 namespace
 {
 constexpr float kInvUintMax = 1.0f / 4294967295.0f;
+constexpr int   kRegionMaskOctaves = 2;
+
+struct TerrainRegionMaskSample
+{
+    float broadHills = 0.0f;
+    float valleys    = 0.0f;
+    float plateaus   = 0.0f;
+    float mountains  = 0.0f;
+};
+
+struct TerrainRegionMasks
+{
+    uint32_t width  = 0;
+    uint32_t height = 0;
+    std::vector<TerrainRegionMaskSample> samples;
+
+    [[nodiscard]] const TerrainRegionMaskSample& At(uint32_t x, uint32_t z) const
+    {
+        return samples[z * width + x];
+    }
+};
 
 float Clamp01(float v) { return std::clamp(v, 0.0f, 1.0f); }
 float Smoothstep(float edge0, float edge1, float x)
@@ -65,6 +87,42 @@ float Fbm(float x, float y, uint32_t seed, int octaves, float persistence, float
     return norm > 0.0f ? value / norm : 0.0f;
 }
 
+float RegionMask(float wx, float wz, float scale, uint32_t seed)
+{
+    const float n = Fbm(wx * scale, wz * scale, seed, kRegionMaskOctaves, 0.55f, 2.0f);
+    return Smoothstep(0.25f, 0.75f, n);
+}
+
+TerrainRegionMaskSample SampleTerrainRegionMasks(float wx, float wz, const TerrainGenerationSettings& settings)
+{
+    return {
+        RegionMask(wx, wz, settings.broadHillScale, settings.seed + 401u),
+        RegionMask(wx, wz, settings.valleyScale, settings.seed + 503u),
+        RegionMask(wx, wz, settings.plateauRegionScale, settings.seed + 607u),
+        RegionMask(wx, wz, settings.mountainRegionMaskScale, settings.seed + 709u)
+    };
+}
+
+TerrainRegionMasks BuildTerrainRegionMasks(const TerrainGenerationSettings& settings, uint32_t width, uint32_t height)
+{
+    TerrainRegionMasks masks;
+    masks.width = width;
+    masks.height = height;
+    masks.samples.resize(static_cast<size_t>(width) * height);
+
+    for (uint32_t z = 0; z < height; ++z)
+    {
+        for (uint32_t x = 0; x < width; ++x)
+        {
+            const float wx = (static_cast<float>(x) / static_cast<float>(width - 1) - 0.5f) * settings.worldWidth;
+            const float wz = (static_cast<float>(z) / static_cast<float>(height - 1) - 0.5f) * settings.worldHeight;
+            masks.samples[z * width + x] = SampleTerrainRegionMasks(wx, wz, settings);
+        }
+    }
+
+    return masks;
+}
+
 float RidgedFbm(float x, float y, uint32_t seed, int octaves, float persistence, float lacunarity, float sharpness)
 {
     float value = 0.0f;
@@ -108,12 +166,16 @@ TerrainHeightfield GenerateHeightfield(const TerrainGenerationSettings& settings
     hf.minHeight = std::numeric_limits<float>::max();
     hf.maxHeight = std::numeric_limits<float>::lowest();
 
+    const TerrainRegionMasks regionMasks = BuildTerrainRegionMasks(settings, hf.width, hf.height);
+
     for (uint32_t z = 0; z < hf.height; ++z)
     {
         for (uint32_t x = 0; x < hf.width; ++x)
         {
             const float wx = (static_cast<float>(x) / static_cast<float>(hf.width - 1) - 0.5f) * settings.worldWidth;
             const float wz = (static_cast<float>(z) / static_cast<float>(hf.height - 1) - 0.5f) * settings.worldHeight;
+
+            [[maybe_unused]] const TerrainRegionMaskSample& regionMask = regionMasks.At(x, z);
 
             const float macro = Fbm(wx * settings.macroScale, wz * settings.macroScale, settings.seed + 11u, 3, 0.55f, 2.0f);
             const float region = Fbm(wx * settings.regionMaskScale, wz * settings.regionMaskScale, settings.seed + 29u, 3, 0.6f, 2.0f);
