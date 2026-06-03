@@ -1,0 +1,11 @@
+Model Information:
+* title:	A Simple Rock
+* source:	https://sketchfab.com/3d-models/a-simple-rock-bcfc084c997f4c019d404bb92dcc4d2c
+* author:	Ozonek (https://sketchfab.com/ozonek)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "A Simple Rock" (https://sketchfab.com/3d-models/a-simple-rock-bcfc084c997f4c019d404bb92dcc4d2c) by Ozonek (https://sketchfab.com/ozonek) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

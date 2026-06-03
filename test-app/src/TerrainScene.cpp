@@ -106,7 +106,11 @@ void TerrainScene::Regenerate()
 {
     // ── Generation ────────────────────────────────────────────────────────────
     auto t0 = std::chrono::high_resolution_clock::now();
-    m_heightfield = TerrainGenerator::GenerateHeightfield(m_genSettings, m_classSettings);
+    if (m_genSettings.useHeightmap)
+        m_heightfield = TerrainGenerator::LoadHeightmapFromPNG(
+            m_genSettings.heightmapPath, m_genSettings, m_classSettings);
+    else
+        m_heightfield = TerrainGenerator::GenerateHeightfield(m_genSettings, m_classSettings);
     auto t1 = std::chrono::high_resolution_clock::now();
     m_stats.generationTimeMs =
         std::chrono::duration<float, std::milli>(t1 - t0).count();
@@ -240,10 +244,27 @@ void TerrainScene::OnImGuiRender()
     ImGui::DragFloat("Fog Density##atm", &m_fogDensity, 0.0001f, 0.0f, 0.02f, "%.4f");
     ImGui::ColorEdit3("Fog Color##atm",  &m_fogColor.x);
 
-    // ── Generation parameters ────────────────────────────────────────────────
-    ImGui::SeparatorText("Generation");
+    // ── Heightmap input ──────────────────────────────────────────────────────
+    ImGui::SeparatorText("Heightmap Input");
 
     bool dirty = false;
+    dirty |= ImGui::Checkbox("Use PNG Heightmap##hm", &m_genSettings.useHeightmap);
+    if (m_genSettings.useHeightmap)
+    {
+        static char s_pathBuf[512] = {};
+        if (s_pathBuf[0] == '\0')
+            strncpy(s_pathBuf, m_genSettings.heightmapPath.c_str(), sizeof(s_pathBuf) - 1);
+        if (ImGui::InputText("Path##hm", s_pathBuf, sizeof(s_pathBuf)))
+        {
+            m_genSettings.heightmapPath = s_pathBuf;
+            dirty = true;
+        }
+        dirty |= ImGui::DragFloat("Gamma##hm",  &m_genSettings.heightmapGamma, 0.01f, 0.1f, 4.0f, "%.2f");
+        dirty |= ImGui::Checkbox ("Flip Y##hm", &m_genSettings.heightmapFlipY);
+    }
+
+    // ── Generation parameters ────────────────────────────────────────────────
+    ImGui::SeparatorText("Generation");
     dirty |= ImGui::DragInt("Seed",   reinterpret_cast<int*>(&m_genSettings.seed));
     dirty |= ImGui::DragInt("Grid W", reinterpret_cast<int*>(&m_genSettings.gridWidth),  1.0f, 32, 512);
     dirty |= ImGui::DragInt("Grid H", reinterpret_cast<int*>(&m_genSettings.gridHeight), 1.0f, 32, 512);

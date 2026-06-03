@@ -16,20 +16,22 @@ int main()
     }
 
     TerrainScene terrainScene;
-    BistroScene  bistroScene;
+    BistroScene bistroScene;
+
 
     bool terrainOk = terrainScene.Setup();
-    bool bistroOk  = bistroScene.Setup();
+    bool bistroOk = bistroScene.Setup();
 
     if (!terrainOk)
         spdlog::error("[TestApp] TerrainScene::Setup() failed");
     if (!bistroOk)
         spdlog::error("[TestApp] BistroScene::Setup() failed");
 
-    if (terrainOk || bistroOk)
+    if (terrainOk)
     {
-        spdlog::info("[TestApp] Press 1 for TerrainScene, 2 for BistroScene");
+        spdlog::info("[TestApp] Press 1 for TerrainScene");
         app.Run({&terrainScene, &bistroScene}, 0);
+
     }
 
     spdlog::info("[TestApp] Shutting down");

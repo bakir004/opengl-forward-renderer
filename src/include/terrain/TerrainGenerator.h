@@ -28,4 +28,13 @@ namespace TerrainGenerator
     /// existing heightfield. Useful after a later erosion pass edits heights.
     void RebuildDerivedData(TerrainHeightfield& heightfield,
                             const TerrainClassificationSettings& classificationSettings = {});
+
+    /// Loads a greyscale PNG file as a heightfield.  Auto-detects 16-bit vs 8-bit.
+    /// Applies settings.heightmapGamma as a power curve, then calls RebuildDerivedData
+    /// so normals, slopes, material zones, and suitability masks are identical to
+    /// the procedural path.  Image dimensions override settings.gridWidth/Height.
+    [[nodiscard]] TerrainHeightfield LoadHeightmapFromPNG(
+        const std::string& path,
+        const TerrainGenerationSettings& settings,
+        const TerrainClassificationSettings& classificationSettings = {});
 }

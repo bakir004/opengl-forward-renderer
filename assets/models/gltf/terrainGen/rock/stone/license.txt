@@ -1,0 +1,11 @@
+Model Information:
+* title:	Stone
+* source:	https://sketchfab.com/3d-models/stone-2e966dce9db34fecad1290452bdab165
+* author:	Xephira (https://sketchfab.com/xephira)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Stone" (https://sketchfab.com/3d-models/stone-2e966dce9db34fecad1290452bdab165) by Xephira (https://sketchfab.com/xephira) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
