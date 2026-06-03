@@ -80,6 +80,25 @@ struct TerrainGenerationSettings
     float erosionErosion    = 0.3f;
     float erosionEvaporation = 0.01f;
     float erosionMinSlope    = 0.01f;
+
+    // ── Volcano shaping ───────────────────────────────────────────────────────
+    // Injects a radial bias term into the height stack that forms a cone
+    // peaking at rimRadius with a caldera punch-down at the center.
+    // Noise layers still run on top of this pedestal for organic irregularity.
+    bool  volcanoEnabled           = false;
+    float volcanoRimRadius         = 0.38f; ///< Normalised radius to rim peak (0=center, 1=world edge)
+    float volcanoConeHeight        = 0.72f; ///< Height bias added at the rim peak
+    float volcanoCalderaDepth      = 0.28f; ///< Depth of the caldera punch-down at the center
+    float volcanoCalderaOuterRatio = 0.60f; ///< Outer caldera smoothstep edge as fraction of rimRadius
+    float volcanoCalderaInnerRatio = 0.15f; ///< Inner caldera smoothstep edge as fraction of rimRadius
+
+    // ── Domain warping ────────────────────────────────────────────────────────
+    // Offsets noise sampling coordinates by a low-frequency noise field before
+    // any height layers are evaluated.  Breaks the blobby regularity of value
+    // noise and makes terrain read as wind-carved and geologically stressed.
+    bool  domainWarpEnabled  = false;
+    float domainWarpScale    = 0.003f; ///< Spatial frequency of the warp offset noise
+    float domainWarpStrength = 30.0f;  ///< Maximum warp offset in world units
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
