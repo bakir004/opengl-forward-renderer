@@ -248,6 +248,13 @@ void Application::RunFrame(Scene &scene,
         m_renderer->SubmitDraw(di);
     }
     m_renderer->EndFrame();
+    // Rebind the HDR FBO so that OnPostRender draws (instanced vegetation etc.)
+    // land in the buffer that RenderPostProcess reads, not in the default FBO
+    // which EndFrame unbinds to.
+    m_renderer->RebindHdrFramebuffer();
+    scene.OnPostRender();
+    // RenderPostProcess immediately binds its own FBOs and reads the HDR texture
+    // by GL texture ID, so the HDR FBO being bound here is not a problem.
     RenderPostProcess(sub.clearInfo.viewport.x,
                       sub.clearInfo.viewport.y,
                       sub.clearInfo.viewport.width,

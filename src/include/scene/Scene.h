@@ -41,6 +41,11 @@ public:
     /// Returns whether the skybox is currently set to be rendered.
     bool IsSkyboxVisible() const { return m_skyboxVisible; }
 
+    /// Called after the main render queue is flushed (EndFrame) but before
+    /// post-process and ImGui.  Override to emit additional draw calls that
+    /// must land in the HDR framebuffer — e.g., instanced vegetation.
+    virtual void OnPostRender() {}
+
     /// Called during the ImGui frame. Override to draw custom debug UI for the scene.
     virtual void OnImGuiRender() {
     }

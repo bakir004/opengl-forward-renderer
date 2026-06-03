@@ -424,6 +424,12 @@ void Renderer::EndFrame()
     m_inFrame = false;
 }
 
+void Renderer::RebindHdrFramebuffer()
+{
+    if (m_hdrFramebuffer && m_hdrFramebuffer->IsValid())
+        m_hdrFramebuffer->Bind();
+}
+
 void Renderer::SubmitDraw(const RenderItem &item)
 {
     assert(m_inFrame && "SubmitDraw() must be called between BeginFrame() and EndFrame()");

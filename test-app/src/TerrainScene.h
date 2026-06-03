@@ -5,8 +5,10 @@
 #include "terrain/TerrainGenerator.h"
 #include "terrain/TerrainMeshBuilder.h"
 #include "core/Material.h"
+#include "terrain/TerrainVegetation.h"
 
 #include <memory>
+#include <vector>
 
 class MeshBuffer;
 class ShaderProgram;
@@ -34,6 +36,7 @@ class TerrainScene : public Scene
 public:
     bool Setup();
     void OnUpdate(float deltaTime, IInputProvider &input) override;
+    void OnPostRender() override;
     void OnImGuiRender() override;
 
 private:
@@ -60,6 +63,13 @@ private:
     // ── Camera ─────────────────────────────────────────────────────────────
     glm::vec3 m_playerPos{0.0f, 0.0f, 0.0f};
     glm::vec3 m_moveDirXZ{0.0f, 0.0f, 0.0f};
+
+    // ── Vegetation ─────────────────────────────────────────────────────────
+    TerrainVegetation m_vegetation;
+
+    // ── Atmosphere ─────────────────────────────────────────────────────────
+    float     m_fogDensity = 0.0015f;
+    glm::vec3 m_fogColor   {0.58f, 0.65f, 0.78f};
 
     // ── Debug ──────────────────────────────────────────────────────────────
     TerrainDebugView m_debugView = TerrainDebugView::Off;

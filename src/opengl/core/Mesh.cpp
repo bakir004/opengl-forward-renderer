@@ -109,6 +109,20 @@ void Mesh::DrawSubMesh(uint32_t i) const {
     );
 }
 
+void Mesh::DrawSubMeshInstanced(uint32_t i, uint32_t instanceCount) const {
+    if (!m_impl || i >= m_impl->submeshes.size() || instanceCount == 0) return;
+    const SubMesh& sm = m_impl->submeshes[i];
+    m_impl->vao.Bind();
+    glDrawElementsInstancedBaseVertex(
+        GL_TRIANGLES,
+        static_cast<GLsizei>(sm.indexCount),
+        GL_UNSIGNED_INT,
+        reinterpret_cast<const void*>(static_cast<uintptr_t>(sm.indexByteOffset)),
+        static_cast<GLsizei>(instanceCount),
+        sm.baseVertex
+    );
+}
+
 void Mesh::DrawAll() const {
     if (!m_impl) return;
     m_impl->vao.Bind();

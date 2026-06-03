@@ -140,7 +140,13 @@ public:
     void BeginFrame(const FrameSubmission &submission);
 
     /// Ends a frame: sorts the render queue by shader, flushes all draws, clears the queue.
+    /// After this call the default framebuffer (0) is bound.
     void EndFrame();
+
+    /// Rebinds the HDR offscreen framebuffer so that additional draws (e.g. instanced
+    /// vegetation in Scene::OnPostRender) land in the same buffer that RenderPostProcess reads.
+    /// No-op if no HDR framebuffer is active.
+    void RebindHdrFramebuffer();
 
     /// Enqueues a draw item. Must be called between BeginFrame and EndFrame.
     void SubmitDraw(const RenderItem &item);

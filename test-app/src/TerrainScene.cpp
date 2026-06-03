@@ -18,17 +18,8 @@
 #undef GetObject
 
 // ─── Zone PBR properties ─────────────────────────────────────────────────────
-// Order matches TerrainMaterialZone enum: DeepWater, ShallowWater, Sand, Grass, Forest, Rock, Snow
-
-static const glm::vec3 kZoneColor[7] = {
-    {0.02f, 0.05f, 0.28f},  // DeepWater    — dark navy blue
-    {0.05f, 0.38f, 0.55f},  // ShallowWater — teal
-    {0.76f, 0.65f, 0.38f},  // Sand         — warm tan
-    {0.18f, 0.52f, 0.06f},  // Grass        — saturated green
-    {0.06f, 0.24f, 0.04f},  // Forest       — dark green
-    {0.38f, 0.33f, 0.28f},  // Rock         — dark grey-brown
-    {0.90f, 0.92f, 0.96f},  // Snow         — near-white blue tint
-};
+// Albedo comes from the shader's TerrainPalette(); only roughness/metallic
+// are uploaded as uniforms now.
 
 static const float kZoneRoughness[7] = {
     0.20f,  // DeepWater  — reflective water surface
@@ -84,8 +75,6 @@ bool TerrainScene::Setup()
     SetSkyboxVisible(false);
 
     // ── Lights ───────────────────────────────────────────────────────────────
-    // Moderate sky ambient so shaded slopes stay readable without washing out
-    // the zone colours (a high ambient flattens the material differences).
     SetAmbientLight({0.45f, 0.52f, 0.62f}, 0.25f);
 
     auto& lights = GetLights();
@@ -98,6 +87,13 @@ bool TerrainScene::Setup()
             .ShadowResolution(2048, 2048)
             .Name("Sun")
             .Build());
+
+    // ── Instanced vegetation ──────────────────────────────────────────────────
+    auto instancedShader = AssetImporter::LoadShader(
+        "assets/shaders/instanced.vert",
+        "assets/shaders/mesh.frag");
+    if (!m_vegetation.Setup(instancedShader))
+        spdlog::warn("[TerrainScene] Vegetation setup failed — proceeding without it");
 
     // ── Generate terrain + upload ─────────────────────────────────────────────
     Regenerate();
@@ -129,6 +125,10 @@ void TerrainScene::Regenerate()
 
     // ── GPU upload ────────────────────────────────────────────────────────────
     UploadToGpu();
+
+    // ── Instanced vegetation ──────────────────────────────────────────────────
+    m_vegetation.ClearAll();
+    m_vegetation.PlaceAll(m_heightfield, m_genSettings.seed);
 }
 
 void TerrainScene::UploadToGpu()
@@ -145,8 +145,6 @@ void TerrainScene::UploadToGpu()
         return;
     }
 
-    // Submit through the standard scene API. Zone/debug uniforms are pushed
-    // each frame in ApplyMaterialUniforms(); here we only wire up the mesh.
     RenderItem item;
     item.mesh     = m_terrainBuffer.get();
     item.material = m_terrainInstance.get();
@@ -156,13 +154,11 @@ void TerrainScene::UploadToGpu()
 
     if (!m_terrainAdded)
     {
-        // First time — add the object and record its index.
         m_terrainObjectIndex = AddObject(item);
         m_terrainAdded = true;
     }
     else
     {
-        // Subsequent regeneration — patch the existing item.
         RenderItem& existing = GetObject(m_terrainObjectIndex);
         existing.mesh = m_terrainBuffer.get();
     }
@@ -173,24 +169,18 @@ void TerrainScene::ApplyMaterialUniforms() const
     if (!m_terrainShader || !m_terrainShader->IsValid())
         return;
 
-    // These uniforms are not part of the standard PBR material schema, so the
-    // Material::Bind path does not touch them. We set them directly on the
-    // program; GL keeps uniform state in the program object, so values set here
-    // persist through the renderer's later material bind and into the draw call.
-    // The terrain shader is exclusive to this scene, so nothing else can clobber
-    // them between frames.
     m_terrainShader->Bind();
 
-    // Per-zone material table (constant, but cheap to re-upload each frame).
     for (int i = 0; i < 7; ++i)
     {
-        m_terrainShader->SetUniform("u_ZoneColor[" + std::to_string(i) + "]",     kZoneColor[i]);
         m_terrainShader->SetUniform("u_ZoneRoughness[" + std::to_string(i) + "]", kZoneRoughness[i]);
         m_terrainShader->SetUniform("u_ZoneMetallic[" + std::to_string(i) + "]",  kZoneMetallic[i]);
     }
 
-    m_terrainShader->SetUniform("u_DebugView",  static_cast<int>(m_debugView));
-    m_terrainShader->SetUniform("u_HeightScale", m_genSettings.heightScale);
+    m_terrainShader->SetUniform("u_DebugView",   static_cast<int>(m_debugView));
+    m_terrainShader->SetUniform("u_HeightScale",  m_genSettings.heightScale);
+    m_terrainShader->SetUniform("u_FogDensity",   m_fogDensity);
+    m_terrainShader->SetUniform("u_FogColor",     m_fogColor);
 
     ShaderProgram::Unbind();
 }
@@ -198,8 +188,6 @@ void TerrainScene::ApplyMaterialUniforms() const
 void TerrainScene::OnUpdate(float deltaTime, IInputProvider& input)
 {
     UpdateStandardCameraAndPlayer(deltaTime, input, m_playerPos, m_moveDirXZ);
-
-    // Apply uniforms that may have changed via ImGui each frame.
     ApplyMaterialUniforms();
 
     if (m_needsRegenerate)
@@ -207,6 +195,15 @@ void TerrainScene::OnUpdate(float deltaTime, IInputProvider& input)
         m_needsRegenerate = false;
         Regenerate();
     }
+
+    // Per-frame frustum cull + SSBO upload for all vegetation groups.
+    const Camera& cam = GetCamera();
+    m_vegetation.CullAndUpload(cam.GetViewProjection(), cam.GetPosition());
+}
+
+void TerrainScene::OnPostRender()
+{
+    m_vegetation.DrawAll();
 }
 
 void TerrainScene::OnImGuiRender()
@@ -238,10 +235,12 @@ void TerrainScene::OnImGuiRender()
     if (ImGui::Combo("View", &viewIdx, kViewNames, IM_ARRAYSIZE(kViewNames)))
         m_debugView = static_cast<TerrainDebugView>(viewIdx);
 
+    // ── Atmosphere ───────────────────────────────────────────────────────────
+    ImGui::SeparatorText("Atmosphere");
+    ImGui::DragFloat("Fog Density##atm", &m_fogDensity, 0.0001f, 0.0f, 0.02f, "%.4f");
+    ImGui::ColorEdit3("Fog Color##atm",  &m_fogColor.x);
+
     // ── Generation parameters ────────────────────────────────────────────────
-    // Editing a parameter only stages it; generation runs when "Regenerate" is
-    // pressed (or auto-regen is enabled) so dragging a slider does not rebuild
-    // a 65k-vertex mesh every frame.
     ImGui::SeparatorText("Generation");
 
     bool dirty = false;
@@ -275,6 +274,27 @@ void TerrainScene::OnImGuiRender()
     dirty |= ImGui::DragFloat("Snow Start H", &m_classSettings.snowStart,      0.01f, 0.0f, 1.0f);
     dirty |= ImGui::DragFloat("Rock Slope",   &m_classSettings.rockSlopeStart, 0.01f, 0.0f, 1.0f);
 
+    // ── Volcano ───────────────────────────────────────────────────────────────
+    ImGui::SeparatorText("Volcano");
+    dirty |= ImGui::Checkbox("Volcano Enabled", &m_genSettings.volcanoEnabled);
+    if (m_genSettings.volcanoEnabled)
+    {
+        dirty |= ImGui::DragFloat("Rim Radius##v",    &m_genSettings.volcanoRimRadius,         0.01f, 0.10f, 0.80f);
+        dirty |= ImGui::DragFloat("Cone Height##v",   &m_genSettings.volcanoConeHeight,        0.01f, 0.00f, 1.50f);
+        dirty |= ImGui::DragFloat("Caldera Depth##v", &m_genSettings.volcanoCalderaDepth,      0.01f, 0.00f, 0.80f);
+        dirty |= ImGui::DragFloat("Caldera Outer##v", &m_genSettings.volcanoCalderaOuterRatio, 0.01f, 0.10f, 0.90f);
+        dirty |= ImGui::DragFloat("Caldera Inner##v", &m_genSettings.volcanoCalderaInnerRatio, 0.01f, 0.01f, 0.50f);
+    }
+
+    // ── Domain Warp ───────────────────────────────────────────────────────────
+    ImGui::SeparatorText("Domain Warp");
+    dirty |= ImGui::Checkbox("Warp Enabled", &m_genSettings.domainWarpEnabled);
+    if (m_genSettings.domainWarpEnabled)
+    {
+        dirty |= ImGui::DragFloat("Warp Scale##w",    &m_genSettings.domainWarpScale,    0.0001f, 0.0001f, 0.02f, "%.4f");
+        dirty |= ImGui::DragFloat("Warp Strength##w", &m_genSettings.domainWarpStrength, 1.0f,    0.0f,    120.0f);
+    }
+
     // ── Erosion ───────────────────────────────────────────────────────────────
     ImGui::SeparatorText("Erosion (Stretch)");
     dirty |= ImGui::Checkbox("Enable Erosion", &m_genSettings.erosionEnabled);
@@ -287,12 +307,37 @@ void TerrainScene::OnImGuiRender()
         dirty |= ImGui::DragFloat("Evaporation",        &m_genSettings.erosionEvaporation,0.001f, 0.0f, 0.1f);
     }
 
-    // Track whether the staged settings differ from what is currently uploaded.
     if (dirty)
         m_settingsDirty = true;
 
     // ── Regenerate ─────────────────────────────────────────────────────────────
     ImGui::SeparatorText("Apply");
+
+    if (ImGui::Button("Volcano Preset"))
+    {
+        m_genSettings.volcanoEnabled           = true;
+        m_genSettings.volcanoRimRadius         = 0.38f;
+        m_genSettings.volcanoConeHeight        = 0.72f;
+        m_genSettings.volcanoCalderaDepth      = 0.28f;
+        m_genSettings.volcanoCalderaOuterRatio = 0.60f;
+        m_genSettings.volcanoCalderaInnerRatio = 0.15f;
+        m_genSettings.macroAmplitude           = 0.15f;
+        m_genSettings.hillAmplitude            = 0.10f;
+        m_genSettings.detailAmplitude          = 0.03f;
+        m_genSettings.valleyStrength           = 0.05f;
+        m_genSettings.plateauStrength          = 0.40f;
+        m_genSettings.plateauThreshold         = 0.08f;
+        m_genSettings.domainWarpEnabled        = true;
+        m_genSettings.domainWarpScale          = 0.003f;
+        m_genSettings.domainWarpStrength       = 25.0f;
+        m_classSettings.snowStart              = 0.90f;
+        m_classSettings.snowFull               = 0.97f;
+        m_classSettings.forestMaxStart         = 0.45f;
+        m_classSettings.forestMaxEnd           = 0.58f;
+        m_needsRegenerate = true;
+        m_settingsDirty   = false;
+    }
+
     ImGui::Checkbox("Auto-regenerate", &m_autoRegenerate);
 
     const bool pressed = ImGui::Button("Regenerate");
@@ -307,6 +352,9 @@ void TerrainScene::OnImGuiRender()
         ImGui::SameLine();
         ImGui::TextColored({1.0f, 0.8f, 0.2f, 1.0f}, "* unsaved changes");
     }
+
+    // ── Vegetation ────────────────────────────────────────────────────────────
+    m_vegetation.OnImGui();
 
     ImGui::End();
 }

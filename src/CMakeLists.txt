@@ -40,6 +40,7 @@ add_library(${PROJECT_NAME} STATIC
         opengl/core/shadows/CascadedShadowMap.cpp
         opengl/terrain/TerrainGenerator.cpp
         opengl/terrain/TerrainMeshBuilder.cpp
+        opengl/terrain/TerrainVegetation.cpp
         opengl/core/Material.cpp
         opengl/assets/AssetImporter.cpp
         opengl/assets/MeshImporter.cpp
