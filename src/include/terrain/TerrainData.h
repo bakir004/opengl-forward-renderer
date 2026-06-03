@@ -99,6 +99,14 @@ struct TerrainGenerationSettings
     bool  domainWarpEnabled  = false;
     float domainWarpScale    = 0.003f; ///< Spatial frequency of the warp offset noise
     float domainWarpStrength = 30.0f;  ///< Maximum warp offset in world units
+
+    // ── Heightmap PNG input ───────────────────────────────────────────────────
+    // When useHeightmap is true, LoadHeightmapFromPNG is used instead of the
+    // procedural stack.  gridWidth/Height are ignored; dimensions come from the image.
+    bool        useHeightmap   = false; ///< Load from PNG instead of procedural generation
+    std::string heightmapPath  = "assets/heightmap/HeightMap.png"; ///< Path to a greyscale PNG (8- or 16-bit)
+    float       heightmapGamma = 1.0f;  ///< Power curve on normalised height (1.0 = linear)
+    bool        heightmapFlipY = false; ///< Flip rows vertically if terrain appears inverted
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

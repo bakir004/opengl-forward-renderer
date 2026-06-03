@@ -1,0 +1,11 @@
+Model Information:
+* title:	Realistic Tree
+* source:	https://sketchfab.com/3d-models/realistic-tree-d989c0f801d847b9a74992ec4ddcfdfc
+* author:	Daniel (https://sketchfab.com/danielpetrov)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Realistic Tree" (https://sketchfab.com/3d-models/realistic-tree-d989c0f801d847b9a74992ec4ddcfdfc) by Daniel (https://sketchfab.com/danielpetrov) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

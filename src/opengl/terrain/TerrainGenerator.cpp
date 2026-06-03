@@ -5,6 +5,8 @@
 #include <limits>
 #include <vector>
 #include <glm/geometric.hpp>
+#include <spdlog/spdlog.h>
+#include <stb_image.h>
 
 namespace
 {
@@ -397,5 +399,69 @@ void RebuildDerivedData(TerrainHeightfield& hf, const TerrainClassificationSetti
             s.steepExclusion   = Clamp01(1.0f - s.steepSlopeExclusion);
         }
     }
+}
+
+// ─── LoadHeightmapFromPNG ─────────────────────────────────────────────────────
+
+TerrainHeightfield LoadHeightmapFromPNG(
+    const std::string& path,
+    const TerrainGenerationSettings& settings,
+    const TerrainClassificationSettings& classificationSettings)
+{
+    int w = 0, h = 0, ch = 0;
+
+    // Prefer 16-bit for higher precision; fall back to 8-bit.
+    stbi_us* px16 = stbi_load_16(path.c_str(), &w, &h, &ch, 1);
+    uint8_t* px8  = nullptr;
+    const bool is16 = (px16 != nullptr);
+
+    if (!is16)
+    {
+        px8 = stbi_load(path.c_str(), &w, &h, &ch, 1);
+        if (!px8)
+        {
+            spdlog::error("[TerrainGenerator] LoadHeightmapFromPNG: failed to load '{}'", path);
+            return {};
+        }
+    }
+
+    spdlog::info("[TerrainGenerator] Loaded {}x{} {} heightmap: {}",
+                 w, h, is16 ? "16-bit" : "8-bit", path);
+
+    TerrainHeightfield hf;
+    hf.settings = settings;
+    hf.width    = static_cast<uint32_t>(w);
+    hf.height   = static_cast<uint32_t>(h);
+    hf.samples.resize(static_cast<size_t>(w) * h);
+    hf.minHeight =  std::numeric_limits<float>::max();
+    hf.maxHeight = -std::numeric_limits<float>::max();
+
+    for (int z = 0; z < h; ++z)
+    {
+        const int srcZ = settings.heightmapFlipY ? (h - 1 - z) : z;
+        for (int x = 0; x < w; ++x)
+        {
+            const size_t srcIdx = static_cast<size_t>(srcZ) * w + x;
+            float norm = is16
+                ? static_cast<float>(px16[srcIdx]) / 65535.0f
+                : static_cast<float>(px8[srcIdx])  / 255.0f;
+
+            if (settings.heightmapGamma != 1.0f)
+                norm = std::pow(norm, settings.heightmapGamma);
+
+            TerrainSample& s   = hf.At(static_cast<uint32_t>(x), static_cast<uint32_t>(z));
+            s.normalizedHeight = norm;
+            s.height           = norm * settings.heightScale;
+
+            if (s.height < hf.minHeight) hf.minHeight = s.height;
+            if (s.height > hf.maxHeight) hf.maxHeight = s.height;
+        }
+    }
+
+    if (is16) stbi_image_free(px16);
+    else      stbi_image_free(px8);
+
+    RebuildDerivedData(hf, classificationSettings);
+    return hf;
 }
 }

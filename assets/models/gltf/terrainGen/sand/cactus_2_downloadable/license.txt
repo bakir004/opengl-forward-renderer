@@ -1,0 +1,11 @@
+Model Information:
+* title:	Cactus 2 (Downloadable)
+* source:	https://sketchfab.com/3d-models/cactus-2-downloadable-290ead6382604fb6b623dd0dc3deb07c
+* author:	rhcreations (https://sketchfab.com/rhcreations)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Cactus 2 (Downloadable)" (https://sketchfab.com/3d-models/cactus-2-downloadable-290ead6382604fb6b623dd0dc3deb07c) by rhcreations (https://sketchfab.com/rhcreations) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
