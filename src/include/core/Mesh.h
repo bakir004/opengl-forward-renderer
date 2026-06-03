@@ -26,6 +26,9 @@ public:
     /// Draws one submesh. Caller binds shader and material first.
     void DrawSubMesh(uint32_t index) const;
 
+    /// Draws one submesh instanced (requires an SSBO bound at the correct slot).
+    void DrawSubMeshInstanced(uint32_t index, uint32_t instanceCount) const;
+
     /// Draws all submeshes in order.
     void DrawAll() const;
 

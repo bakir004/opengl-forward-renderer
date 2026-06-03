@@ -12,7 +12,6 @@
 #include <spdlog/spdlog.h>
 #include <glm/glm.hpp>
 #include <chrono>
-#include <random>
 
 // GLFW pulls in windows.h which defines GetObject as GetObjectA/W.
 // Undefine after all headers so Scene::GetObject resolves correctly.
@@ -76,8 +75,6 @@ bool TerrainScene::Setup()
     SetSkyboxVisible(false);
 
     // ── Lights ───────────────────────────────────────────────────────────────
-    // Moderate sky ambient so shaded slopes stay readable without washing out
-    // the zone colours (a high ambient flattens the material differences).
     SetAmbientLight({0.45f, 0.52f, 0.62f}, 0.25f);
 
     auto& lights = GetLights();
@@ -91,10 +88,14 @@ bool TerrainScene::Setup()
             .Name("Sun")
             .Build());
 
-    // ── Props ─────────────────────────────────────────────────────────────────
-    SetupProps();
+    // ── Instanced vegetation ──────────────────────────────────────────────────
+    auto instancedShader = AssetImporter::LoadShader(
+        "assets/shaders/instanced.vert",
+        "assets/shaders/mesh.frag");
+    if (!m_vegetation.Setup(instancedShader))
+        spdlog::warn("[TerrainScene] Vegetation setup failed — proceeding without it");
 
-    // ── Generate terrain + upload (calls PlaceProps internally) ───────────────
+    // ── Generate terrain + upload ─────────────────────────────────────────────
     Regenerate();
 
     spdlog::info("[TerrainScene] Setup complete");
@@ -125,10 +126,9 @@ void TerrainScene::Regenerate()
     // ── GPU upload ────────────────────────────────────────────────────────────
     UploadToGpu();
 
-    // ── Props ─────────────────────────────────────────────────────────────────
-    ClearProps();
-    if (m_propsEnabled)
-        PlaceProps();
+    // ── Instanced vegetation ──────────────────────────────────────────────────
+    m_vegetation.ClearAll();
+    m_vegetation.PlaceAll(m_heightfield, m_genSettings.seed);
 }
 
 void TerrainScene::UploadToGpu()
@@ -145,8 +145,6 @@ void TerrainScene::UploadToGpu()
         return;
     }
 
-    // Submit through the standard scene API. Zone/debug uniforms are pushed
-    // each frame in ApplyMaterialUniforms(); here we only wire up the mesh.
     RenderItem item;
     item.mesh     = m_terrainBuffer.get();
     item.material = m_terrainInstance.get();
@@ -156,13 +154,11 @@ void TerrainScene::UploadToGpu()
 
     if (!m_terrainAdded)
     {
-        // First time — add the object and record its index.
         m_terrainObjectIndex = AddObject(item);
         m_terrainAdded = true;
     }
     else
     {
-        // Subsequent regeneration — patch the existing item.
         RenderItem& existing = GetObject(m_terrainObjectIndex);
         existing.mesh = m_terrainBuffer.get();
     }
@@ -173,12 +169,6 @@ void TerrainScene::ApplyMaterialUniforms() const
     if (!m_terrainShader || !m_terrainShader->IsValid())
         return;
 
-    // These uniforms are not part of the standard PBR material schema, so the
-    // Material::Bind path does not touch them. We set them directly on the
-    // program; GL keeps uniform state in the program object, so values set here
-    // persist through the renderer's later material bind and into the draw call.
-    // The terrain shader is exclusive to this scene, so nothing else can clobber
-    // them between frames.
     m_terrainShader->Bind();
 
     for (int i = 0; i < 7; ++i)
@@ -195,209 +185,9 @@ void TerrainScene::ApplyMaterialUniforms() const
     ShaderProgram::Unbind();
 }
 
-// ─── SetupProps ──────────────────────────────────────────────────────────────
-// Loads prop models and builds per-material MaterialInstances.
-// Called once from Setup(); non-fatal on failure (props simply won't appear).
-
-void TerrainScene::SetupProps()
-{
-    m_propShader = AssetImporter::LoadShader(
-        "assets/shaders/mesh.vert",
-        "assets/shaders/mesh.frag");
-
-    if (!m_propShader || !m_propShader->IsValid())
-    {
-        spdlog::warn("[TerrainScene] Prop shader failed to load; props disabled");
-        return;
-    }
-
-    auto whiteFallback = std::make_shared<Texture2D>(
-        Texture2D::CreateFallback(200, 200, 200, 255));
-
-    auto loadModelMaterials = [&](const ModelData& model,
-                                  std::shared_ptr<Material>& baseMat,
-                                  std::vector<std::unique_ptr<MaterialInstance>>& instances)
-    {
-        baseMat = std::make_shared<Material>(m_propShader);
-        baseMat->SetVec4("u_TintColor", {1.0f, 1.0f, 1.0f, 1.0f});
-
-        for (const auto& matInfo : model.materials)
-        {
-            auto inst = std::make_unique<MaterialInstance>(baseMat);
-            inst->SetName(matInfo.name);
-
-            std::shared_ptr<Texture2D> diffuse;
-            if (!matInfo.diffusePath.empty())
-                diffuse = AssetImporter::LoadTexture(matInfo.diffusePath, TextureColorSpace::sRGB);
-            inst->SetTexture(TextureSlot::Albedo, diffuse ? diffuse : whiteFallback);
-
-            if (!matInfo.normalPath.empty())
-                if (auto n = AssetImporter::LoadTexture(matInfo.normalPath, TextureColorSpace::Linear))
-                    inst->SetTexture(TextureSlot::Normal, n);
-
-            if (!matInfo.metallicRoughnessPath.empty())
-                if (auto mr = AssetImporter::LoadTexture(matInfo.metallicRoughnessPath, TextureColorSpace::Linear))
-                {
-                    inst->SetTexture(TextureSlot::Metallic, mr);
-                    inst->SetTexture(TextureSlot::Roughness, mr);
-                }
-
-            if (!matInfo.emissivePath.empty())
-                if (auto em = AssetImporter::LoadTexture(matInfo.emissivePath, TextureColorSpace::sRGB))
-                    inst->SetTexture(TextureSlot::Emissive, em);
-
-            inst->SetVec3("u_AlbedoColor",    matInfo.albedoColor);
-            inst->SetFloat("u_MetallicValue",  matInfo.metallicValue);
-            inst->SetFloat("u_RoughnessValue", matInfo.roughnessValue);
-            inst->SetVec3("u_EmissiveColor",   matInfo.emissiveColor);
-            inst->SetFloat("u_NormalScale",    matInfo.normalScale);
-            inst->SetBool("u_IsSpecularGlossiness", matInfo.isSpecularGlossiness);
-
-            instances.push_back(std::move(inst));
-        }
-    };
-
-    // ── Tree ─────────────────────────────────────────────────────────────────
-    m_treeModel = AssetImporter::LoadModel("assets/models/gltf/tree/scene.gltf");
-    if (m_treeModel.IsValid())
-        loadModelMaterials(m_treeModel, m_treeBaseMat, m_treeMatInstances);
-    else
-        spdlog::warn("[TerrainScene] Tree model failed to load");
-
-    // ── Lantern ───────────────────────────────────────────────────────────────
-    m_lanternModel = AssetImporter::LoadModel("assets/models/gltf/lantern/Lantern.gltf");
-    if (m_lanternModel.IsValid())
-        loadModelMaterials(m_lanternModel, m_lanternBaseMat, m_lanternMatInstances);
-    else
-        spdlog::warn("[TerrainScene] Lantern model failed to load");
-}
-
-// ─── ClearProps ──────────────────────────────────────────────────────────────
-
-void TerrainScene::ClearProps()
-{
-    for (size_t idx : m_propItemPool)
-        GetObject(idx).flags.visible = false;
-    m_propPoolCursor  = 0;
-    m_treesPlaced     = 0;
-    m_lanternsPlaced  = 0;
-}
-
-// ─── PlaceProps ──────────────────────────────────────────────────────────────
-// Samples the heightfield with a stride controlled by m_propDensity.
-// Places trees where treeMask is high and lanterns on flat grass.
-// Reuses hidden RenderItem slots from the pool before allocating new ones.
-
-void TerrainScene::PlaceProps()
-{
-    if (!m_heightfield.IsValid()) return;
-
-    // Seeded RNG — same seed → same placement, matching terrain generation
-    std::mt19937 rng(m_genSettings.seed ^ 0xD34DB33Fu);
-    std::uniform_real_distribution<float> rotDist(0.0f, 360.0f);
-    std::uniform_real_distribution<float> jitterDist(0.88f, 1.12f);
-    std::uniform_real_distribution<float> sparseDist(0.0f, 1.0f);
-
-    const uint32_t W      = m_heightfield.width;
-    const uint32_t H      = m_heightfield.height;
-    const float    worldW = m_genSettings.worldWidth;
-    const float    worldH = m_genSettings.worldHeight;
-
-    // Stride in grid cells; lower = denser placement
-    const int stride = std::max(1, static_cast<int>(8.0f / m_propDensity));
-
-    const uint32_t treeSubCount    = m_treeModel.IsValid()    ? m_treeModel.mesh->SubMeshCount()    : 0;
-    const uint32_t lanternSubCount = m_lanternModel.IsValid() ? m_lanternModel.mesh->SubMeshCount() : 0;
-
-    // Reuse a hidden pool slot or add a new scene object
-    auto alloc = [&](const RenderItem& item)
-    {
-        if (m_propPoolCursor < m_propItemPool.size())
-        {
-            size_t idx = m_propItemPool[m_propPoolCursor++];
-            GetObject(idx) = item;   // item.flags.visible defaults to true
-        }
-        else
-        {
-            m_propItemPool.push_back(AddObject(item));
-            m_propPoolCursor++;
-        }
-    };
-
-    for (uint32_t z = 0; z < H; z += stride)
-    {
-        for (uint32_t x = 0; x < W; x += stride)
-        {
-            const TerrainSample& s = m_heightfield.At(x, z);
-
-            const float wx = (static_cast<float>(x) / static_cast<float>(W - 1) - 0.5f) * worldW;
-            const float wz = (static_cast<float>(z) / static_cast<float>(H - 1) - 0.5f) * worldH;
-            const float wy = s.height;
-
-            const float yaw    = rotDist(rng);
-            const float jitter = jitterDist(rng);
-
-            // ── Tree: high treeMask, not too steep ────────────────────────
-            if (treeSubCount > 0 && m_treesPlaced < m_maxTrees &&
-                s.treeMask > 0.45f && s.steepSlopeExclusion > 0.6f)
-            {
-                const float sc = m_treeScale * jitter;
-                for (uint32_t sub = 0; sub < treeSubCount; ++sub)
-                {
-                    const SubMesh& sm = m_treeModel.mesh->GetSubMesh(sub);
-                    RenderItem item;
-                    item.meshMulti    = m_treeModel.mesh.get();
-                    item.subMeshIndex = sub;
-                    item.material     = sm.materialIndex < m_treeMatInstances.size()
-                                        ? m_treeMatInstances[sm.materialIndex].get()
-                                        : (m_treeMatInstances.empty() ? nullptr : m_treeMatInstances[0].get());
-                    item.transform.SetTranslation({wx, wy, wz});
-                    item.transform.SetRotationEulerDegrees({0.0f, yaw, 0.0f});
-                    item.transform.SetScale({sc, sc, sc});
-                    item.flags.castShadow    = true;
-                    item.flags.receiveShadow = true;
-                    alloc(item);
-                }
-                ++m_treesPlaced;
-            }
-            // ── Lantern: flat grass, sparse (20 % of candidates) ──────────
-            else if (lanternSubCount > 0 && m_lanternsPlaced < m_maxLanterns &&
-                     s.grassMask > 0.55f && s.treeMask < 0.1f &&
-                     s.steepSlopeExclusion > 0.9f && sparseDist(rng) > 0.80f)
-            {
-                const float sc = m_lanternScale * jitter;
-                for (uint32_t sub = 0; sub < lanternSubCount; ++sub)
-                {
-                    const SubMesh& sm = m_lanternModel.mesh->GetSubMesh(sub);
-                    RenderItem item;
-                    item.meshMulti    = m_lanternModel.mesh.get();
-                    item.subMeshIndex = sub;
-                    item.material     = sm.materialIndex < m_lanternMatInstances.size()
-                                        ? m_lanternMatInstances[sm.materialIndex].get()
-                                        : (m_lanternMatInstances.empty() ? nullptr : m_lanternMatInstances[0].get());
-                    item.transform.SetTranslation({wx, wy, wz});
-                    item.transform.SetRotationEulerDegrees({0.0f, yaw, 0.0f});
-                    item.transform.SetScale({sc, sc, sc});
-                    item.flags.castShadow    = true;
-                    item.flags.receiveShadow = true;
-                    alloc(item);
-                }
-                ++m_lanternsPlaced;
-            }
-        }
-    }
-
-    spdlog::info("[TerrainScene] Props placed: {} trees, {} lanterns ({} RenderItems in pool)",
-                 m_treesPlaced, m_lanternsPlaced, m_propItemPool.size());
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
 void TerrainScene::OnUpdate(float deltaTime, IInputProvider& input)
 {
     UpdateStandardCameraAndPlayer(deltaTime, input, m_playerPos, m_moveDirXZ);
-
-    // Apply uniforms that may have changed via ImGui each frame.
     ApplyMaterialUniforms();
 
     if (m_needsRegenerate)
@@ -405,6 +195,15 @@ void TerrainScene::OnUpdate(float deltaTime, IInputProvider& input)
         m_needsRegenerate = false;
         Regenerate();
     }
+
+    // Per-frame frustum cull + SSBO upload for all vegetation groups.
+    const Camera& cam = GetCamera();
+    m_vegetation.CullAndUpload(cam.GetViewProjection(), cam.GetPosition());
+}
+
+void TerrainScene::OnPostRender()
+{
+    m_vegetation.DrawAll();
 }
 
 void TerrainScene::OnImGuiRender()
@@ -442,9 +241,6 @@ void TerrainScene::OnImGuiRender()
     ImGui::ColorEdit3("Fog Color##atm",  &m_fogColor.x);
 
     // ── Generation parameters ────────────────────────────────────────────────
-    // Editing a parameter only stages it; generation runs when "Regenerate" is
-    // pressed (or auto-regen is enabled) so dragging a slider does not rebuild
-    // a 65k-vertex mesh every frame.
     ImGui::SeparatorText("Generation");
 
     bool dirty = false;
@@ -511,7 +307,6 @@ void TerrainScene::OnImGuiRender()
         dirty |= ImGui::DragFloat("Evaporation",        &m_genSettings.erosionEvaporation,0.001f, 0.0f, 0.1f);
     }
 
-    // Track whether the staged settings differ from what is currently uploaded.
     if (dirty)
         m_settingsDirty = true;
 
@@ -558,28 +353,8 @@ void TerrainScene::OnImGuiRender()
         ImGui::TextColored({1.0f, 0.8f, 0.2f, 1.0f}, "* unsaved changes");
     }
 
-    // ── Props ─────────────────────────────────────────────────────────────────
-    ImGui::SeparatorText("Props");
-    ImGui::Text("Trees: %d / %d    Lanterns: %d / %d",
-                m_treesPlaced, m_maxTrees, m_lanternsPlaced, m_maxLanterns);
-
-    if (ImGui::Checkbox("Props Enabled", &m_propsEnabled))
-    {
-        ClearProps();
-        if (m_propsEnabled) PlaceProps();
-    }
-
-    ImGui::DragFloat("Density##props",      &m_propDensity,  0.05f, 0.25f, 2.0f, "%.2f");
-    ImGui::DragFloat("Tree Scale##props",   &m_treeScale,    0.1f,  0.1f, 50.0f);
-    ImGui::DragFloat("Lantern Scale##props",&m_lanternScale, 0.05f, 0.05f,  5.0f);
-    ImGui::DragInt  ("Max Trees##props",    &m_maxTrees,     1, 0, 500);
-    ImGui::DragInt  ("Max Lanterns##props", &m_maxLanterns,  1, 0, 200);
-
-    if (ImGui::Button("Reapply Props"))
-    {
-        ClearProps();
-        if (m_propsEnabled) PlaceProps();
-    }
+    // ── Vegetation ────────────────────────────────────────────────────────────
+    m_vegetation.OnImGui();
 
     ImGui::End();
 }

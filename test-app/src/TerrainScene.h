@@ -5,7 +5,7 @@
 #include "terrain/TerrainGenerator.h"
 #include "terrain/TerrainMeshBuilder.h"
 #include "core/Material.h"
-#include "assets/ModelData.h"
+#include "terrain/TerrainVegetation.h"
 
 #include <memory>
 #include <vector>
@@ -36,15 +36,13 @@ class TerrainScene : public Scene
 public:
     bool Setup();
     void OnUpdate(float deltaTime, IInputProvider &input) override;
+    void OnPostRender() override;
     void OnImGuiRender() override;
 
 private:
     void Regenerate();
     void UploadToGpu();
     void ApplyMaterialUniforms() const;
-    void SetupProps();
-    void ClearProps();
-    void PlaceProps();
 
     // ── Generation data ────────────────────────────────────────────────────
     TerrainGenerationSettings m_genSettings;
@@ -62,37 +60,12 @@ private:
     // Scene render-item index
     size_t m_terrainObjectIndex = 0;
 
-    // ── Props ──────────────────────────────────────────────────────────────
-    std::shared_ptr<ShaderProgram>              m_propShader;
-
-    ModelData                                   m_treeModel;
-    std::shared_ptr<Material>                   m_treeBaseMat;
-    std::vector<std::unique_ptr<MaterialInstance>> m_treeMatInstances;
-
-    ModelData                                   m_lanternModel;
-    std::shared_ptr<Material>                   m_lanternBaseMat;
-    std::vector<std::unique_ptr<MaterialInstance>> m_lanternMatInstances;
-
-    /// Flat pool of scene-object indices for all prop RenderItems.
-    /// Reused across regenerations to avoid unbounded scene-object growth.
-    std::vector<size_t> m_propItemPool;
-    size_t              m_propPoolCursor = 0;
-
-    // Placement counts (for ImGui display)
-    int m_treesPlaced    = 0;
-    int m_lanternsPlaced = 0;
-
-    // Prop settings
-    bool  m_propsEnabled  = true;
-    float m_propDensity   = 1.0f; ///< [0.25 .. 2.0] — higher = denser grid sample
-    float m_treeScale     = 1.0f;
-    float m_lanternScale  = 1.0f;
-    int   m_maxTrees      = 150;
-    int   m_maxLanterns   = 40;
-
     // ── Camera ─────────────────────────────────────────────────────────────
     glm::vec3 m_playerPos{0.0f, 0.0f, 0.0f};
     glm::vec3 m_moveDirXZ{0.0f, 0.0f, 0.0f};
+
+    // ── Vegetation ─────────────────────────────────────────────────────────
+    TerrainVegetation m_vegetation;
 
     // ── Atmosphere ─────────────────────────────────────────────────────────
     float     m_fogDensity = 0.0015f;
