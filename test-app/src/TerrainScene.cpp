@@ -212,8 +212,10 @@ void TerrainScene::OnPostRender()
 
 void TerrainScene::OnImGuiRender()
 {
-    ImGui::SetNextWindowSize({420, 520}, ImGuiCond_FirstUseEver);
-    if (!ImGui::Begin("Terrain Controls"))
+    ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+    ImGui::SetNextWindowPos(ImVec2(displaySize.x - 15.0f, 15.0f), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+    ImGui::SetNextWindowSize(ImVec2(420.0f, 500.0f), ImGuiCond_Always);
+    if (!ImGui::Begin("Terrain Controls", nullptr, ImGuiWindowFlags_NoMove))
     {
         ImGui::End();
         return;
@@ -272,60 +274,148 @@ void TerrainScene::OnImGuiRender()
     dirty |= ImGui::DragFloat("World Height (Z)", &m_genSettings.worldHeight, 1.0f, 64.0f, 2048.0f);
     dirty |= ImGui::DragFloat("Height Scale", &m_genSettings.heightScale, 0.5f, 10.0f, 500.0f);
 
-    ImGui::Spacing();
-    ImGui::Text("Rolling Hills");
-    dirty |= ImGui::DragFloat("Hill Scale",    &m_genSettings.hillScale,     0.0001f, 0.0001f, 0.05f, "%.4f");
-    dirty |= ImGui::DragFloat("Hill Amplitude",&m_genSettings.hillAmplitude, 0.01f,  0.0f, 1.0f);
-    dirty |= ImGui::DragInt  ("Hill Octaves",  &m_genSettings.hillOctaves,   1.0f,   1, 8);
+    if (ImGui::CollapsingHeader("Macro Landforms & Masks"))
+    {
+        dirty |= ImGui::DragFloat("Macro Scale", &m_genSettings.macroScale, 0.0001f, 0.0001f, 0.05f, "%.4f");
+        dirty |= ImGui::DragFloat("Macro Amplitude", &m_genSettings.macroAmplitude, 0.01f, 0.0f, 1.0f);
+        dirty |= ImGui::DragFloat("Broad Hill Scale", &m_genSettings.broadHillScale, 0.0001f, 0.0001f, 0.05f, "%.4f");
+        dirty |= ImGui::DragFloat("Broad Hill Strength", &m_genSettings.broadHillStrength, 0.01f, 0.0f, 1.0f);
+        dirty |= ImGui::DragFloat("Valley Scale", &m_genSettings.valleyScale, 0.0001f, 0.0001f, 0.05f, "%.4f");
+        dirty |= ImGui::DragFloat("Valley Strength", &m_genSettings.valleyStrength, 0.01f, 0.0f, 1.0f);
+        dirty |= ImGui::DragFloat("Region Mask Scale", &m_genSettings.regionMaskScale, 0.0001f, 0.0001f, 0.05f, "%.4f");
+    }
 
-    ImGui::Spacing();
-    ImGui::Text("Mountains");
-    dirty |= ImGui::DragFloat("Mountain Amplitude", &m_genSettings.mountainAmplitude, 0.01f, 0.0f, 1.0f);
-    dirty |= ImGui::DragFloat("Ridge Sharpness",    &m_genSettings.ridgeSharpness,    0.1f,  0.5f, 6.0f);
+    if (ImGui::CollapsingHeader("Rolling Hills"))
+    {
+        dirty |= ImGui::DragFloat("Hill Scale",    &m_genSettings.hillScale,     0.0001f, 0.0001f, 0.05f, "%.4f");
+        dirty |= ImGui::DragFloat("Hill Amplitude",&m_genSettings.hillAmplitude, 0.01f,  0.0f, 1.0f);
+        dirty |= ImGui::DragInt  ("Hill Octaves",  &m_genSettings.hillOctaves,   1.0f,   1, 8);
+        dirty |= ImGui::DragFloat("Hill Persistence", &m_genSettings.hillPersistence, 0.01f, 0.0f, 1.0f);
+        dirty |= ImGui::DragFloat("Hill Lacunarity", &m_genSettings.hillLacunarity, 0.05f, 1.0f, 5.0f);
+    }
 
-    ImGui::Spacing();
-    ImGui::Text("Detail");
-    dirty |= ImGui::DragFloat("Detail Scale",    &m_genSettings.detailScale,     0.001f, 0.001f, 0.1f, "%.3f");
-    dirty |= ImGui::DragFloat("Detail Amplitude",&m_genSettings.detailAmplitude, 0.005f, 0.0f,  0.3f);
+    if (ImGui::CollapsingHeader("Mountain Layers"))
+    {
+        dirty |= ImGui::DragFloat("Mtn Region Mask Scale", &m_genSettings.mountainRegionMaskScale, 0.0001f, 0.0001f, 0.05f, "%.4f");
+        dirty |= ImGui::DragFloat("Mountain Scale", &m_genSettings.mountainScale, 0.0001f, 0.0001f, 0.05f, "%.4f");
+        dirty |= ImGui::DragFloat("Mountain Amplitude", &m_genSettings.mountainAmplitude, 0.01f, 0.0f, 1.0f);
+        dirty |= ImGui::DragInt("Mountain Octaves", &m_genSettings.mountainOctaves, 1.0f, 1, 8);
+        dirty |= ImGui::DragFloat("Mountain Persistence", &m_genSettings.mountainPersistence, 0.01f, 0.0f, 1.0f);
+        dirty |= ImGui::DragFloat("Mountain Lacunarity", &m_genSettings.mountainLacunarity, 0.05f, 1.0f, 5.0f);
+        dirty |= ImGui::DragFloat("Ridge Sharpness",    &m_genSettings.ridgeSharpness,    0.1f,  0.5f, 6.0f);
+        ImGui::Separator();
+        dirty |= ImGui::DragFloat("Mtn Ridge Scale", &m_genSettings.mountainRidgeScale, 0.0001f, 0.0001f, 0.05f, "%.4f");
+        dirty |= ImGui::DragFloat("Mtn Ridge Strength", &m_genSettings.mountainRidgeStrength, 0.01f, 0.0f, 1.0f);
+        dirty |= ImGui::DragInt("Mtn Ridge Octaves", &m_genSettings.mountainRidgeOctaves, 1.0f, 1, 8);
+        dirty |= ImGui::DragFloat("Mtn Ridge Persistence", &m_genSettings.mountainRidgePersistence, 0.01f, 0.0f, 1.0f);
+        dirty |= ImGui::DragFloat("Mtn Ridge Lacunarity", &m_genSettings.mountainRidgeLacunarity, 0.05f, 1.0f, 5.0f);
+    }
+
+    if (ImGui::CollapsingHeader("Plateau Layer"))
+    {
+        dirty |= ImGui::DragFloat("Plateau Region Scale", &m_genSettings.plateauRegionScale, 0.0001f, 0.0001f, 0.05f, "%.4f");
+        dirty |= ImGui::DragFloat("Plateau Threshold", &m_genSettings.plateauThreshold, 0.01f, 0.0f, 1.0f);
+        dirty |= ImGui::DragFloat("Plateau Strength", &m_genSettings.plateauStrength, 0.01f, 0.0f, 1.0f);
+        dirty |= ImGui::DragFloat("Plateau Flattening", &m_genSettings.plateauFlatteningAmount, 0.01f, 0.0f, 1.0f);
+    }
+
+    if (ImGui::CollapsingHeader("Detail Layer"))
+    {
+        dirty |= ImGui::DragFloat("Detail Scale",    &m_genSettings.detailScale,     0.001f, 0.001f, 0.1f, "%.3f");
+        dirty |= ImGui::DragFloat("Detail Amplitude",&m_genSettings.detailAmplitude, 0.005f, 0.0f,  0.3f);
+    }
+
+    if (ImGui::CollapsingHeader("Volcano Layer"))
+    {
+        dirty |= ImGui::Checkbox("Volcano Enabled##volc", &m_genSettings.volcanoEnabled);
+        if (m_genSettings.volcanoEnabled)
+        {
+            dirty |= ImGui::DragFloat("Rim Radius##v",    &m_genSettings.volcanoRimRadius,         0.01f, 0.10f, 0.80f);
+            dirty |= ImGui::DragFloat("Cone Height##v",   &m_genSettings.volcanoConeHeight,        0.01f, 0.00f, 1.50f);
+            dirty |= ImGui::DragFloat("Caldera Depth##v", &m_genSettings.volcanoCalderaDepth,      0.01f, 0.00f, 0.80f);
+            dirty |= ImGui::DragFloat("Caldera Outer##v", &m_genSettings.volcanoCalderaOuterRatio, 0.01f, 0.10f, 0.90f);
+            dirty |= ImGui::DragFloat("Caldera Inner##v", &m_genSettings.volcanoCalderaInnerRatio, 0.01f, 0.01f, 0.50f);
+        }
+    }
+
+    if (ImGui::CollapsingHeader("Domain Warp Layer"))
+    {
+        dirty |= ImGui::Checkbox("Warp Enabled##dw", &m_genSettings.domainWarpEnabled);
+        if (m_genSettings.domainWarpEnabled)
+        {
+            dirty |= ImGui::DragFloat("Warp Scale##w",    &m_genSettings.domainWarpScale,    0.0001f, 0.0001f, 0.02f, "%.4f");
+            dirty |= ImGui::DragFloat("Warp Strength##w", &m_genSettings.domainWarpStrength, 1.0f,    0.0f,    120.0f);
+        }
+    }
+
+    if (ImGui::CollapsingHeader("Erosion Layer (Stretch)"))
+    {
+        dirty |= ImGui::Checkbox("Enable Erosion##eros", &m_genSettings.erosionEnabled);
+        if (m_genSettings.erosionEnabled)
+        {
+            dirty |= ImGui::DragInt  ("Erosion Iterations", &m_genSettings.erosionIterations, 1000, 1000, 500000);
+            dirty |= ImGui::DragFloat("Erosion Capacity",   &m_genSettings.erosionCapacity,   0.1f, 0.5f, 20.0f);
+            dirty |= ImGui::DragFloat("Erosion Inertia",    &m_genSettings.erosionInertia,    0.01f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Erosion Deposition", &m_genSettings.erosionDeposition, 0.01f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Evaporation",        &m_genSettings.erosionEvaporation,0.001f, 0.0f, 0.1f);
+        }
+    }
 
     // ── Classification thresholds ─────────────────────────────────────────────
-    ImGui::SeparatorText("Material Thresholds");
-    dirty |= ImGui::DragFloat("Grass Max H",  &m_classSettings.grassMaxStart,  0.01f, 0.0f, 1.0f);
-    dirty |= ImGui::DragFloat("Forest Max H", &m_classSettings.forestMaxStart, 0.01f, 0.0f, 1.0f);
-    dirty |= ImGui::DragFloat("Snow Start H", &m_classSettings.snowStart,      0.01f, 0.0f, 1.0f);
-    dirty |= ImGui::DragFloat("Rock Slope",   &m_classSettings.rockSlopeStart, 0.01f, 0.0f, 1.0f);
-
-    // ── Volcano ───────────────────────────────────────────────────────────────
-    ImGui::SeparatorText("Volcano");
-    dirty |= ImGui::Checkbox("Volcano Enabled", &m_genSettings.volcanoEnabled);
-    if (m_genSettings.volcanoEnabled)
+    if (ImGui::CollapsingHeader("Material & Mask Thresholds"))
     {
-        dirty |= ImGui::DragFloat("Rim Radius##v",    &m_genSettings.volcanoRimRadius,         0.01f, 0.10f, 0.80f);
-        dirty |= ImGui::DragFloat("Cone Height##v",   &m_genSettings.volcanoConeHeight,        0.01f, 0.00f, 1.50f);
-        dirty |= ImGui::DragFloat("Caldera Depth##v", &m_genSettings.volcanoCalderaDepth,      0.01f, 0.00f, 0.80f);
-        dirty |= ImGui::DragFloat("Caldera Outer##v", &m_genSettings.volcanoCalderaOuterRatio, 0.01f, 0.10f, 0.90f);
-        dirty |= ImGui::DragFloat("Caldera Inner##v", &m_genSettings.volcanoCalderaInnerRatio, 0.01f, 0.01f, 0.50f);
-    }
+        if (ImGui::TreeNode("Height Bands (0..1)"))
+        {
+            dirty |= ImGui::DragFloat("Deep Water Height", &m_classSettings.deepWaterHeight, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Shallow Water Height", &m_classSettings.shallowWaterHeight, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Sand Height", &m_classSettings.sandHeight, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Grass Min Start", &m_classSettings.grassMinStart, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Grass Min End", &m_classSettings.grassMinEnd, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Grass Max Start", &m_classSettings.grassMaxStart, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Grass Max End", &m_classSettings.grassMaxEnd, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Forest Min Start", &m_classSettings.forestMinStart, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Forest Min End", &m_classSettings.forestMinEnd, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Forest Max Start", &m_classSettings.forestMaxStart, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Forest Max End", &m_classSettings.forestMaxEnd, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Mountain Start", &m_classSettings.mountainStart, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Mountain Full", &m_classSettings.mountainFull, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Snow Start", &m_classSettings.snowStart, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Snow Full", &m_classSettings.snowFull, 0.005f, 0.0f, 1.0f);
+            ImGui::TreePop();
+        }
 
-    // ── Domain Warp ───────────────────────────────────────────────────────────
-    ImGui::SeparatorText("Domain Warp");
-    dirty |= ImGui::Checkbox("Warp Enabled", &m_genSettings.domainWarpEnabled);
-    if (m_genSettings.domainWarpEnabled)
-    {
-        dirty |= ImGui::DragFloat("Warp Scale##w",    &m_genSettings.domainWarpScale,    0.0001f, 0.0001f, 0.02f, "%.4f");
-        dirty |= ImGui::DragFloat("Warp Strength##w", &m_genSettings.domainWarpStrength, 1.0f,    0.0f,    120.0f);
-    }
+        if (ImGui::TreeNode("Slope Limits (0..1)"))
+        {
+            dirty |= ImGui::DragFloat("Sand Slope Start", &m_classSettings.sandSlopeStart, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Sand Slope End", &m_classSettings.sandSlopeEnd, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Grass Slope Start", &m_classSettings.grassSlopeStart, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Grass Slope End", &m_classSettings.grassSlopeEnd, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Forest Slope Start", &m_classSettings.forestSlopeStart, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Forest Slope End", &m_classSettings.forestSlopeEnd, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Rock Slope Start", &m_classSettings.rockSlopeStart, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Rock Slope End", &m_classSettings.rockSlopeEnd, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Snow Slope Start", &m_classSettings.snowSlopeStart, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Snow Slope End", &m_classSettings.snowSlopeEnd, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Exclude Slope Start", &m_classSettings.excludeSlopeStart, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Exclude Slope End", &m_classSettings.excludeSlopeEnd, 0.005f, 0.0f, 1.0f);
+            ImGui::TreePop();
+        }
 
-    // ── Erosion ───────────────────────────────────────────────────────────────
-    ImGui::SeparatorText("Erosion (Stretch)");
-    dirty |= ImGui::Checkbox("Enable Erosion", &m_genSettings.erosionEnabled);
-    if (m_genSettings.erosionEnabled)
-    {
-        dirty |= ImGui::DragInt  ("Erosion Iterations", &m_genSettings.erosionIterations, 1000, 1000, 500000);
-        dirty |= ImGui::DragFloat("Erosion Capacity",   &m_genSettings.erosionCapacity,   0.1f, 0.5f, 20.0f);
-        dirty |= ImGui::DragFloat("Erosion Inertia",    &m_genSettings.erosionInertia,    0.01f, 0.0f, 1.0f);
-        dirty |= ImGui::DragFloat("Erosion Deposition", &m_genSettings.erosionDeposition, 0.01f, 0.0f, 1.0f);
-        dirty |= ImGui::DragFloat("Evaporation",        &m_genSettings.erosionEvaporation,0.001f, 0.0f, 0.1f);
+        if (ImGui::TreeNode("Vegetation Constraints"))
+        {
+            dirty |= ImGui::DragFloat("Tree Min Start", &m_classSettings.treeMinStart, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Tree Min End", &m_classSettings.treeMinEnd, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Tree Max Start", &m_classSettings.treeMaxStart, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Tree Max End", &m_classSettings.treeMaxEnd, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Tree Slope Start", &m_classSettings.treeSlopeStart, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Tree Slope End", &m_classSettings.treeSlopeEnd, 0.005f, 0.0f, 1.0f);
+            ImGui::Separator();
+            dirty |= ImGui::DragFloat("Rock Mask Height Start", &m_classSettings.rockMaskHeightStart, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Rock Mask Height End", &m_classSettings.rockMaskHeightEnd, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Rock Mask Slope Start", &m_classSettings.rockMaskSlopeStart, 0.005f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Rock Mask Slope End", &m_classSettings.rockMaskSlopeEnd, 0.005f, 0.0f, 1.0f);
+            ImGui::TreePop();
+        }
     }
 
     if (dirty)
