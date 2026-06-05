@@ -357,7 +357,9 @@ void TerrainScene::OnImGuiRender()
             dirty |= ImGui::DragFloat("Erosion Capacity",   &m_genSettings.erosionCapacity,   0.1f, 0.5f, 20.0f);
             dirty |= ImGui::DragFloat("Erosion Inertia",    &m_genSettings.erosionInertia,    0.01f, 0.0f, 1.0f);
             dirty |= ImGui::DragFloat("Erosion Deposition", &m_genSettings.erosionDeposition, 0.01f, 0.0f, 1.0f);
+            dirty |= ImGui::DragFloat("Erosion Strength",   &m_genSettings.erosionErosion,    0.01f, 0.0f, 1.0f);
             dirty |= ImGui::DragFloat("Evaporation",        &m_genSettings.erosionEvaporation,0.001f, 0.0f, 0.1f);
+            dirty |= ImGui::DragFloat("Min Slope",          &m_genSettings.erosionMinSlope,   0.001f, 0.0f, 1.0f);
         }
     }
 

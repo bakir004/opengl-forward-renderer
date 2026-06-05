@@ -225,6 +225,7 @@ struct TerrainVertex
     float     mountainMask    = 0.0f;
     float     grassSuitability = 0.0f;
     float     treeSuitability  = 0.0f;
+    float     rockSuitability  = 0.0f;
 };
 
 struct TerrainBounds
