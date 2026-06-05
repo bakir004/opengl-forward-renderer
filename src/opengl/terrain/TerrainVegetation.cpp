@@ -589,6 +589,8 @@ void TerrainVegetation::PlaceSandZone(const TerrainHeightfield& hf,
     for (uint32_t x = 0; x < hf.width;  x += stride)
     {
         const TerrainSample& s = hf.At(x, z);
+        if (s.materialZone == TerrainMaterialZone::DeepWater ||
+            s.materialZone == TerrainMaterialZone::ShallowWater) continue;
         if (s.normalizedHeight > m_sandHeightMax) continue;
         if (s.grassMask > 0.12f || s.treeMask > 0.05f) continue;
         if (s.steepSlopeExclusion < 0.7f) continue;

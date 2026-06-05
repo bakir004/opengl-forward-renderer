@@ -262,7 +262,7 @@ TerrainHeightfield GenerateHeightfield(const TerrainGenerationSettings& settings
             const float broadHillShape = MacroShapeVariation(wwx, wwz, settings.broadHillScale, settings.seed + 811u);
             const float valleyShape = MacroShapeVariation(wwx, wwz, settings.valleyScale, settings.seed + 907u);
 
-            float h = 0.18f;
+            float h = 0.08f;
             h += (macro - 0.5f) * settings.macroAmplitude * 0.55f;
             h += broadHillShape * Clamp01(settings.broadHillStrength) * regionMask.broadHills;
             h -= valleyShape * Clamp01(settings.valleyStrength) * regionMask.valleys;
@@ -429,9 +429,12 @@ TerrainHeightfield LoadHeightmapFromPNG(
                  w, h, is16 ? "16-bit" : "8-bit", path);
 
     TerrainHeightfield hf;
-    hf.settings = settings;
-    hf.width    = static_cast<uint32_t>(w);
-    hf.height   = static_cast<uint32_t>(h);
+    hf.settings        = settings;
+    hf.width           = static_cast<uint32_t>(w);
+    hf.height          = static_cast<uint32_t>(h);
+    // Preserve the image's aspect ratio in world space so non-square maps
+    // don't get squashed.  worldWidth stays as configured; worldHeight scales.
+    hf.settings.worldHeight = settings.worldWidth * (static_cast<float>(h) / static_cast<float>(w));
     hf.samples.resize(static_cast<size_t>(w) * h);
     hf.minHeight =  std::numeric_limits<float>::max();
     hf.maxHeight = -std::numeric_limits<float>::max();
@@ -460,6 +463,67 @@ TerrainHeightfield LoadHeightmapFromPNG(
 
     if (is16) stbi_image_free(px16);
     else      stbi_image_free(px8);
+
+    // Remap to [0, 1] based on the actual pixel range so the full heightScale
+    // is used regardless of what grey levels the image occupies.
+    {
+        float rawMin = std::numeric_limits<float>::max();
+        float rawMax = std::numeric_limits<float>::lowest();
+        for (const TerrainSample& s : hf.samples)
+        {
+            rawMin = std::min(rawMin, s.normalizedHeight);
+            rawMax = std::max(rawMax, s.normalizedHeight);
+        }
+        const float range = rawMax - rawMin;
+        if (range > 1e-6f)
+        {
+            const float invRange = 1.0f / range;
+            for (TerrainSample& s : hf.samples)
+            {
+                s.normalizedHeight = (s.normalizedHeight - rawMin) * invRange;
+                s.height           = s.normalizedHeight * settings.heightScale;
+            }
+        }
+        spdlog::info("[TerrainGenerator] Heightmap pixel range remapped: [{:.4f}, {:.4f}] → [0, 1]",
+                     rawMin, rawMax);
+    }
+
+    // Update heightfield bounds after remapping.
+    hf.minHeight = 0.0f;
+    hf.maxHeight = settings.heightScale;
+
+    // Box-blur to remove quantization spikes from low-bit-depth PNGs.
+    const int smoothPasses = std::max(0, settings.heightmapSmoothPasses);
+    if (smoothPasses > 0)
+    {
+        std::vector<float> tmp(static_cast<size_t>(w) * h);
+        for (int pass = 0; pass < smoothPasses; ++pass)
+        {
+            for (int z = 0; z < h; ++z)
+            for (int x = 0; x < w; ++x)
+            {
+                float sum = 0.0f;
+                int   cnt = 0;
+                for (int dz = -1; dz <= 1; ++dz)
+                for (int dx = -1; dx <= 1; ++dx)
+                {
+                    int nx = x + dx, nz = z + dz;
+                    if (nx < 0 || nx >= w || nz < 0 || nz >= h) continue;
+                    sum += hf.At(static_cast<uint32_t>(nx),
+                                 static_cast<uint32_t>(nz)).normalizedHeight;
+                    ++cnt;
+                }
+                tmp[static_cast<size_t>(z) * w + x] = sum / static_cast<float>(cnt);
+            }
+            for (int z = 0; z < h; ++z)
+            for (int x = 0; x < w; ++x)
+            {
+                TerrainSample& s   = hf.At(static_cast<uint32_t>(x), static_cast<uint32_t>(z));
+                s.normalizedHeight = tmp[static_cast<size_t>(z) * w + x];
+                s.height           = s.normalizedHeight * settings.heightScale;
+            }
+        }
+    }
 
     RebuildDerivedData(hf, classificationSettings);
     return hf;

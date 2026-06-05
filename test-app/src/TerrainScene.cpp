@@ -259,8 +259,10 @@ void TerrainScene::OnImGuiRender()
             m_genSettings.heightmapPath = s_pathBuf;
             dirty = true;
         }
-        dirty |= ImGui::DragFloat("Gamma##hm",  &m_genSettings.heightmapGamma, 0.01f, 0.1f, 4.0f, "%.2f");
-        dirty |= ImGui::Checkbox ("Flip Y##hm", &m_genSettings.heightmapFlipY);
+        dirty |= ImGui::DragFloat("Gamma##hm",        &m_genSettings.heightmapGamma,       0.01f, 0.1f,  4.0f, "%.2f");
+        dirty |= ImGui::Checkbox ("Flip Y##hm",       &m_genSettings.heightmapFlipY);
+        dirty |= ImGui::DragInt  ("Smooth Passes##hm", &m_genSettings.heightmapSmoothPasses, 1,    0,     8);
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Box-blur passes to remove PNG quantization spikes");
     }
 
     // ── Generation parameters ────────────────────────────────────────────────
