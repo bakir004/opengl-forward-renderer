@@ -120,7 +120,7 @@ public:
     float m_treeMaskMin     = 0.28f;
     float m_grassMaskMin    = 0.28f;
     float m_rockMaskMin     = 0.32f;
-    float m_sandHeightMax   = 0.10f;  ///< Normalised height ceiling for sand zone
+    float m_sandHeightMax   = 0.15f;  ///< Normalised height ceiling for sand zone
 
 private:
     struct SpatialGrid;             // Forward-declared — defined in .cpp

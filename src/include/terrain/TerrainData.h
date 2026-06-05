@@ -35,7 +35,7 @@ struct TerrainGenerationSettings
     float broadHillScale    = 0.0012f; ///< Spatial frequency of broad hill noise
     float broadHillStrength = 0.16f;   ///< Contribution strength of broad hill shaping [0..1]
     float valleyScale       = 0.0012f; ///< Spatial frequency of valley noise
-    float valleyStrength    = 0.14f;   ///< Contribution strength of valley shaping [0..1]
+    float valleyStrength    = 0.20f;   ///< Contribution strength of valley shaping [0..1]
 
     // ── Rolling hills layer ───────────────────────────────────────────────────
     float hillScale     = 0.004f;  ///< Spatial frequency of rolling hills
@@ -104,9 +104,10 @@ struct TerrainGenerationSettings
     // When useHeightmap is true, LoadHeightmapFromPNG is used instead of the
     // procedural stack.  gridWidth/Height are ignored; dimensions come from the image.
     bool        useHeightmap   = false; ///< Load from PNG instead of procedural generation
-    std::string heightmapPath  = "assets/heightmap/HeightMap.png"; ///< Path to a greyscale PNG (8- or 16-bit)
+    std::string heightmapPath  = "assets/heightmap/map.png"; ///< Path to a greyscale PNG (8- or 16-bit)
     float       heightmapGamma = 1.0f;  ///< Power curve on normalised height (1.0 = linear)
     bool        heightmapFlipY = false; ///< Flip rows vertically if terrain appears inverted
+    int         heightmapSmoothPasses = 2; ///< Box-blur passes after load to remove quantization spikes (0 = off)
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
