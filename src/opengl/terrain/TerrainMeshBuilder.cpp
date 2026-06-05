@@ -68,6 +68,7 @@ TerrainMeshData BuildMeshData(const TerrainHeightfield& heightfield)
             v.mountainMask     = sample.mountainMask;
             v.grassSuitability = sample.grassSuitability;
             v.treeSuitability  = sample.treeSuitability;
+            v.rockSuitability  = sample.rockSuitability;
 
             boundsMin = glm::min(boundsMin, v.position);
             boundsMax = glm::max(boundsMax, v.position);
@@ -124,7 +125,7 @@ std::unique_ptr<MeshBuffer> UploadMeshData(const TerrainMeshData& meshData)
     }
 
     // TerrainVertex packs: position(vec3), normal(vec3), uv(vec2), tangent(vec4),
-    // then four extra floats for per-vertex mask data.
+    // then five extra floats for per-vertex zone/mask data.
     // The renderer only needs locations 0-3 to match mesh.vert; the extra floats
     // sit after tangent in memory and are ignored by the standard shader.
     // A terrain-specific shader can declare additional layout locations to read them.
@@ -134,6 +135,7 @@ std::unique_ptr<MeshBuffer> UploadMeshData(const TerrainMeshData& meshData)
         { 2, 2, GL_FLOAT, GL_FALSE }, // uv
         { 3, 4, GL_FLOAT, GL_FALSE }, // tangent (xyz + handedness)
         { 4, 4, GL_FLOAT, GL_FALSE }, // materialZone, mountainMask, grassSuitable, treeSuitable
+        { 5, 1, GL_FLOAT, GL_FALSE }, // rockSuitable
     });
 
     auto buffer = std::make_unique<MeshBuffer>(

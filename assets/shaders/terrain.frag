@@ -6,6 +6,7 @@ in vec2  v_UV;
 in mat3  v_TBN;
 in float v_ViewDepth;
 in vec4  v_TerrainData; // x=materialZone, y=mountainMask, z=grassSuitable, w=treeSuitable
+in float v_RockSuitability;
 
 layout(std140, binding = 0) uniform Camera {
     mat4 view;
@@ -322,6 +323,7 @@ void main()
     float mountMask = v_TerrainData.y;
     float grassM   = v_TerrainData.z;
     float treeM    = v_TerrainData.w;
+    float rockM    = v_RockSuitability;
 
     vec3  nrm   = normalize(v_Normal);
     float slope = clamp(1.0 - nrm.y, 0.0, 1.0);
@@ -347,11 +349,7 @@ void main()
     }
     if (u_DebugView == DEBUG_ROCK_MASK)
     {
-        float rock = clamp(
-            max(smoothstep(0.55, 0.80, h01), smoothstep(0.35, 0.65, slope))
-            * (1.0 - grassM) * (1.0 - treeM),
-            0.0, 1.0);
-        FragColor = vec4(vec3(rock), 1.0);
+        FragColor = vec4(vec3(clamp(rockM, 0.0, 1.0)), 1.0);
         return;
     }
 
