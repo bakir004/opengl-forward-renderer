@@ -67,7 +67,10 @@ struct TerrainGenerationSettings
     // ── Small detail layer ────────────────────────────────────────────────────
     float detailScale     = 0.025f; ///< Spatial frequency of fine-grained detail
     float detailAmplitude = 0.06f;  ///< Contribution weight [0..1] — intentionally small
-
+    // ── Height smoothing / anti-noise
+    int   heightSmoothingPasses      = 1;   ///< Blur/median passes after the procedural fBM stack
+    bool  heightSmoothingMedian      = false; ///< Use median filtering instead of average smoothing
+    int   postErosionSmoothingPasses = 1;   ///< Optional smoothing after erosion
     // ── Low-frequency region masks ────────────────────────────────────────────
     float regionMaskScale = 0.0006f; ///< Spatial frequency of region-blending mask
 

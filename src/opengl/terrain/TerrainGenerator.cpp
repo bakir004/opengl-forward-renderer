@@ -1,8 +1,10 @@
 #include "terrain/TerrainGenerator.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
+#include <random>
 #include <vector>
 #include <glm/geometric.hpp>
 #include <spdlog/spdlog.h>
@@ -113,6 +115,266 @@ float MacroShapeVariation(float wx, float wz, float scale, uint32_t seed)
 {
     const float n = Fbm(wx * scale, wz * scale, seed, kMacroShapeOctaves, 0.55f, 2.0f);
     return Smoothstep(0.20f, 0.85f, n);
+}
+
+float SampleHeightfield(const TerrainHeightfield& hf, float fx, float fz)
+{
+    fx = std::clamp(fx, 0.0f, static_cast<float>(hf.width - 1));
+    fz = std::clamp(fz, 0.0f, static_cast<float>(hf.height - 1));
+
+    const uint32_t x0 = static_cast<uint32_t>(std::floor(fx));
+    const uint32_t z0 = static_cast<uint32_t>(std::floor(fz));
+    const uint32_t x1 = std::min(x0 + 1, hf.width - 1);
+    const uint32_t z1 = std::min(z0 + 1, hf.height - 1);
+    const float sx = fx - static_cast<float>(x0);
+    const float sz = fz - static_cast<float>(z0);
+
+    const float h00 = hf.At(x0, z0).height;
+    const float h10 = hf.At(x1, z0).height;
+    const float h01 = hf.At(x0, z1).height;
+    const float h11 = hf.At(x1, z1).height;
+
+    const float hx0 = Lerp(h00, h10, sx);
+    const float hx1 = Lerp(h01, h11, sx);
+    return Lerp(hx0, hx1, sz);
+}
+
+float SampleHeightfield(const std::vector<float>& heights,
+                        uint32_t width,
+                        uint32_t height,
+                        float fx,
+                        float fz)
+{
+    fx = std::clamp(fx, 0.0f, static_cast<float>(width - 1));
+    fz = std::clamp(fz, 0.0f, static_cast<float>(height - 1));
+
+    const uint32_t x0 = static_cast<uint32_t>(std::floor(fx));
+    const uint32_t z0 = static_cast<uint32_t>(std::floor(fz));
+    const uint32_t x1 = std::min(x0 + 1, width - 1);
+    const uint32_t z1 = std::min(z0 + 1, height - 1);
+    const float sx = fx - static_cast<float>(x0);
+    const float sz = fz - static_cast<float>(z0);
+
+    const float h00 = heights[z0 * width + x0];
+    const float h10 = heights[z0 * width + x1];
+    const float h01 = heights[z1 * width + x0];
+    const float h11 = heights[z1 * width + x1];
+
+    const float hx0 = Lerp(h00, h10, sx);
+    const float hx1 = Lerp(h01, h11, sx);
+    return Lerp(hx0, hx1, sz);
+}
+
+glm::vec2 SampleHeightfieldGradient(const std::vector<float>& heights,
+                                    uint32_t width,
+                                    uint32_t height,
+                                    float fx,
+                                    float fz)
+{
+    fx = std::clamp(fx, 0.0f, static_cast<float>(width - 1));
+    fz = std::clamp(fz, 0.0f, static_cast<float>(height - 1));
+
+    const uint32_t x0 = static_cast<uint32_t>(std::floor(fx));
+    const uint32_t z0 = static_cast<uint32_t>(std::floor(fz));
+    const uint32_t x1 = std::min(x0 + 1, width - 1);
+    const uint32_t z1 = std::min(z0 + 1, height - 1);
+    const float sx = fx - static_cast<float>(x0);
+    const float sz = fz - static_cast<float>(z0);
+
+    const float h00 = heights[z0 * width + x0];
+    const float h10 = heights[z0 * width + x1];
+    const float h01 = heights[z1 * width + x0];
+    const float h11 = heights[z1 * width + x1];
+
+    const float dhdx = ((1.0f - sz) * (h10 - h00) + sz * (h11 - h01));
+    const float dhdz = ((1.0f - sx) * (h01 - h00) + sx * (h11 - h10));
+    return {dhdx, dhdz};
+}
+
+void UpdateHeightBounds(TerrainHeightfield& hf)
+{
+    hf.minHeight = std::numeric_limits<float>::max();
+    hf.maxHeight = std::numeric_limits<float>::lowest();
+    for (const TerrainSample& sample : hf.samples)
+    {
+        hf.minHeight = std::min(hf.minHeight, sample.height);
+        hf.maxHeight = std::max(hf.maxHeight, sample.height);
+    }
+}
+
+void SmoothHeightfield(TerrainHeightfield& hf, int passes, bool median)
+{
+    if (!hf.IsValid() || passes <= 0)
+        return;
+
+    const uint32_t width = hf.width;
+    const uint32_t height = hf.height;
+    std::vector<float> tmp(static_cast<size_t>(width) * height);
+    std::array<float, 9> window;
+
+    for (int pass = 0; pass < passes; ++pass)
+    {
+        for (uint32_t z = 0; z < height; ++z)
+        {
+            for (uint32_t x = 0; x < width; ++x)
+            {
+                int count = 0;
+                float sum = 0.0f;
+                for (int dz = -1; dz <= 1; ++dz)
+                {
+                    for (int dx = -1; dx <= 1; ++dx)
+                    {
+                        const int nx = static_cast<int>(x) + dx;
+                        const int nz = static_cast<int>(z) + dz;
+                        if (nx < 0 || nx >= static_cast<int>(width) || nz < 0 || nz >= static_cast<int>(height))
+                            continue;
+                        const float value = hf.At(static_cast<uint32_t>(nx), static_cast<uint32_t>(nz)).normalizedHeight;
+                        window[count++] = value;
+                        sum += value;
+                    }
+                }
+
+                const size_t idx = static_cast<size_t>(z) * width + x;
+                if (median)
+                {
+                    std::sort(window.begin(), window.begin() + count);
+                    tmp[idx] = window[count / 2];
+                }
+                else
+                {
+                    tmp[idx] = sum / static_cast<float>(std::max(1, count));
+                }
+            }
+        }
+
+        for (uint32_t z = 0; z < height; ++z)
+        {
+            for (uint32_t x = 0; x < width; ++x)
+            {
+                TerrainSample& sample = hf.At(x, z);
+                const float normalized = Clamp01(tmp[static_cast<size_t>(z) * width + x]);
+                sample.normalizedHeight = normalized;
+                sample.height = normalized * hf.settings.heightScale;
+            }
+        }
+    }
+
+    UpdateHeightBounds(hf);
+}
+
+void ApplyHydraulicErosion(TerrainHeightfield& hf, const TerrainGenerationSettings& settings)
+{
+    if (!hf.IsValid() || !settings.erosionEnabled || settings.erosionIterations <= 0)
+        return;
+
+    const uint32_t width = hf.width;
+    const uint32_t height = hf.height;
+    const size_t sampleCount = static_cast<size_t>(width) * height;
+    std::vector<float> heights(sampleCount);
+    std::vector<float> erosionAmount(sampleCount, 0.0f);
+    std::vector<float> depositionAmount(sampleCount, 0.0f);
+
+    for (size_t idx = 0; idx < sampleCount; ++idx)
+        heights[idx] = hf.samples[idx].height;
+
+    std::mt19937 rng(settings.seed);
+    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+
+    constexpr int kMaxDropletSteps = 30;
+    constexpr float kMinSedimentCapacity = 0.01f;
+
+    for (int iteration = 0; iteration < settings.erosionIterations; ++iteration)
+    {
+        float posX = dist(rng) * static_cast<float>(width - 1);
+        float posZ = dist(rng) * static_cast<float>(height - 1);
+        float dirX = 0.0f;
+        float dirZ = 0.0f;
+        float speed = 1.0f;
+        float water = 1.0f;
+        float sediment = 0.0f;
+
+        for (int step = 0; step < kMaxDropletSteps; ++step)
+        {
+            const float currentHeight = SampleHeightfield(heights, width, height, posX, posZ);
+            const glm::vec2 gradient = SampleHeightfieldGradient(heights, width, height, posX, posZ);
+
+            dirX = dirX * settings.erosionInertia - gradient.x * (1.0f - settings.erosionInertia);
+            dirZ = dirZ * settings.erosionInertia - gradient.y * (1.0f - settings.erosionInertia);
+
+            float dirLen = std::sqrt(dirX * dirX + dirZ * dirZ);
+            if (dirLen < 1e-5f)
+            {
+                dirX = dist(rng) - 0.5f;
+                dirZ = dist(rng) - 0.5f;
+                dirLen = std::sqrt(dirX * dirX + dirZ * dirZ);
+                if (dirLen < 1e-5f)
+                    break;
+            }
+            dirX /= dirLen;
+            dirZ /= dirLen;
+
+            const float nextX = posX + dirX;
+            const float nextZ = posZ + dirZ;
+            if (nextX < 0.0f || nextX > static_cast<float>(width - 1) || nextZ < 0.0f || nextZ > static_cast<float>(height - 1))
+                break;
+
+            const float nextHeight = SampleHeightfield(heights, width, height, nextX, nextZ);
+            const float deltaHeight = nextHeight - currentHeight;
+            const float descent = std::max(-deltaHeight, 0.0f);
+            const float capacity = std::max(descent * speed * water * settings.erosionCapacity,
+                                            kMinSedimentCapacity);
+
+            const int cellX = std::clamp(static_cast<int>(posX + 0.5f), 0, static_cast<int>(width - 1));
+            const int cellZ = std::clamp(static_cast<int>(posZ + 0.5f), 0, static_cast<int>(height - 1));
+            const size_t cellIndex = static_cast<size_t>(cellZ) * width + static_cast<size_t>(cellX);
+
+            if (deltaHeight > 0.0f || sediment > capacity)
+            {
+                const float deposit = deltaHeight > 0.0f
+                    ? std::min(sediment, deltaHeight)
+                    : (sediment - capacity) * settings.erosionDeposition;
+                if (deposit > 0.0f)
+                {
+                    heights[cellIndex] += deposit;
+                    depositionAmount[cellIndex] += deposit;
+                    sediment -= deposit;
+                }
+            }
+            else
+            {
+                const float erode = std::min((capacity - sediment) * settings.erosionErosion, currentHeight);
+                if (erode > 0.0f)
+                {
+                    heights[cellIndex] -= erode;
+                    erosionAmount[cellIndex] += erode;
+                    sediment += erode;
+                }
+            }
+
+            speed = std::sqrt(std::max(speed * speed + deltaHeight * 4.0f, 0.0f));
+            water *= std::max(1.0f - settings.erosionEvaporation, 0.0f);
+            if (water <= 0.0f)
+                break;
+
+            posX = nextX;
+            posZ = nextZ;
+        }
+    }
+
+    for (uint32_t z = 0; z < height; ++z)
+    {
+        for (uint32_t x = 0; x < width; ++x)
+        {
+            const size_t idx = static_cast<size_t>(z) * width + x;
+            TerrainSample& sample = hf.At(x, z);
+            sample.height = heights[idx];
+            sample.normalizedHeight = Clamp01(sample.height / hf.settings.heightScale);
+            sample.erosionAmount = erosionAmount[idx];
+            sample.depositionAmount = depositionAmount[idx];
+        }
+    }
+
+    UpdateHeightBounds(hf);
 }
 
 float PlateauTargetHeight(float wx, float wz, const TerrainGenerationSettings& settings)
@@ -257,6 +519,9 @@ TerrainHeightfield GenerateHeightfield(const TerrainGenerationSettings& settings
             const float macro = Fbm(wwx * settings.macroScale, wwz * settings.macroScale, settings.seed + 11u, 3, 0.55f, 2.0f);
             const float hills = Fbm(wwx * settings.hillScale, wwz * settings.hillScale, settings.seed + 101u,
                                     settings.hillOctaves, settings.hillPersistence, settings.hillLacunarity);
+            const float mountains = Fbm(wwx * settings.mountainScale, wwz * settings.mountainScale,
+                                       settings.seed + 1511u, settings.mountainOctaves,
+                                       settings.mountainPersistence, settings.mountainLacunarity);
             const float mountainRidges = MountainRidgeVariation(wwx, wwz, settings);
             const float detail = ValueNoise(wwx * settings.detailScale, wwz * settings.detailScale, settings.seed + 307u) - 0.5f;
             const float broadHillShape = MacroShapeVariation(wwx, wwz, settings.broadHillScale, settings.seed + 811u);
@@ -266,6 +531,7 @@ TerrainHeightfield GenerateHeightfield(const TerrainGenerationSettings& settings
             h += (macro - 0.5f) * settings.macroAmplitude * 0.55f;
             h += broadHillShape * Clamp01(settings.broadHillStrength) * regionMask.broadHills;
             h -= valleyShape * Clamp01(settings.valleyStrength) * regionMask.valleys;
+            h += mountains * settings.mountainAmplitude * mountainMask;
             h += hills * settings.hillAmplitude * (1.0f - mountainMask * 0.35f);
             h += mountainRidges * Clamp01(settings.mountainRidgeStrength) * mountainMask;
             h += detail * settings.detailAmplitude;
@@ -295,6 +561,15 @@ TerrainHeightfield GenerateHeightfield(const TerrainGenerationSettings& settings
             hf.minHeight = std::min(hf.minHeight, sample.height);
             hf.maxHeight = std::max(hf.maxHeight, sample.height);
         }
+    }
+
+    // Smooth the procedural heightfield to remove excess high-frequency fBM noise.
+    SmoothHeightfield(hf, settings.heightSmoothingPasses, settings.heightSmoothingMedian);
+
+    if (settings.erosionEnabled)
+    {
+        ApplyHydraulicErosion(hf, settings);
+        SmoothHeightfield(hf, settings.postErosionSmoothingPasses, settings.heightSmoothingMedian);
     }
 
     RebuildDerivedData(hf, classificationSettings);

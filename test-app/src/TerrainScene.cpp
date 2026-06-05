@@ -275,6 +275,8 @@ void TerrainScene::OnImGuiRender()
     dirty |= ImGui::DragFloat("World Width",  &m_genSettings.worldWidth,  1.0f, 64.0f, 2048.0f);
     dirty |= ImGui::DragFloat("World Height (Z)", &m_genSettings.worldHeight, 1.0f, 64.0f, 2048.0f);
     dirty |= ImGui::DragFloat("Height Scale", &m_genSettings.heightScale, 0.5f, 10.0f, 500.0f);
+    dirty |= ImGui::DragInt("Height Smooth Passes", &m_genSettings.heightSmoothingPasses, 1.0f, 0, 5);
+    dirty |= ImGui::Checkbox("Median Height Smoothing", &m_genSettings.heightSmoothingMedian);
 
     if (ImGui::CollapsingHeader("Macro Landforms & Masks"))
     {
@@ -362,6 +364,7 @@ void TerrainScene::OnImGuiRender()
             dirty |= ImGui::DragFloat("Erosion Strength",   &m_genSettings.erosionErosion,    0.01f, 0.0f, 1.0f);
             dirty |= ImGui::DragFloat("Evaporation",        &m_genSettings.erosionEvaporation,0.001f, 0.0f, 0.1f);
             dirty |= ImGui::DragFloat("Min Slope",          &m_genSettings.erosionMinSlope,   0.001f, 0.0f, 1.0f);
+            dirty |= ImGui::DragInt("Post-Erosion Smooth Passes", &m_genSettings.postErosionSmoothingPasses, 1.0f, 0, 5);
         }
     }
 
