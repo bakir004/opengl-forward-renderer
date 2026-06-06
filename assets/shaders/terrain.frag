@@ -304,7 +304,16 @@ vec3 TerrainPalette(float h01, float slope, vec3 worldPos, vec3 N, vec3 V)
     float wSnow    = smoothstep(0.850, 0.960, hN)
                    * (1.0 - smoothstep(0.23, 0.44, slope));
 
-    float wTotal = max(wDeep + wShallow + wSand + wGrass + wForest + wRock + wSnow, 0.001);
+    float wTotal = wDeep + wShallow + wSand + wGrass + wForest + wRock + wSnow;
+
+    // Fill gaps between independently-gated bands. Without this, some grass↔rock
+    // transition pixels can have almost zero total weight and normalize to black.
+    float wFiller = max(0.0, 1.0 - wTotal);
+    vec3 colFiller = mix(colGrass, colRock,
+                         clamp(smoothstep(0.28, 0.52, slope) +
+                               smoothstep(0.52, 0.76, hN), 0.0, 1.0));
+
+    wTotal = max(wTotal + wFiller, 0.001);
 
     return (colDeep    * wDeep
           + colShallow * wShallow
@@ -312,7 +321,8 @@ vec3 TerrainPalette(float h01, float slope, vec3 worldPos, vec3 N, vec3 V)
           + colGrass   * wGrass
           + colForest  * wForest
           + colRock    * wRock
-          + colSnow    * wSnow) / wTotal;
+          + colSnow    * wSnow
+          + colFiller  * wFiller) / wTotal;
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────

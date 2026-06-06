@@ -103,7 +103,8 @@ public:
 
     /// Per-frame: frustum-cull each group, then upload visible transforms.
     /// Pass the combined view-projection matrix and camera world position.
-    void CullAndUpload(const glm::mat4& viewProj, const glm::vec3& cameraPos);
+    void CullAndUpload(const glm::mat4& viewProj, const glm::vec3& cameraPos,
+                       float verticalOffset = 0.0f);
 
     /// Per-frame: draw all groups with visible instances.
     void DrawAll() const;

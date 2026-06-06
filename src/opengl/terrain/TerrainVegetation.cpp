@@ -619,9 +619,12 @@ void TerrainVegetation::PlaceSandZone(const TerrainHeightfield& hf,
 // ─── TerrainVegetation — CullAndUpload ───────────────────────────────────────
 
 void TerrainVegetation::CullAndUpload(const glm::mat4& viewProj,
-                                       const glm::vec3& cameraPos)
+                                       const glm::vec3& cameraPos,
+                                       float verticalOffset)
 {
     if (!m_setupDone || !m_enabled) return;
+
+    const glm::vec3 offsetVec{0.0f, verticalOffset, 0.0f};
 
     glm::vec4 planes[6];
     ExtractFrustumPlanes(viewProj, planes);
@@ -642,14 +645,15 @@ void TerrainVegetation::CullAndUpload(const glm::mat4& viewProj,
         const bool needsRescale = (g->scaleOverride != 1.0f);
         for (const VegetationInstance& inst : g->m_instances)
         {
-            float d = glm::length(inst.position - cameraPos);
+            const glm::vec3 shiftedPosition = inst.position + offsetVec;
+            float d = glm::length(shiftedPosition - cameraPos);
             if (d > lodDist) continue;
-            if (!SphereInFrustum(planes, inst.position, inst.boundingRadius)) continue;
+            if (!SphereInFrustum(planes, shiftedPosition, inst.boundingRadius)) continue;
+
+            glm::mat4 transform = glm::translate(glm::mat4(1.0f), offsetVec) * inst.transform;
             if (needsRescale)
-                g->m_visibleTransforms.push_back(
-                    glm::scale(inst.transform, glm::vec3(g->scaleOverride)));
-            else
-                g->m_visibleTransforms.push_back(inst.transform);
+                transform = glm::scale(transform, glm::vec3(g->scaleOverride));
+            g->m_visibleTransforms.push_back(transform);
         }
 
         g->UploadInstances();

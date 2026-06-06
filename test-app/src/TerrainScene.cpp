@@ -4,6 +4,7 @@
 #include "core/Camera.h"
 #include "core/IInputProvider.h"
 #include "core/Material.h"
+#include "core/Primitives.h"
 #include "core/ShaderProgram.h"
 #include "scene/LightBuilder.h"
 #include "scene/RenderItem.h"
@@ -59,6 +60,15 @@ bool TerrainScene::Setup()
         return false;
     }
 
+    m_waterShader = AssetImporter::LoadShader(
+        "assets/shaders/basic.vert",
+        "assets/shaders/basic.frag");
+    if (!m_waterShader || !m_waterShader->IsValid())
+    {
+        spdlog::error("[TerrainScene] Failed to load water shader");
+        return false;
+    }
+
     // ── Material ─────────────────────────────────────────────────────────────
     m_terrainMaterial = std::make_shared<Material>(m_terrainShader);
     m_terrainInstance = std::make_unique<MaterialInstance>(m_terrainMaterial);
@@ -94,6 +104,9 @@ bool TerrainScene::Setup()
         "assets/shaders/mesh.frag");
     if (!m_vegetation.Setup(instancedShader))
         spdlog::warn("[TerrainScene] Vegetation setup failed — proceeding without it");
+
+    // ── Water plane ──────────────────────────────────────────────────────────
+    CreateWaterPlane();
 
     // ── Generate terrain + upload ─────────────────────────────────────────────
     Regenerate();
@@ -135,6 +148,29 @@ void TerrainScene::Regenerate()
     m_vegetation.PlaceAll(m_heightfield, m_genSettings.seed);
 }
 
+void TerrainScene::CreateWaterPlane()
+{
+    PrimitiveMeshData waterData = GenerateQuad({
+        .colorMode = ColorMode::Solid,
+        .baseColor = {0.02f, 0.32f, 0.55f},
+        .doubleSided = true,
+    });
+    m_waterBuffer = std::make_unique<MeshBuffer>(waterData.CreateMeshBuffer());
+
+    RenderItem item;
+    item.mesh = m_waterBuffer.get();
+    item.shader = m_waterShader.get();
+    item.flags.visible = m_showWaterPlane;
+    item.flags.castShadow = false;
+    item.flags.receiveShadow = false;
+    const float waterY = m_classSettings.shallowWaterHeight * m_genSettings.heightScale;
+    item.transform.SetTranslation({0.0f, waterY, 0.0f});
+    item.transform.SetRotationEulerDegrees({90.0f, 0.0f, 0.0f});
+    item.transform.SetScale({m_genSettings.worldWidth, m_genSettings.worldHeight, 1.0f});
+
+    m_waterObjectIndex = AddObject(item);
+}
+
 void TerrainScene::UploadToGpu()
 {
     auto t0 = std::chrono::high_resolution_clock::now();
@@ -154,7 +190,7 @@ void TerrainScene::UploadToGpu()
     item.material = m_terrainInstance.get();
     item.flags.castShadow    = true;
     item.flags.receiveShadow = true;
-    item.transform.SetTranslation({0.0f, 0.0f, 0.0f});
+    item.transform.SetTranslation({0.0f, m_terrainVerticalOffset, 0.0f});
 
     if (!m_terrainAdded)
     {
@@ -165,7 +201,23 @@ void TerrainScene::UploadToGpu()
     {
         RenderItem& existing = GetObject(m_terrainObjectIndex);
         existing.mesh = m_terrainBuffer.get();
+        ApplyTerrainOffset();
     }
+}
+
+void TerrainScene::ApplyTerrainOffset()
+{
+    if (!m_terrainAdded)
+        return;
+
+    RenderItem& terrain = GetObject(m_terrainObjectIndex);
+    terrain.transform.SetTranslation({0.0f, m_terrainVerticalOffset, 0.0f});
+
+    RenderItem& water = GetObject(m_waterObjectIndex);
+    const float waterY = m_classSettings.shallowWaterHeight * m_genSettings.heightScale;
+    water.flags.visible = m_showWaterPlane;
+    water.transform.SetTranslation({0.0f, waterY, 0.0f});
+    water.transform.SetScale({m_genSettings.worldWidth, m_genSettings.worldHeight, 1.0f});
 }
 
 void TerrainScene::ApplyMaterialUniforms() const
@@ -200,9 +252,12 @@ void TerrainScene::OnUpdate(float deltaTime, IInputProvider& input)
         Regenerate();
     }
 
+    ApplyTerrainOffset();
+
     // Per-frame frustum cull + SSBO upload for all vegetation groups.
     const Camera& cam = GetCamera();
-    m_vegetation.CullAndUpload(cam.GetViewProjection(), cam.GetPosition());
+    m_vegetation.CullAndUpload(cam.GetViewProjection(), cam.GetPosition(),
+                               m_terrainVerticalOffset);
 }
 
 void TerrainScene::OnPostRender()
@@ -241,15 +296,34 @@ void TerrainScene::OnImGuiRender()
     if (ImGui::Combo("View", &viewIdx, kViewNames, IM_ARRAYSIZE(kViewNames)))
         m_debugView = static_cast<TerrainDebugView>(viewIdx);
 
+    bool dirty = false;
+
     // ── Atmosphere ───────────────────────────────────────────────────────────
     ImGui::SeparatorText("Atmosphere");
     ImGui::DragFloat("Fog Density##atm", &m_fogDensity, 0.0001f, 0.0f, 0.02f, "%.4f");
     ImGui::ColorEdit3("Fog Color##atm",  &m_fogColor.x);
 
+    // ── Terrain placement ────────────────────────────────────────────────────
+    ImGui::SeparatorText("Terrain Placement");
+    ImGui::SliderFloat("Vertical Offset##terrainY", &m_terrainVerticalOffset,
+                       -m_genSettings.heightScale, m_genSettings.heightScale, "%.1f");
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Move the generated terrain up/down without regenerating. Lower it to turn high peaks into islands.");
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Reset##terrainY"))
+        m_terrainVerticalOffset = 0.0f;
+    ImGui::Checkbox("Show Sea Level Water##water", &m_showWaterPlane);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Draws a single blue quad at the terrain water-color transition height.");
+    dirty |= ImGui::SliderFloat("Water Level##waterLevel", &m_classSettings.shallowWaterHeight,
+                                0.0f, 1.0f, "%.3f");
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Normalized terrain height for the blue-water transition. Regenerate to update terrain colors; the water quad moves immediately.");
+    ImGui::TextDisabled("Water Y: %.1f", m_classSettings.shallowWaterHeight * m_genSettings.heightScale);
+
     // ── Heightmap input ──────────────────────────────────────────────────────
     ImGui::SeparatorText("Heightmap Input");
 
-    bool dirty = false;
     dirty |= ImGui::Checkbox("Use PNG Heightmap##hm", &m_genSettings.useHeightmap);
     if (m_genSettings.useHeightmap)
     {
@@ -263,8 +337,12 @@ void TerrainScene::OnImGuiRender()
         }
         dirty |= ImGui::DragFloat("Gamma##hm",        &m_genSettings.heightmapGamma,       0.01f, 0.1f,  4.0f, "%.2f");
         dirty |= ImGui::Checkbox ("Flip Y##hm",       &m_genSettings.heightmapFlipY);
-        dirty |= ImGui::DragInt  ("Smooth Passes##hm", &m_genSettings.heightmapSmoothPasses, 1,    0,     8);
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Box-blur passes to remove PNG quantization spikes");
+        dirty |= ImGui::DragInt  ("Smooth Passes##hm", &m_genSettings.heightmapSmoothPasses, 1,    0,     32);
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Number of Gaussian blur applications for imported heightmaps.");
+        dirty |= ImGui::DragInt("Blur Radius##hm", &m_genSettings.heightmapBlurRadius, 1.0f, 1, 64);
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("How wide the smoothing filter is. Increase this for broad, soft mountains.");
+        dirty |= ImGui::SliderFloat("Blur Strength##hm", &m_genSettings.heightmapBlurStrength, 0.0f, 1.0f, "%.2f");
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("How much each pass blends toward the blurred result. 1.0 = full blur.");
     }
 
     // ── Generation parameters ────────────────────────────────────────────────

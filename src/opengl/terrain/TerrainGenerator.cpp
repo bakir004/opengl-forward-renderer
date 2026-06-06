@@ -202,6 +202,90 @@ void UpdateHeightBounds(TerrainHeightfield& hf)
     }
 }
 
+void GaussianSmoothHeightfield(TerrainHeightfield& hf, int passes, int radius, float strength)
+{
+    if (!hf.IsValid() || passes <= 0 || radius <= 0 || strength <= 0.0f)
+        return;
+
+    const uint32_t width = hf.width;
+    const uint32_t height = hf.height;
+    const size_t sampleCount = static_cast<size_t>(width) * height;
+    const float blend = std::clamp(strength, 0.0f, 1.0f);
+
+    std::vector<float> source(sampleCount);
+    std::vector<float> horizontal(sampleCount);
+    std::vector<float> blurred(sampleCount);
+    for (size_t i = 0; i < sampleCount; ++i)
+        source[i] = hf.samples[i].normalizedHeight;
+
+    // Separable Gaussian blur: O(width * height * radius) instead of the old
+    // O(width * height * radius^2). Large radii are now practical for PNG maps.
+    radius = std::clamp(radius, 1, 128);
+    const float sigma = std::max(static_cast<float>(radius) * 0.45f, 0.5f);
+    std::vector<float> weights(static_cast<size_t>(radius + 1));
+    weights[0] = 1.0f;
+    for (int i = 1; i <= radius; ++i)
+        weights[static_cast<size_t>(i)] = std::exp(-(static_cast<float>(i * i)) / (2.0f * sigma * sigma));
+
+    for (int pass = 0; pass < passes; ++pass)
+    {
+        for (uint32_t z = 0; z < height; ++z)
+        {
+            for (uint32_t x = 0; x < width; ++x)
+            {
+                float sum = source[static_cast<size_t>(z) * width + x] * weights[0];
+                float total = weights[0];
+                for (int dx = 1; dx <= radius; ++dx)
+                {
+                    const uint32_t xl = static_cast<uint32_t>(std::max(static_cast<int>(x) - dx, 0));
+                    const uint32_t xr = static_cast<uint32_t>(std::min(static_cast<int>(x) + dx, static_cast<int>(width - 1)));
+                    const float w = weights[static_cast<size_t>(dx)];
+                    sum += (source[static_cast<size_t>(z) * width + xl] +
+                            source[static_cast<size_t>(z) * width + xr]) * w;
+                    total += 2.0f * w;
+                }
+                horizontal[static_cast<size_t>(z) * width + x] = sum / total;
+            }
+        }
+
+        for (uint32_t z = 0; z < height; ++z)
+        {
+            for (uint32_t x = 0; x < width; ++x)
+            {
+                float sum = horizontal[static_cast<size_t>(z) * width + x] * weights[0];
+                float total = weights[0];
+                for (int dz = 1; dz <= radius; ++dz)
+                {
+                    const uint32_t zd = static_cast<uint32_t>(std::max(static_cast<int>(z) - dz, 0));
+                    const uint32_t zu = static_cast<uint32_t>(std::min(static_cast<int>(z) + dz, static_cast<int>(height - 1)));
+                    const float w = weights[static_cast<size_t>(dz)];
+                    sum += (horizontal[static_cast<size_t>(zd) * width + x] +
+                            horizontal[static_cast<size_t>(zu) * width + x]) * w;
+                    total += 2.0f * w;
+                }
+
+                const size_t idx = static_cast<size_t>(z) * width + x;
+                blurred[idx] = Lerp(source[idx], sum / total, blend);
+            }
+        }
+
+        source.swap(blurred);
+    }
+
+    for (uint32_t z = 0; z < height; ++z)
+    {
+        for (uint32_t x = 0; x < width; ++x)
+        {
+            const size_t idx = static_cast<size_t>(z) * width + x;
+            TerrainSample& sample = hf.At(x, z);
+            sample.normalizedHeight = Clamp01(source[idx]);
+            sample.height = sample.normalizedHeight * hf.settings.heightScale;
+        }
+    }
+
+    UpdateHeightBounds(hf);
+}
+
 void SmoothHeightfield(TerrainHeightfield& hf, int passes, bool median)
 {
     if (!hf.IsValid() || passes <= 0)
@@ -210,27 +294,49 @@ void SmoothHeightfield(TerrainHeightfield& hf, int passes, bool median)
     const uint32_t width = hf.width;
     const uint32_t height = hf.height;
     std::vector<float> tmp(static_cast<size_t>(width) * height);
-    std::array<float, 9> window;
+    std::vector<float> window;
 
     for (int pass = 0; pass < passes; ++pass)
     {
+        // Grow the filter footprint as the user increases smoothing. A fixed
+        // 3x3 blur barely affects high-resolution PNG heightmaps, so stronger
+        // values now blend over a wider neighbourhood instead of requiring
+        // dozens of visually identical passes.
+        const int radius = median ? std::min(2 + pass / 4, 5)
+                                  : std::min(1 + pass / 2, 8);
+        if (median)
+            window.resize(static_cast<size_t>((radius * 2 + 1) * (radius * 2 + 1)));
+
         for (uint32_t z = 0; z < height; ++z)
         {
             for (uint32_t x = 0; x < width; ++x)
             {
                 int count = 0;
-                float sum = 0.0f;
-                for (int dz = -1; dz <= 1; ++dz)
+                float weightedSum = 0.0f;
+                float weightTotal = 0.0f;
+                for (int dz = -radius; dz <= radius; ++dz)
                 {
-                    for (int dx = -1; dx <= 1; ++dx)
+                    for (int dx = -radius; dx <= radius; ++dx)
                     {
                         const int nx = static_cast<int>(x) + dx;
                         const int nz = static_cast<int>(z) + dz;
                         if (nx < 0 || nx >= static_cast<int>(width) || nz < 0 || nz >= static_cast<int>(height))
                             continue;
-                        const float value = hf.At(static_cast<uint32_t>(nx), static_cast<uint32_t>(nz)).normalizedHeight;
-                        window[count++] = value;
-                        sum += value;
+
+                        const float value = hf.At(static_cast<uint32_t>(nx),
+                                                  static_cast<uint32_t>(nz)).normalizedHeight;
+                        if (median)
+                        {
+                            window[static_cast<size_t>(count++)] = value;
+                        }
+                        else
+                        {
+                            const float dist2 = static_cast<float>(dx * dx + dz * dz);
+                            const float sigma = std::max(static_cast<float>(radius) * 0.55f, 0.5f);
+                            const float weight = std::exp(-dist2 / (2.0f * sigma * sigma));
+                            weightedSum += value * weight;
+                            weightTotal += weight;
+                        }
                     }
                 }
 
@@ -238,11 +344,11 @@ void SmoothHeightfield(TerrainHeightfield& hf, int passes, bool median)
                 if (median)
                 {
                     std::sort(window.begin(), window.begin() + count);
-                    tmp[idx] = window[count / 2];
+                    tmp[idx] = window[static_cast<size_t>(count / 2)];
                 }
                 else
                 {
-                    tmp[idx] = sum / static_cast<float>(std::max(1, count));
+                    tmp[idx] = weightedSum / std::max(weightTotal, 1e-6f);
                 }
             }
         }
@@ -283,6 +389,43 @@ void ApplyHydraulicErosion(TerrainHeightfield& hf, const TerrainGenerationSettin
     constexpr int kMaxDropletSteps = 30;
     constexpr float kMinSedimentCapacity = 0.01f;
 
+    auto distributeDelta = [&](float fx, float fz, float delta,
+                               std::vector<float>* amountTracker)
+    {
+        fx = std::clamp(fx, 0.0f, static_cast<float>(width - 1));
+        fz = std::clamp(fz, 0.0f, static_cast<float>(height - 1));
+
+        const uint32_t x0 = static_cast<uint32_t>(std::floor(fx));
+        const uint32_t z0 = static_cast<uint32_t>(std::floor(fz));
+        const uint32_t x1 = std::min(x0 + 1, width - 1);
+        const uint32_t z1 = std::min(z0 + 1, height - 1);
+        const float sx = fx - static_cast<float>(x0);
+        const float sz = fz - static_cast<float>(z0);
+
+        const float w00 = (1.0f - sx) * (1.0f - sz);
+        const float w10 = sx * (1.0f - sz);
+        const float w01 = (1.0f - sx) * sz;
+        const float w11 = sx * sz;
+
+        const size_t i00 = static_cast<size_t>(z0) * width + x0;
+        const size_t i10 = static_cast<size_t>(z0) * width + x1;
+        const size_t i01 = static_cast<size_t>(z1) * width + x0;
+        const size_t i11 = static_cast<size_t>(z1) * width + x1;
+
+        heights[i00] += delta * w00;
+        heights[i10] += delta * w10;
+        heights[i01] += delta * w01;
+        heights[i11] += delta * w11;
+
+        if (amountTracker)
+        {
+            (*amountTracker)[i00] += std::abs(delta) * w00;
+            (*amountTracker)[i10] += std::abs(delta) * w10;
+            (*amountTracker)[i01] += std::abs(delta) * w01;
+            (*amountTracker)[i11] += std::abs(delta) * w11;
+        }
+    };
+
     for (int iteration = 0; iteration < settings.erosionIterations; ++iteration)
     {
         float posX = dist(rng) * static_cast<float>(width - 1);
@@ -321,12 +464,11 @@ void ApplyHydraulicErosion(TerrainHeightfield& hf, const TerrainGenerationSettin
             const float nextHeight = SampleHeightfield(heights, width, height, nextX, nextZ);
             const float deltaHeight = nextHeight - currentHeight;
             const float descent = std::max(-deltaHeight, 0.0f);
+            const float slopeGate = Smoothstep(settings.erosionMinSlope,
+                                               settings.erosionMinSlope * 4.0f + 1e-4f,
+                                               descent);
             const float capacity = std::max(descent * speed * water * settings.erosionCapacity,
-                                            kMinSedimentCapacity);
-
-            const int cellX = std::clamp(static_cast<int>(posX + 0.5f), 0, static_cast<int>(width - 1));
-            const int cellZ = std::clamp(static_cast<int>(posZ + 0.5f), 0, static_cast<int>(height - 1));
-            const size_t cellIndex = static_cast<size_t>(cellZ) * width + static_cast<size_t>(cellX);
+                                            kMinSedimentCapacity) * slopeGate;
 
             if (deltaHeight > 0.0f || sediment > capacity)
             {
@@ -335,18 +477,17 @@ void ApplyHydraulicErosion(TerrainHeightfield& hf, const TerrainGenerationSettin
                     : (sediment - capacity) * settings.erosionDeposition;
                 if (deposit > 0.0f)
                 {
-                    heights[cellIndex] += deposit;
-                    depositionAmount[cellIndex] += deposit;
+                    distributeDelta(posX, posZ, deposit, &depositionAmount);
                     sediment -= deposit;
                 }
             }
             else
             {
-                const float erode = std::min((capacity - sediment) * settings.erosionErosion, currentHeight);
+                const float erode = std::min((capacity - sediment) * settings.erosionErosion,
+                                             currentHeight) * slopeGate;
                 if (erode > 0.0f)
                 {
-                    heights[cellIndex] -= erode;
-                    erosionAmount[cellIndex] += erode;
+                    distributeDelta(posX, posZ, -erode, &erosionAmount);
                     sediment += erode;
                 }
             }
@@ -767,37 +908,21 @@ TerrainHeightfield LoadHeightmapFromPNG(
     hf.minHeight = 0.0f;
     hf.maxHeight = settings.heightScale;
 
-    // Box-blur to remove quantization spikes from low-bit-depth PNGs.
-    const int smoothPasses = std::max(0, settings.heightmapSmoothPasses);
-    if (smoothPasses > 0)
+    // Smooth imported maps before erosion. PNG heightmaps often contain hard,
+    // pointy high-frequency data. SmoothHeightfield now grows its filter radius
+    // per pass, so each UI step should visibly soften silhouettes.
+    const int heightmapSmoothPasses = std::max(0, settings.heightmapSmoothPasses);
+    if (heightmapSmoothPasses > 0)
+        GaussianSmoothHeightfield(hf, heightmapSmoothPasses,
+                                  std::max(1, settings.heightmapBlurRadius),
+                                  settings.heightmapBlurStrength);
+
+    SmoothHeightfield(hf, settings.heightSmoothingPasses, settings.heightSmoothingMedian);
+
+    if (settings.erosionEnabled)
     {
-        std::vector<float> tmp(static_cast<size_t>(w) * h);
-        for (int pass = 0; pass < smoothPasses; ++pass)
-        {
-            for (int z = 0; z < h; ++z)
-            for (int x = 0; x < w; ++x)
-            {
-                float sum = 0.0f;
-                int   cnt = 0;
-                for (int dz = -1; dz <= 1; ++dz)
-                for (int dx = -1; dx <= 1; ++dx)
-                {
-                    int nx = x + dx, nz = z + dz;
-                    if (nx < 0 || nx >= w || nz < 0 || nz >= h) continue;
-                    sum += hf.At(static_cast<uint32_t>(nx),
-                                 static_cast<uint32_t>(nz)).normalizedHeight;
-                    ++cnt;
-                }
-                tmp[static_cast<size_t>(z) * w + x] = sum / static_cast<float>(cnt);
-            }
-            for (int z = 0; z < h; ++z)
-            for (int x = 0; x < w; ++x)
-            {
-                TerrainSample& s   = hf.At(static_cast<uint32_t>(x), static_cast<uint32_t>(z));
-                s.normalizedHeight = tmp[static_cast<size_t>(z) * w + x];
-                s.height           = s.normalizedHeight * settings.heightScale;
-            }
-        }
+        ApplyHydraulicErosion(hf, settings);
+        SmoothHeightfield(hf, settings.postErosionSmoothingPasses, settings.heightSmoothingMedian);
     }
 
     RebuildDerivedData(hf, classificationSettings);

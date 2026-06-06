@@ -110,7 +110,9 @@ struct TerrainGenerationSettings
     std::string heightmapPath  = "assets/heightmap/map.png"; ///< Path to a greyscale PNG (8- or 16-bit)
     float       heightmapGamma = 1.0f;  ///< Power curve on normalised height (1.0 = linear)
     bool        heightmapFlipY = false; ///< Flip rows vertically if terrain appears inverted
-    int         heightmapSmoothPasses = 2; ///< Box-blur passes after load to remove quantization spikes (0 = off)
+    int         heightmapSmoothPasses = 2; ///< Blur passes after load to remove quantization spikes (0 = off)
+    int         heightmapBlurRadius = 6; ///< Gaussian blur radius for imported heightmaps
+    float       heightmapBlurStrength = 1.0f; ///< Blend amount per heightmap blur pass [0..1]
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
