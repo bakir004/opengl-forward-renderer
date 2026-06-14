@@ -508,8 +508,10 @@ void ApplyHydraulicErosion(TerrainHeightfield& hf, const TerrainGenerationSettin
         {
             const size_t idx = static_cast<size_t>(z) * width + x;
             TerrainSample& sample = hf.At(x, z);
-            sample.height = heights[idx];
-            sample.normalizedHeight = Clamp01(sample.height / hf.settings.heightScale);
+            // Clamp raw height: deposition can push heights above heightScale;
+            // erosion in theory can't go negative (guarded above), but clamp anyway.
+            sample.height = std::clamp(heights[idx], 0.0f, hf.settings.heightScale);
+            sample.normalizedHeight = sample.height / hf.settings.heightScale;
             sample.erosionAmount = erosionAmount[idx];
             sample.depositionAmount = depositionAmount[idx];
         }
@@ -704,12 +706,24 @@ TerrainHeightfield GenerateHeightfield(const TerrainGenerationSettings& settings
         }
     }
 
-    // Smooth the procedural heightfield to remove excess high-frequency fBM noise.
+    // Separable Gaussian first: removes the broad high-frequency spikes that the
+    // weighted-average pass below can't reach in one or two passes.
+    if (settings.proceduralBlurPasses > 0)
+        GaussianSmoothHeightfield(hf, settings.proceduralBlurPasses,
+                                  std::max(1, settings.proceduralBlurRadius),
+                                  settings.proceduralBlurStrength);
+
+    // Weighted-average pass: tightens up residual fine-scale noise.
     SmoothHeightfield(hf, settings.heightSmoothingPasses, settings.heightSmoothingMedian);
 
     if (settings.erosionEnabled)
     {
         ApplyHydraulicErosion(hf, settings);
+        // Gaussian pass first to soften sharp erosion walls, then average smooth.
+        if (settings.postErosionBlurPasses > 0)
+            GaussianSmoothHeightfield(hf, settings.postErosionBlurPasses,
+                                      std::max(1, settings.postErosionBlurRadius),
+                                      settings.postErosionBlurStrength);
         SmoothHeightfield(hf, settings.postErosionSmoothingPasses, settings.heightSmoothingMedian);
     }
 
@@ -922,6 +936,10 @@ TerrainHeightfield LoadHeightmapFromPNG(
     if (settings.erosionEnabled)
     {
         ApplyHydraulicErosion(hf, settings);
+        if (settings.postErosionBlurPasses > 0)
+            GaussianSmoothHeightfield(hf, settings.postErosionBlurPasses,
+                                      std::max(1, settings.postErosionBlurRadius),
+                                      settings.postErosionBlurStrength);
         SmoothHeightfield(hf, settings.postErosionSmoothingPasses, settings.heightSmoothingMedian);
     }
 

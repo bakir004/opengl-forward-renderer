@@ -68,9 +68,21 @@ struct TerrainGenerationSettings
     float detailScale     = 0.025f; ///< Spatial frequency of fine-grained detail
     float detailAmplitude = 0.06f;  ///< Contribution weight [0..1] — intentionally small
     // ── Height smoothing / anti-noise
-    int   heightSmoothingPasses      = 1;   ///< Blur/median passes after the procedural fBM stack
+    int   heightSmoothingPasses      = 3;   ///< Weighted-average passes after the procedural fBM stack
     bool  heightSmoothingMedian      = false; ///< Use median filtering instead of average smoothing
-    int   postErosionSmoothingPasses = 1;   ///< Optional smoothing after erosion
+    int   postErosionSmoothingPasses = 3;   ///< Weighted-average passes after erosion
+
+    // Separable Gaussian applied to procedural terrain before SmoothHeightfield.
+    // Removes high-frequency fBM spikes that the weighted-average pass alone misses.
+    int   proceduralBlurPasses   = 2;    ///< Gaussian blur passes on procedural heightfield
+    int   proceduralBlurRadius   = 3;    ///< Gaussian blur radius for procedural terrain [1..64]
+    float proceduralBlurStrength = 1.0f; ///< Blend amount per procedural blur pass [0..1]
+
+    // Separable Gaussian applied after hydraulic erosion to clean up sharp ravine walls.
+    int   postErosionBlurPasses   = 2;    ///< Gaussian blur passes after erosion
+    int   postErosionBlurRadius   = 4;    ///< Gaussian blur radius for post-erosion smoothing [1..64]
+    float postErosionBlurStrength = 1.0f; ///< Blend amount per post-erosion Gaussian pass [0..1]
+
     // ── Low-frequency region masks ────────────────────────────────────────────
     float regionMaskScale = 0.0006f; ///< Spatial frequency of region-blending mask
 
@@ -110,8 +122,8 @@ struct TerrainGenerationSettings
     std::string heightmapPath  = "assets/heightmap/map.png"; ///< Path to a greyscale PNG (8- or 16-bit)
     float       heightmapGamma = 1.0f;  ///< Power curve on normalised height (1.0 = linear)
     bool        heightmapFlipY = false; ///< Flip rows vertically if terrain appears inverted
-    int         heightmapSmoothPasses = 2; ///< Blur passes after load to remove quantization spikes (0 = off)
-    int         heightmapBlurRadius = 6; ///< Gaussian blur radius for imported heightmaps
+    int         heightmapSmoothPasses = 3; ///< Gaussian blur passes after load to remove quantization spikes (0 = off)
+    int         heightmapBlurRadius = 8; ///< Gaussian blur radius for imported heightmaps
     float       heightmapBlurStrength = 1.0f; ///< Blend amount per heightmap blur pass [0..1]
 };
 
