@@ -18,6 +18,7 @@ enum class UITab : int {
     Shadow = 3,
     PostFX = 4,
     Stats = 5,
+    Terrain = 6,  ///< Only shown when the active scene returns HasTerrainTab() == true
 };
 
 class RendererUI {
@@ -117,6 +118,8 @@ private:
 
     void DrawTabStats(Scene &scene, const RendererDebugStats &stats,
                       const AssetCacheStats &cacheStats);
+
+    void DrawTabTerrain(Scene &scene);
 
     void DrawHelpWindow(int fbWidth, int fbHeight);
 };

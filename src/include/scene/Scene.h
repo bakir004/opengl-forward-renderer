@@ -47,8 +47,18 @@ public:
     virtual void OnPostRender() {}
 
     /// Called during the ImGui frame. Override to draw custom debug UI for the scene.
-    virtual void OnImGuiRender() {
-    }
+    virtual void OnImGuiRender() {}
+
+    /// Returns true if this scene exposes a Terrain tab in the sidebar.
+    virtual bool HasTerrainTab() const { return false; }
+
+    /// Called by RendererUI to populate the Terrain sidebar tab content.
+    /// Only invoked when HasTerrainTab() returns true.
+    virtual void OnTerrainTabUI() {}
+
+    /// Called by RendererUI to draw the sticky footer bar below the terrain tab
+    /// scroll area (always visible — no scrolling needed to reach it).
+    virtual void OnTerrainTabFooter() {}
 
 protected:
     /// Replaces the scene camera.

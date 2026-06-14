@@ -37,7 +37,9 @@ public:
     bool Setup();
     void OnUpdate(float deltaTime, IInputProvider &input) override;
     void OnPostRender() override;
-    void OnImGuiRender() override;
+    bool HasTerrainTab() const override { return true; }
+    void OnTerrainTabUI() override;
+    void OnTerrainTabFooter() override;
 
 private:
     void Regenerate();

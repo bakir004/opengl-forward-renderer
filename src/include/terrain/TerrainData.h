@@ -86,7 +86,7 @@ struct TerrainGenerationSettings
     // ── Low-frequency region masks ────────────────────────────────────────────
     float regionMaskScale = 0.0006f; ///< Spatial frequency of region-blending mask
 
-    // ── Optional erosion post-process ────────────────────────────────────────
+    // ── Optional hydraulic erosion ───────────────────────────────────────────
     bool  erosionEnabled    = false;
     int   erosionIterations = 50000;
     float erosionInertia    = 0.05f;
@@ -95,6 +95,15 @@ struct TerrainGenerationSettings
     float erosionErosion    = 0.3f;
     float erosionEvaporation = 0.01f;
     float erosionMinSlope    = 0.01f;
+
+    // ── Thermal erosion (talus / rock-fall) ──────────────────────────────────
+    // Runs after hydraulic erosion. Each pass transfers material from any cell
+    // steeper than the repose angle to its downslope neighbour, rounding cliff
+    // faces without touching river channels.
+    bool  thermalErosionEnabled    = false;
+    int   thermalErosionIterations = 5;     ///< Full-grid passes [1..20]
+    float thermalErosionAngle      = 35.0f; ///< Repose angle in degrees [20..60]
+    float thermalErosionStrength   = 0.5f;  ///< Fraction of excess transferred per step [0..1]
 
     // ── Volcano shaping ───────────────────────────────────────────────────────
     // Injects a radial bias term into the height stack that forms a cone

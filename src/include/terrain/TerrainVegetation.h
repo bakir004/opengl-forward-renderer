@@ -123,6 +123,11 @@ public:
     float m_rockMaskMin     = 0.32f;
     float m_sandHeightMax   = 0.15f;  ///< Normalised height ceiling for sand zone
 
+    /// When true PlaceAll derives per-instance scale from world size, elevation,
+    /// slope, and local roughness so vegetation always looks proportional to the
+    /// terrain regardless of heightScale or worldWidth.
+    bool  m_autoScale       = true;
+
 private:
     struct SpatialGrid;             // Forward-declared — defined in .cpp
 
@@ -142,7 +147,8 @@ private:
                         glm::vec3 parentPos, int count, float radius,
                         float scaleMin, float scaleMax, float minSpacing,
                         std::mt19937& rng, SpatialGrid& grid,
-                        const TerrainHeightfield& hf);
+                        const TerrainHeightfield& hf,
+                        float baseScaleMult = 1.0f);
 
     // ── Forest ────────────────────────────────────────────────────────────────
     VegetationGroup m_realisticTree;
@@ -173,5 +179,6 @@ private:
     int m_statSand    = 0;
     int m_statVisible = 0;
 
-    bool m_setupDone = false;
+    bool  m_setupDone        = false;
+    float m_worldScaleFactor = 1.0f; ///< Computed in PlaceAll(); applied per-instance
 };
