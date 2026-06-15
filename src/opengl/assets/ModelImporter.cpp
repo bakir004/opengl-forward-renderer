@@ -11,6 +11,7 @@
 // while still indexing into the correct region of the shared VBO.
 
 #include "assets/ModelData.h"
+#include "core/AABB.h"
 #include "core/MeshData.h"
 
 #include <assimp/Importer.hpp>
@@ -482,6 +483,7 @@ ModelData ImportModelFromFile(const std::string& path)
         sm.indexByteOffset = static_cast<uint32_t>(indices.size() * sizeof(uint32_t));
         sm.materialIndex   = GetOrAddMaterial(mesh->mMaterialIndex);
         sm.hasTangents     = (mesh->mTextureCoords[0] && mesh->mTangents && mesh->mBitangents);
+        AABB subBounds     = AABB::Empty();
 
         // --- vertices ---
         vertices.reserve(vertices.size() + mesh->mNumVertices);
@@ -491,6 +493,7 @@ ModelData ImportModelFromFile(const std::string& path)
             vtx.position = { mesh->mVertices[v].x,
                              mesh->mVertices[v].y,
                              mesh->mVertices[v].z };
+            subBounds.Expand(vtx.position);
             vtx.normal   = { mesh->mNormals[v].x,
                              mesh->mNormals[v].y,
                              mesh->mNormals[v].z };
@@ -524,6 +527,7 @@ ModelData ImportModelFromFile(const std::string& path)
             indices.push_back(face.mIndices[2]);
         }
 
+        sm.localBounds = subBounds;
         submeshes.push_back(sm);
     }
 

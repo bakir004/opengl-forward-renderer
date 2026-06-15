@@ -8,6 +8,35 @@
 #include <cassert>
 #include <vector>
 
+namespace
+{
+
+AABB ComputeVertexBounds(const std::vector<VertexPNT>& vertices)
+{
+    AABB bounds = AABB::Empty();
+    for (const VertexPNT& vertex : vertices)
+        bounds.Expand(vertex.position);
+    return bounds;
+}
+
+AABB ComputeSubMeshBounds(const MeshData& data, const SubMesh& subMesh)
+{
+    if (subMesh.localBounds.IsValid())
+        return subMesh.localBounds;
+
+    AABB bounds = AABB::Empty();
+    const uint32_t firstIndex = subMesh.indexByteOffset / sizeof(uint32_t);
+    for (uint32_t i = 0; i < subMesh.indexCount; ++i)
+    {
+        const uint32_t vertexIndex = data.indices[firstIndex + i] + static_cast<uint32_t>(subMesh.baseVertex);
+        if (vertexIndex < data.vertices.size())
+            bounds.Expand(data.vertices[vertexIndex].position);
+    }
+    return bounds;
+}
+
+} // namespace
+
 // ---------------------------------------------------------------------------
 //  Impl — fully defined only in this translation unit
 // ---------------------------------------------------------------------------
@@ -17,6 +46,8 @@ struct Mesh::Impl {
     Buffer               vbo;
     Buffer               ebo;
     std::vector<SubMesh> submeshes;
+    std::vector<AABB>    submeshBounds;
+    AABB                 localBounds = AABB::Empty();
     uint32_t             vertexCount = 0;
     uint32_t             indexCount  = 0;
     std::string          name;
@@ -31,10 +62,14 @@ struct Mesh::Impl {
               static_cast<GLsizeiptr>(data.indices.size()) * sizeof(uint32_t),
               usage)
         , submeshes(data.submeshes)
+        , localBounds(ComputeVertexBounds(data.vertices))
         , vertexCount(data.VertexCount())
         , indexCount(data.IndexCount())
         , name(data.name)
     {
+        submeshBounds.reserve(submeshes.size());
+        for (const SubMesh& subMesh : submeshes)
+            submeshBounds.push_back(ComputeSubMeshBounds(data, subMesh));
         VertexLayout layout({
             { 0, 3, GL_FLOAT, GL_FALSE },  // position
             { 1, 3, GL_FLOAT, GL_FALSE },  // normal
@@ -160,4 +195,14 @@ bool Mesh::IsValid() const {
 const std::string& Mesh::GetName() const {
     static const std::string empty;
     return m_impl ? m_impl->name : empty;
+}
+
+AABB Mesh::GetLocalBounds() const {
+    return m_impl ? m_impl->localBounds : AABB::Empty();
+}
+
+AABB Mesh::GetSubMeshBounds(uint32_t index) const {
+    if (!m_impl || index >= m_impl->submeshBounds.size())
+        return AABB::Empty();
+    return m_impl->submeshBounds[index];
 }

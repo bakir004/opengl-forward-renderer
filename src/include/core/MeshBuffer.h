@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/AABB.h"
 #include "Buffer.h"
 #include "VertexArray.h"
 #include "VertexLayout.h"
@@ -60,6 +61,8 @@ public:
     [[nodiscard]] GLsizei GetVertexCount() const { return m_vertexCount; }
     [[nodiscard]] GLsizei GetIndexCount() const { return m_indexCount; }
     [[nodiscard]] bool IsIndexed() const { return m_isIndexed; }
+    [[nodiscard]] const AABB& GetLocalBounds() const { return m_localBounds; }
+    void SetLocalBounds(const AABB& bounds) { m_localBounds = bounds; }
 
 private:
     VertexArray m_vao;
@@ -69,4 +72,5 @@ private:
     GLsizei m_vertexCount = 0;
     GLsizei m_indexCount = 0;
     bool m_isIndexed = false;
+    AABB m_localBounds{};
 };

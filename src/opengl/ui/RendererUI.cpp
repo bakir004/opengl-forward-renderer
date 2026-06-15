@@ -748,8 +748,10 @@ void RendererUI::DrawTabScene(Scene &scene, const RendererDebugStats &stats,
         SR("Approx tris", buf);
         std::snprintf(buf, sizeof(buf), "%u", stats.submittedRenderItemCount);
         SR("Submitted", buf);
+        std::snprintf(buf, sizeof(buf), "%u", stats.frustumCulledRenderItemCount);
+        SR("Culled", buf);
         std::snprintf(buf, sizeof(buf), "%u", stats.processedRenderItemCount);
-        SR("Processed", buf);
+        SR("Visible", buf);
 
         ImGui::PopStyleColor();
         ImGui::Spacing();
@@ -1215,14 +1217,19 @@ void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats
                               const AssetCacheStats &cs) {
 
     if (SectionHeader("Performance")) {
+        ImGui::Checkbox("Frustum culling", &frustumCullingEnabled);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Skip forward-pass draws for objects outside the camera frustum.\nShadow casters are unaffected.");
+
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
         ImGui::Text("FPS           : %.1f", stats.fps);
         ImGui::Text("Frame time    : %.2f ms", stats.frameTimeMs);
         ImGui::Separator();
         ImGui::Text("Draw calls    : %u", stats.drawCallCount);
         ImGui::Text("Submitted     : %u", stats.submittedRenderItemCount);
+        ImGui::Text("Culled        : %u", stats.frustumCulledRenderItemCount);
+        ImGui::Text("Visible       : %u", stats.processedRenderItemCount);
         ImGui::Text("Queued        : %u", stats.queuedRenderItemCount);
-        ImGui::Text("Processed     : %u", stats.processedRenderItemCount);
         ImGui::Text("Approx tris   : %s", FormatCompact(stats.approxTriangleCount).c_str());
         ImGui::PopStyleColor();
         ImGui::Spacing();

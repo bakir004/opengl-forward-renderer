@@ -67,6 +67,7 @@ public:
     float iblDebugPrefilteredMip = 0.0f;
     float ambientFloorStrength = 0.18f;
     float maxShadowOcclusion = 0.75f;
+    bool frustumCullingEnabled = true;
     bool showHelpWindow = false;
     bool showSidebar = true;
 

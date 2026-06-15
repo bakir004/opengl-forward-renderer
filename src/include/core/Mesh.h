@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/AABB.h"
 #include "core/MeshData.h"
 #include "core/SubMesh.h"
 #include <cstdint>
@@ -38,6 +39,8 @@ public:
     [[nodiscard]] uint32_t           IndexCount()       const;
     [[nodiscard]] bool               IsValid()          const;
     [[nodiscard]] const std::string& GetName()          const;
+    [[nodiscard]] AABB               GetLocalBounds()   const;
+    [[nodiscard]] AABB               GetSubMeshBounds(uint32_t index) const;
 
 private:
     struct Impl;

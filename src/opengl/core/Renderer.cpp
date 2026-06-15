@@ -11,6 +11,7 @@
 #include "scene/LightBlock.h"
 #include "scene/LightUtils.h"
 #include "scene/RenderItem.h"
+#include "scene/VisibilityCulling.h"
 #include <glad/glad.h>
 #include <algorithm>
 #include <array>
@@ -148,6 +149,7 @@ namespace
                                           RendererDebugStats &stats)
     {
         stats.submittedRenderItemCount = static_cast<uint32_t>(submission.objects.size());
+        stats.frustumCulledRenderItemCount = 0;
         stats.queuedRenderItemCount = 0;
         stats.processedRenderItemCount = 0;
         stats.drawCallCount = 0;
@@ -284,6 +286,11 @@ void Renderer::SetLightingDebugControls(float ambientFloorStrength, float maxSha
     m_maxShadowOcclusion = std::clamp(maxShadowOcclusion, 0.0f, 1.0f);
 }
 
+void Renderer::SetRenderConfig(const RenderConfig& config)
+{
+    m_renderConfig = config;
+}
+
 void Renderer::BeginFrame(const FrameSubmission &submission)
 {
     assert(!m_inFrame && "BeginFrame() called without a matching EndFrame()");
@@ -345,6 +352,20 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
         CameraData camData = submission.camera->BuildCameraData(submission.time, submission.deltaTime);
         m_cameraUBO->Upload(&camData, sizeof(CameraData));
         m_cameraUBO->BindToSlot(0);
+
+        if (m_renderConfig.frustumCullingEnabled)
+        {
+            m_cameraFrustum = Frustum::FromViewProjection(submission.camera->GetViewProjection());
+            m_cameraFrustumValid = true;
+        }
+        else
+        {
+            m_cameraFrustumValid = false;
+        }
+    }
+    else
+    {
+        m_cameraFrustumValid = false;
     }
 
     // Create or resize the HDR offscreen framebuffer to match the current viewport.
@@ -433,6 +454,19 @@ void Renderer::RebindHdrFramebuffer()
 void Renderer::SubmitDraw(const RenderItem &item)
 {
     assert(m_inFrame && "SubmitDraw() must be called between BeginFrame() and EndFrame()");
+
+    if (!item.flags.visible || (!item.mesh && !item.meshMulti))
+        return;
+
+    if (m_renderConfig.frustumCullingEnabled && m_cameraFrustumValid)
+    {
+        if (!IsRenderItemVisibleInCameraFrustum(item, m_cameraFrustum))
+        {
+            ++m_debugStats.frustumCulledRenderItemCount;
+            return;
+        }
+    }
+
     if (m_queue.Add(item))
     {
         ++m_debugStats.queuedRenderItemCount;
