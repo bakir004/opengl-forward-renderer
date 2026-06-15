@@ -12,6 +12,8 @@
 #include "core/EnvironmentLightingPipeline.h"
 #include "core/IBLDebugMode.h"
 #include "core/shadows/CascadedShadowMap.h"
+#include "core/RenderConfig.h"
+#include "core/Frustum.h"
 
 struct RenderItem;
 struct FrameSubmission;
@@ -37,6 +39,7 @@ struct ShadowFrustumDebugInfo
 struct RendererDebugStats
 {
     uint32_t submittedRenderItemCount = 0;
+    uint32_t frustumCulledRenderItemCount = 0;
     uint32_t queuedRenderItemCount = 0;
     uint32_t processedRenderItemCount = 0;
     uint32_t drawCallCount = 0;
@@ -119,6 +122,9 @@ class Renderer
     float m_iblDebugPrefilteredMip = 0.0f;
     float m_ambientFloorStrength = 0.18f;
     float m_maxShadowOcclusion = 0.75f;
+    RenderConfig m_renderConfig{};
+    Frustum m_cameraFrustum{};
+    bool m_cameraFrustumValid = false;
     RendererDebugStats m_debugStats;
     bool m_reportedInvalidPackedLights = false;
     bool m_inFrame = false;
@@ -163,6 +169,11 @@ public:
 
     /// Sets global lighting readability controls used by PBR shaders.
     void SetLightingDebugControls(float ambientFloorStrength, float maxShadowOcclusion);
+
+    /// Sets runtime renderer options such as frustum culling.
+    void SetRenderConfig(const RenderConfig& config);
+
+    [[nodiscard]] const RenderConfig& GetRenderConfig() const { return m_renderConfig; }
 
     [[nodiscard]] IBLDebugMode GetIBLDebugMode() const { return m_iblDebugMode; }
     [[nodiscard]] float GetIBLDebugPrefilteredMipLevel() const { return m_iblDebugPrefilteredMip; }
