@@ -1,4 +1,5 @@
 #include "terrain/TerrainMeshBuilder.h"
+#include "core/AABB.h"
 #include "core/MeshData.h"  
 #include "core/VertexLayout.h"
 #include <glad/glad.h>
@@ -146,6 +147,11 @@ std::unique_ptr<MeshBuffer> UploadMeshData(const TerrainMeshData& meshData)
         static_cast<GLsizei>(meshData.indices.size()),
         layout,
         GL_STATIC_DRAW);
+
+    AABB bounds;
+    bounds.min = meshData.bounds.min;
+    bounds.max = meshData.bounds.max;
+    buffer->SetLocalBounds(bounds);
 
     spdlog::info("[TerrainMeshBuilder] Uploaded terrain mesh: {} vertices, {} indices ({} triangles)",
                  meshData.VertexCount(),
