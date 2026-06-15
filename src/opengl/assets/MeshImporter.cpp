@@ -8,6 +8,7 @@
 
 #include "core/MeshBuffer.h"
 #include "core/MeshData.h"   // VertexPNT
+#include "core/AABB.h"
 #include "core/VertexLayout.h"
 
 #include <assimp/Importer.hpp>
@@ -154,6 +155,7 @@ std::shared_ptr<MeshBuffer> ImportMeshFromFile(const std::string& path)
 
     std::vector<VertexPNT> vertices;
     std::vector<uint32_t>  indices;
+    AABB                   bounds = AABB::Empty();
 
     for (uint32_t m = 0; m < scene->mNumMeshes; ++m)
     {
@@ -172,6 +174,7 @@ std::shared_ptr<MeshBuffer> ImportMeshFromFile(const std::string& path)
                 mesh->mVertices[v].y,
                 mesh->mVertices[v].z
             };
+            bounds.Expand(vtx.position);
 
             // Assimp guarantees normals exist after aiProcess_GenSmoothNormals.
             vtx.normal = {
@@ -237,6 +240,7 @@ std::shared_ptr<MeshBuffer> ImportMeshFromFile(const std::string& path)
         static_cast<GLsizei>(indices.size()),
         layout
     );
+    meshBuffer->SetLocalBounds(bounds);
 
     spdlog::info("[MeshImporter] Loaded '{}': {} vertices, {} indices ({} Assimp mesh(es) merged)",
                  path, vertices.size(), indices.size(), scene->mNumMeshes);
