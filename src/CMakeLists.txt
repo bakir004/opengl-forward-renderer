@@ -27,6 +27,7 @@ add_library(${PROJECT_NAME} STATIC
         opengl/core/InputManager.cpp
         opengl/scene/Scene.cpp
         opengl/scene/RenderItem.cpp
+        opengl/scene/VisibilityCulling.cpp
         opengl/scene/LightEnvironment.cpp
         opengl/scene/LightUtils.cpp
         opengl/scene/LightBlock.cpp
