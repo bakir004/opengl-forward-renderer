@@ -115,7 +115,7 @@ public:
     [[nodiscard]] bool IsReady() const { return m_setupDone; }
 
     // ── Global placement settings ─────────────────────────────────────────────
-    bool  m_enabled         = true;
+    bool  m_enabled         = false;
     float m_density         = 1.0f;   ///< Global density multiplier (0.25..2)
     float m_lodDistanceMult = 1.0f;
     float m_treeMaskMin     = 0.28f;
