@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <execution>
 #include <limits>
 #include <numeric>
 #include <random>
@@ -255,7 +254,7 @@ void GaussianSmoothHeightfield(TerrainHeightfield& hf, int passes, int radius, f
     for (int pass = 0; pass < passes; ++pass)
     {
         // Horizontal pass — each row is independent.
-        std::for_each(std::execution::par_unseq, rowIndices.begin(), rowIndices.end(),
+        std::for_each(rowIndices.begin(), rowIndices.end(),
             [&](size_t z)
             {
                 for (uint32_t x = 0; x < width; ++x)
@@ -275,7 +274,7 @@ void GaussianSmoothHeightfield(TerrainHeightfield& hf, int passes, int radius, f
             });
 
         // Vertical pass — each column is independent.
-        std::for_each(std::execution::par_unseq, colIndices.begin(), colIndices.end(),
+        std::for_each(colIndices.begin(), colIndices.end(),
             [&](size_t x)
             {
                 for (uint32_t z = 0; z < height; ++z)
@@ -338,7 +337,7 @@ void SmoothHeightfield(TerrainHeightfield& hf, int passes, bool median)
         {
             // Median: each pixel sorts its neighbourhood — thread-local window.
             const int diam = 2 * radius + 1;
-            std::for_each(std::execution::par_unseq, indices.begin(), indices.end(),
+            std::for_each(indices.begin(), indices.end(),
                 [&](size_t idx)
                 {
                     const uint32_t x = static_cast<uint32_t>(idx % width);
@@ -377,7 +376,7 @@ void SmoothHeightfield(TerrainHeightfield& hf, int passes, bool median)
             const float invNorm = 1.0f / wNorm;
             for (float& w : wTable) w *= invNorm;
 
-            std::for_each(std::execution::par_unseq, indices.begin(), indices.end(),
+            std::for_each(indices.begin(), indices.end(),
                 [&](size_t idx)
                 {
                     const uint32_t x = static_cast<uint32_t>(idx % width);
@@ -398,7 +397,7 @@ void SmoothHeightfield(TerrainHeightfield& hf, int passes, bool median)
 
         // Write results back — also parallel since each element is independent.
         const float hs = hf.settings.heightScale;
-        std::for_each(std::execution::par_unseq, indices.begin(), indices.end(),
+        std::for_each(indices.begin(), indices.end(),
             [&](size_t idx)
             {
                 const float n = Clamp01(tmp[idx]);
@@ -801,13 +800,12 @@ TerrainHeightfield GenerateHeightfield(const TerrainGenerationSettings& settings
 
     const TerrainRegionMasks regionMasks = BuildTerrainRegionMasks(settings, hf.width, hf.height);
 
-    // Flat index range — allows parallel_for over the 2-D grid without nested
-    // loops that can't be trivially handed to std::execution::par_unseq.
+    // Flat index range keeps the 2-D grid traversal simple and cache-friendly.
     const size_t total = static_cast<size_t>(hf.width) * hf.height;
     std::vector<size_t> indices(total);
     std::iota(indices.begin(), indices.end(), size_t{0});
 
-    std::for_each(std::execution::par_unseq, indices.begin(), indices.end(),
+    std::for_each(indices.begin(), indices.end(),
         [&](size_t idx)
         {
             const uint32_t x = static_cast<uint32_t>(idx % hf.width);
@@ -876,7 +874,7 @@ void RebuildDerivedData(TerrainHeightfield& hf, const TerrainClassificationSetti
     std::vector<size_t> indices(total);
     std::iota(indices.begin(), indices.end(), size_t{0});
 
-    std::for_each(std::execution::par_unseq, indices.begin(), indices.end(),
+    std::for_each(indices.begin(), indices.end(),
         [&](size_t idx)
         {
         const uint32_t x = static_cast<uint32_t>(idx % hf.width);
@@ -974,7 +972,7 @@ void RebuildDerivedData(TerrainHeightfield& hf, const TerrainClassificationSetti
             s.treeSuitability  = s.treeMask;
             s.rockSuitability  = s.rockMask;
             s.steepExclusion   = Clamp01(1.0f - s.steepSlopeExclusion);
-        }); // end par_unseq
+        });
 }
 
 // ─── LoadHeightmapFromPNG ─────────────────────────────────────────────────────

@@ -56,7 +56,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 )
 
 find_package(OpenGL REQUIRED)
-find_package(TBB REQUIRED)
 
 add_library(imgui STATIC
     ${imgui_SOURCE_DIR}/imgui.cpp
@@ -87,7 +86,6 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
         spdlog::spdlog
         nlohmann_json::nlohmann_json
         glm::glm
-        TBB::tbb
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC imgui)
