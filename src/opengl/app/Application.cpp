@@ -9,6 +9,7 @@
 #include "utils/Options.h"
 #include "core/Material.h"
 #include "core/Renderer.h"
+#include "core/RenderConfig.h"
 #include "core/ShaderProgram.h"
 #include "core/FullscreenQuad.h"
 #include "core/InputManager.h"
@@ -235,6 +236,9 @@ void Application::RunFrame(Scene &scene,
 
     m_renderer->SetIBLDebugState(m_ui->iblDebugMode, m_ui->iblDebugPrefilteredMip);
     m_renderer->SetLightingDebugControls(m_ui->ambientFloorStrength, m_ui->maxShadowOcclusion);
+    RenderConfig renderConfig;
+    renderConfig.frustumCullingEnabled = m_ui->frustumCullingEnabled;
+    m_renderer->SetRenderConfig(renderConfig);
     m_renderer->BeginFrame(sub);
     for (const auto &item : sub.objects)
     {
