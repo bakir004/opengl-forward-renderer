@@ -252,19 +252,67 @@ void RenderQueue::SetLightingDebugControls(float ambientFloorStrength, float max
 
 void RenderQueue::Sort()
 {
-    // Sort by the resolved shader pointer to minimise program switches.
+    // Multi-key sort to minimize state changes:
+    // 1. Shader: ResolvedShader() pointer (minimize expensive program switches)
+    // 2. Material: material pointer (minimize texture and material parameter switches)
+    // 3. Mesh Buffer: meshMulti or mesh pointer (minimize VAO switches)
+    // 4. SubMesh: subMeshIndex (minimize submesh switches within the same mesh)
+    // 5. Draw Mode: drawMode (minimize rasterizer state changes)
+    // 6. Topology: topology (minimize primitive type changes)
     std::sort(m_items.begin(), m_items.end(),
               [](const RenderItem &a, const RenderItem &b)
               {
+                  // 1. Shader program (highest priority)
                   const ShaderProgram *sa = a.ResolvedShader();
                   const ShaderProgram *sb = b.ResolvedShader();
-                  if (!sa && !sb)
-                      return false;
-                  if (!sa)
-                      return false;
-                  if (!sb)
-                      return true;
-                  return sa < sb;
+                  if (sa != sb)
+                  {
+                      if (!sa) return false;
+                      if (!sb) return true;
+                      return sa < sb;
+                  }
+
+                  // 2. Material
+                  if (a.material != b.material)
+                  {
+                      if (!a.material) return false;
+                      if (!b.material) return true;
+                      return a.material < b.material;
+                  }
+
+                  // 3. Mesh (either meshMulti or mesh)
+                  if (a.meshMulti != b.meshMulti)
+                  {
+                      if (!a.meshMulti) return false;
+                      if (!b.meshMulti) return true;
+                      return a.meshMulti < b.meshMulti;
+                  }
+                  if (a.mesh != b.mesh)
+                  {
+                      if (!a.mesh) return false;
+                      if (!b.mesh) return true;
+                      return a.mesh < b.mesh;
+                  }
+
+                  // 4. Submesh index
+                  if (a.subMeshIndex != b.subMeshIndex)
+                  {
+                      return a.subMeshIndex < b.subMeshIndex;
+                  }
+
+                  // 5. Draw mode
+                  if (a.drawMode != b.drawMode)
+                  {
+                      return static_cast<int>(a.drawMode) < static_cast<int>(b.drawMode);
+                  }
+
+                  // 6. Topology
+                  if (a.topology != b.topology)
+                  {
+                      return static_cast<int>(a.topology) < static_cast<int>(b.topology);
+                  }
+
+                  return false;
               });
 }
 
