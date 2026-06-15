@@ -95,6 +95,28 @@ static float SampleHeightAt(const TerrainHeightfield& hf, glm::vec2 xz)
         tz);
 }
 
+// Compute per-instance scale modulation from local terrain metrics.
+// worldScaleFactor  — global world-size multiplier (computed once in PlaceAll)
+// s                 — terrain sample at the instance position
+// treelineNorm      — normalised height above which vegetation shrinks
+static float ComputeAutoScale(float worldScaleFactor,
+                               const TerrainSample& s,
+                               float treelineNorm = 0.72f)
+{
+    // Elevation: full size below treeline, taper to 60% above it
+    const float elevFactor = (s.normalizedHeight < treelineNorm)
+        ? 1.0f
+        : 1.0f - (s.normalizedHeight - treelineNorm) / (1.0f - treelineNorm) * 0.40f;
+
+    // Slope: steep ground → smaller props (roots can't anchor)
+    const float slopeFactor = 1.0f - glm::clamp(s.slope * 0.45f, 0.0f, 0.50f);
+
+    // Roughness via erosion amount: heavily eroded patches → slightly smaller
+    const float roughFactor = 1.0f - glm::clamp(s.erosionAmount * 0.30f, 0.0f, 0.35f);
+
+    return worldScaleFactor * elevFactor * slopeFactor * roughFactor;
+}
+
 // ─── Frustum helpers ─────────────────────────────────────────────────────────
 
 static void ExtractFrustumPlanes(const glm::mat4& vp, glm::vec4 planes[6])
@@ -358,20 +380,33 @@ void TerrainVegetation::PlaceAll(const TerrainHeightfield& hf, uint32_t seed)
 {
     if (!m_setupDone || !m_enabled) return;
 
+    // Derive global scale factor from world size so vegetation always looks
+    // proportional regardless of how worldWidth/heightScale are configured.
+    // Reference: a 512-unit-wide world at 80-unit heightScale == scale 1.0.
+    constexpr float kRefWorldSize  = 512.0f;
+    constexpr float kRefHeightScale = 80.0f;
+    m_worldScaleFactor = m_autoScale
+        ? (hf.settings.worldWidth / kRefWorldSize)
+          * std::sqrt(hf.settings.heightScale / kRefHeightScale)
+        : 1.0f;
+
     std::mt19937 rng(seed ^ 0xABCD1234u);
 
-    SpatialGrid treeGrid(7.0f), logGrid(5.0f), rockUndGrid(2.5f);
-    SpatialGrid grassGrid(1.5f), flowerGrid(2.0f), bushGrid(3.5f);
-    SpatialGrid boulderGrid(6.0f), rockGrid(3.5f), stoneGrid(2.0f), pebblesGrid(1.0f);
-    SpatialGrid cactusGrid(9.0f), sandStoneGrid(3.5f);
+    // Scale spatial-grid cell sizes proportionally so spacing rules remain
+    // correct in world units when the world is larger or smaller.
+    const float gs = m_worldScaleFactor;
+    SpatialGrid treeGrid(7.0f * gs), logGrid(5.0f * gs), rockUndGrid(2.5f * gs);
+    SpatialGrid grassGrid(1.5f * gs), flowerGrid(2.0f * gs), bushGrid(3.5f * gs);
+    SpatialGrid boulderGrid(6.0f * gs), rockGrid(3.5f * gs), stoneGrid(2.0f * gs), pebblesGrid(1.0f * gs);
+    SpatialGrid cactusGrid(9.0f * gs), sandStoneGrid(3.5f * gs);
 
     PlaceForestZone(hf, rng, treeGrid, logGrid, rockUndGrid);
     PlaceGrassZone (hf, rng, grassGrid, flowerGrid, bushGrid);
     PlaceRockZone  (hf, rng, boulderGrid, rockGrid, stoneGrid, pebblesGrid);
     PlaceSandZone  (hf, rng, cactusGrid, sandStoneGrid);
 
-    spdlog::info("[TerrainVegetation] Placed — trees:{} grass:{} rock:{} sand:{}",
-                 m_statTrees, m_statGrass, m_statRock, m_statSand);
+    spdlog::info("[TerrainVegetation] Placed — trees:{} grass:{} rock:{} sand:{} (worldScale:{:.2f})",
+                 m_statTrees, m_statGrass, m_statRock, m_statSand, m_worldScaleFactor);
 }
 
 // ─── ScatterCluster ──────────────────────────────────────────────────────────
@@ -382,7 +417,8 @@ void TerrainVegetation::ScatterCluster(VegetationGroup& group,
                                         float scaleMin, float scaleMax,
                                         float minSpacing,
                                         std::mt19937& rng, SpatialGrid& grid,
-                                        const TerrainHeightfield& hf)
+                                        const TerrainHeightfield& hf,
+                                        float baseScaleMult)
 {
     std::uniform_real_distribution<float> angleDist(0.0f, glm::two_pi<float>());
     std::uniform_real_distribution<float> distDist(0.0f, radius);
@@ -401,7 +437,7 @@ void TerrainVegetation::ScatterCluster(VegetationGroup& group,
 
         float wy = SampleHeightAt(hf, xz);
         group.AddInstance({xz.x, wy, xz.y},
-                          scaleDist(rng), rotDist(rng),
+                          scaleDist(rng) * baseScaleMult, rotDist(rng),
                           tiltDist(rng), tiltDist(rng));
         grid.Insert(xz);
     }
@@ -433,6 +469,10 @@ void TerrainVegetation::PlaceForestZone(const TerrainHeightfield& hf,
         glm::vec2 parentXZ = GridToWorld(x, z, hf);
         glm::vec3 parentPos(parentXZ.x, s.height, parentXZ.y);
 
+        const float autoScale = m_autoScale
+            ? ComputeAutoScale(m_worldScaleFactor, s, 0.72f)
+            : 1.0f;
+
         // Choose tree species
         float r = prob(rng);
         VegetationGroup* treeGroup =
@@ -443,14 +483,14 @@ void TerrainVegetation::PlaceForestZone(const TerrainHeightfield& hf,
         {
             int n = clusterN(rng);
             ScatterCluster(*treeGroup, parentPos, n, 9.0f,
-                           0.8f, 1.2f, 6.5f, rng, treeGrid, hf);
+                           0.8f, 1.2f, 6.5f, rng, treeGrid, hf, autoScale);
             m_statTrees += n;
         }
 
         // Understory: stylized_log (20%)
         if (prob(rng) < 0.20f && !logGrid.IsTooClose(parentXZ, 4.5f))
         {
-            float sc = scaleDist(rng);
+            float sc = scaleDist(rng) * autoScale;
             float wy = SampleHeightAt(hf, parentXZ + glm::vec2(3.0f, 2.0f));
             m_stylizedLog.AddInstance(
                 {parentXZ.x + 3.0f, wy, parentXZ.y + 2.0f},
@@ -461,7 +501,7 @@ void TerrainVegetation::PlaceForestZone(const TerrainHeightfield& hf,
         // Understory: small rock (15%)
         if (prob(rng) < 0.15f && !rockUndGrid.IsTooClose(parentXZ, 2.0f))
         {
-            float sc = scaleDist(rng) * 0.7f;
+            float sc = scaleDist(rng) * 0.7f * autoScale;
             m_simpleRock.AddInstance(parentPos, sc, rotDist(rng), 0.0f, 0.0f);
             rockUndGrid.Insert(parentXZ);
         }
@@ -496,15 +536,19 @@ void TerrainVegetation::PlaceGrassZone(const TerrainHeightfield& hf,
         glm::vec2 xz = GridToWorld(x, z, hf);
         glm::vec3 pos(xz.x, s.height, xz.y);
 
+        const float autoScale = m_autoScale
+            ? ComputeAutoScale(m_worldScaleFactor, s, 0.80f)
+            : 1.0f;
+
         // Grass clumps (80%)
         if (prob(rng) < 0.80f)
             ScatterCluster(m_lowpolyGrass, pos, clumpN(rng), 2.5f,
-                           0.7f, 1.3f, 1.4f, rng, grassGrid, hf);
+                           0.7f, 1.3f, 1.4f, rng, grassGrid, hf, autoScale);
 
         // Flower (40%)
         if (prob(rng) < 0.40f && !flowerGrid.IsTooClose(xz, 1.8f))
         {
-            m_flower.AddInstance(pos, scaleDist(rng), rotDist(rng),
+            m_flower.AddInstance(pos, scaleDist(rng) * autoScale, rotDist(rng),
                                  tiltDist(rng), tiltDist(rng));
             flowerGrid.Insert(xz);
             ++m_statGrass;
@@ -514,7 +558,7 @@ void TerrainVegetation::PlaceGrassZone(const TerrainHeightfield& hf,
         if (s.grassMask < 0.55f && prob(rng) < 0.12f
             && !bushGrid.IsTooClose(xz, 3.0f))
         {
-            m_bush.AddInstance(pos, scaleDist(rng) * 0.9f, rotDist(rng),
+            m_bush.AddInstance(pos, scaleDist(rng) * 0.9f * autoScale, rotDist(rng),
                                tiltDist(rng), tiltDist(rng));
             bushGrid.Insert(xz);
             ++m_statGrass;
@@ -548,19 +592,25 @@ void TerrainVegetation::PlaceRockZone(const TerrainHeightfield& hf,
         glm::vec2 xz = GridToWorld(x, z, hf);
         glm::vec3 pos(xz.x, s.height, xz.y);
 
+        // Rocks don't grow smaller at altitude like trees do, but local slope
+        // and world size still apply — use a high treeline so elevation barely matters.
+        const float autoScale = m_autoScale
+            ? ComputeAutoScale(m_worldScaleFactor, s, 0.95f)
+            : 1.0f;
+
         // Boulder or rock (50/50), with stone companions
         if (prob(rng) < 0.50f && !boulderGrid.IsTooClose(xz, 5.5f))
         {
-            float sc = scaleDist(rng);
+            float sc = scaleDist(rng) * autoScale;
             m_boulder.AddInstance(pos, sc, rotDist(rng), tiltDist(rng), tiltDist(rng));
             boulderGrid.Insert(xz);
             ++m_statRock;
 
-            ScatterCluster(m_stone, pos, 2, 4.0f, 0.4f, 0.9f, 1.8f, rng, stoneGrid, hf);
+            ScatterCluster(m_stone, pos, 2, 4.0f, 0.4f, 0.9f, 1.8f, rng, stoneGrid, hf, autoScale);
         }
         else if (!rockGrid.IsTooClose(xz, 3.0f))
         {
-            m_rock.AddInstance(pos, scaleDist(rng), rotDist(rng),
+            m_rock.AddInstance(pos, scaleDist(rng) * autoScale, rotDist(rng),
                                tiltDist(rng), tiltDist(rng));
             rockGrid.Insert(xz);
             ++m_statRock;
@@ -568,7 +618,7 @@ void TerrainVegetation::PlaceRockZone(const TerrainHeightfield& hf,
 
         // Pebble fill (70%)
         if (prob(rng) < 0.70f)
-            ScatterCluster(m_pebbles, pos, 2, 3.5f, 0.8f, 1.2f, 0.9f, rng, pebblesGrid, hf);
+            ScatterCluster(m_pebbles, pos, 2, 3.5f, 0.8f, 1.2f, 0.9f, rng, pebblesGrid, hf, autoScale);
     }
 }
 
@@ -598,11 +648,15 @@ void TerrainVegetation::PlaceSandZone(const TerrainHeightfield& hf,
         glm::vec2 xz = GridToWorld(x, z, hf);
         glm::vec3 pos(xz.x, s.height, xz.y);
 
+        const float autoScale = m_autoScale
+            ? ComputeAutoScale(m_worldScaleFactor, s, 0.95f)
+            : 1.0f;
+
         // Cactus (15%)
         if (prob(rng) < 0.15f && !cactusGrid.IsTooClose(xz, 8.0f))
         {
             VegetationGroup& cact = (prob(rng) < 0.55f) ? m_cactus : m_cactus2;
-            cact.AddInstance(pos, scaleDist(rng), rotDist(rng), 0.0f, 0.0f);
+            cact.AddInstance(pos, scaleDist(rng) * autoScale, rotDist(rng), 0.0f, 0.0f);
             cactusGrid.Insert(xz);
             ++m_statSand;
         }
@@ -610,7 +664,7 @@ void TerrainVegetation::PlaceSandZone(const TerrainHeightfield& hf,
         // Stone scatter (8%)
         if (prob(rng) < 0.08f && !sandStoneGrid.IsTooClose(xz, 3.0f))
         {
-            m_stone.AddInstance(pos, scaleDist(rng) * 0.6f, rotDist(rng), 0.0f, 0.0f);
+            m_stone.AddInstance(pos, scaleDist(rng) * 0.6f * autoScale, rotDist(rng), 0.0f, 0.0f);
             sandStoneGrid.Insert(xz);
         }
     }
@@ -619,9 +673,12 @@ void TerrainVegetation::PlaceSandZone(const TerrainHeightfield& hf,
 // ─── TerrainVegetation — CullAndUpload ───────────────────────────────────────
 
 void TerrainVegetation::CullAndUpload(const glm::mat4& viewProj,
-                                       const glm::vec3& cameraPos)
+                                       const glm::vec3& cameraPos,
+                                       float verticalOffset)
 {
     if (!m_setupDone || !m_enabled) return;
+
+    const glm::vec3 offsetVec{0.0f, verticalOffset, 0.0f};
 
     glm::vec4 planes[6];
     ExtractFrustumPlanes(viewProj, planes);
@@ -642,14 +699,15 @@ void TerrainVegetation::CullAndUpload(const glm::mat4& viewProj,
         const bool needsRescale = (g->scaleOverride != 1.0f);
         for (const VegetationInstance& inst : g->m_instances)
         {
-            float d = glm::length(inst.position - cameraPos);
+            const glm::vec3 shiftedPosition = inst.position + offsetVec;
+            float d = glm::length(shiftedPosition - cameraPos);
             if (d > lodDist) continue;
-            if (!SphereInFrustum(planes, inst.position, inst.boundingRadius)) continue;
+            if (!SphereInFrustum(planes, shiftedPosition, inst.boundingRadius)) continue;
+
+            glm::mat4 transform = glm::translate(glm::mat4(1.0f), offsetVec) * inst.transform;
             if (needsRescale)
-                g->m_visibleTransforms.push_back(
-                    glm::scale(inst.transform, glm::vec3(g->scaleOverride)));
-            else
-                g->m_visibleTransforms.push_back(inst.transform);
+                transform = glm::scale(transform, glm::vec3(g->scaleOverride));
+            g->m_visibleTransforms.push_back(transform);
         }
 
         g->UploadInstances();

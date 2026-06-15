@@ -67,19 +67,43 @@ struct TerrainGenerationSettings
     // ── Small detail layer ────────────────────────────────────────────────────
     float detailScale     = 0.025f; ///< Spatial frequency of fine-grained detail
     float detailAmplitude = 0.06f;  ///< Contribution weight [0..1] — intentionally small
+    // ── Height smoothing / anti-noise
+    int   heightSmoothingPasses      = 3;   ///< Weighted-average passes after the procedural fBM stack
+    bool  heightSmoothingMedian      = false; ///< Use median filtering instead of average smoothing
+    int   postErosionSmoothingPasses = 3;   ///< Weighted-average passes after erosion
+
+    // Separable Gaussian applied to procedural terrain before SmoothHeightfield.
+    // Removes high-frequency fBM spikes that the weighted-average pass alone misses.
+    int   proceduralBlurPasses   = 2;    ///< Gaussian blur passes on procedural heightfield
+    int   proceduralBlurRadius   = 3;    ///< Gaussian blur radius for procedural terrain [1..64]
+    float proceduralBlurStrength = 1.0f; ///< Blend amount per procedural blur pass [0..1]
+
+    // Separable Gaussian applied after hydraulic erosion to clean up sharp ravine walls.
+    int   postErosionBlurPasses   = 2;    ///< Gaussian blur passes after erosion
+    int   postErosionBlurRadius   = 4;    ///< Gaussian blur radius for post-erosion smoothing [1..64]
+    float postErosionBlurStrength = 1.0f; ///< Blend amount per post-erosion Gaussian pass [0..1]
 
     // ── Low-frequency region masks ────────────────────────────────────────────
     float regionMaskScale = 0.0006f; ///< Spatial frequency of region-blending mask
 
-    // ── Optional erosion post-process ────────────────────────────────────────
-    bool  erosionEnabled    = false;
-    int   erosionIterations = 50000;
+    // ── Optional hydraulic erosion ───────────────────────────────────────────
+    bool  erosionEnabled    = true;
+    int   erosionIterations = 120000;
     float erosionInertia    = 0.05f;
-    float erosionCapacity   = 4.0f;
-    float erosionDeposition = 0.1f;
-    float erosionErosion    = 0.3f;
-    float erosionEvaporation = 0.01f;
-    float erosionMinSlope    = 0.01f;
+    float erosionCapacity   = 5.0f;
+    float erosionDeposition = 0.12f;
+    float erosionErosion    = 0.35f;
+    float erosionEvaporation = 0.015f;
+    float erosionMinSlope    = 0.02f;
+
+    // ── Thermal erosion (talus / rock-fall) ──────────────────────────────────
+    // Runs after hydraulic erosion. Each pass transfers material from any cell
+    // steeper than the repose angle to its downslope neighbour, rounding cliff
+    // faces without touching river channels.
+    bool  thermalErosionEnabled    = true;
+    int   thermalErosionIterations = 8;     ///< Full-grid passes [1..20]
+    float thermalErosionAngle      = 38.0f; ///< Repose angle in degrees [20..60]
+    float thermalErosionStrength   = 0.35f; ///< Fraction of excess transferred per step [0..1]
 
     // ── Volcano shaping ───────────────────────────────────────────────────────
     // Injects a radial bias term into the height stack that forms a cone
@@ -107,7 +131,9 @@ struct TerrainGenerationSettings
     std::string heightmapPath  = "assets/heightmap/map.png"; ///< Path to a greyscale PNG (8- or 16-bit)
     float       heightmapGamma = 1.0f;  ///< Power curve on normalised height (1.0 = linear)
     bool        heightmapFlipY = false; ///< Flip rows vertically if terrain appears inverted
-    int         heightmapSmoothPasses = 2; ///< Box-blur passes after load to remove quantization spikes (0 = off)
+    int         heightmapSmoothPasses = 3; ///< Gaussian blur passes after load to remove quantization spikes (0 = off)
+    int         heightmapBlurRadius = 8; ///< Gaussian blur radius for imported heightmaps
+    float       heightmapBlurStrength = 1.0f; ///< Blend amount per heightmap blur pass [0..1]
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
