@@ -1,4 +1,5 @@
 #pragma once
+#include "core/AABB.h"
 #include <cstdint>
 #include <string>
 
@@ -38,4 +39,7 @@ struct SubMesh {
     /// aiProcess_CalcTangentSpace succeeded). False for meshes without a UV channel.
     /// When false the renderer will skip normal map sampling for this submesh.
     bool hasTangents = true;
+
+    /// Tight local-space bounds for this submesh's vertex positions.
+    AABB localBounds{};
 };
