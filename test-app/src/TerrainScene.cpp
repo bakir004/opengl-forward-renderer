@@ -353,6 +353,13 @@ void TerrainScene::OnTerrainTabUI()
                 dirty = true;
             }
             if (ImGui::IsItemHovered()) ImGui::SetTooltip("Relative or absolute path to a PNG or 16-bit heightmap.");
+            ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextFaint);
+            ImGui::TextUnformatted("Mesh resolution (PNG resampled to this grid)");
+            ImGui::PopStyleColor();
+            dirty |= ImGui::DragInt("Mesh Res W##hm", reinterpret_cast<int*>(&m_genSettings.gridWidth),  1.0f, 32, 1024);
+            dirty |= ImGui::DragInt("Mesh Res H##hm", reinterpret_cast<int*>(&m_genSettings.gridHeight), 1.0f, 32, 1024);
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("256x256 = ~131K triangles. Halving quarters the count.");
+            ImGui::Separator();
             dirty |= ImGui::DragFloat("Gamma##hm",         &m_genSettings.heightmapGamma,       0.01f, 0.1f, 4.0f, "%.2f");
             dirty |= ImGui::Checkbox ("Flip Y##hm",        &m_genSettings.heightmapFlipY);
             dirty |= ImGui::DragInt  ("Smooth Passes##hm", &m_genSettings.heightmapSmoothPasses, 1, 0, 32);

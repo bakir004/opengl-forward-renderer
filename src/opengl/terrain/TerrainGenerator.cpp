@@ -1002,34 +1002,60 @@ TerrainHeightfield LoadHeightmapFromPNG(
     spdlog::info("[TerrainGenerator] Loaded {}x{} {} heightmap: {}",
                  w, h, is16 ? "16-bit" : "8-bit", path);
 
-    TerrainHeightfield hf;
-    hf.settings        = settings;
-    hf.width           = static_cast<uint32_t>(w);
-    hf.height          = static_cast<uint32_t>(h);
-    // Preserve the image's aspect ratio in world space so non-square maps
-    // don't get squashed.  worldWidth stays as configured; worldHeight scales.
-    hf.settings.worldHeight = settings.worldWidth * (static_cast<float>(h) / static_cast<float>(w));
-    hf.samples.resize(static_cast<size_t>(w) * h);
-    hf.minHeight =  std::numeric_limits<float>::max();
-    hf.maxHeight = -std::numeric_limits<float>::max();
-
+    // Decode raw pixels into a flat float array so we can bilinearly resample
+    // to the requested output grid resolution (gridWidth × gridHeight).
+    const size_t imgPixels = static_cast<size_t>(w) * h;
+    std::vector<float> rawHeights(imgPixels);
     for (int z = 0; z < h; ++z)
     {
         const int srcZ = settings.heightmapFlipY ? (h - 1 - z) : z;
         for (int x = 0; x < w; ++x)
         {
             const size_t srcIdx = static_cast<size_t>(srcZ) * w + x;
-            const float norm = is16
+            rawHeights[static_cast<size_t>(z) * w + x] = is16
                 ? static_cast<float>(px16[srcIdx]) / 65535.0f
                 : static_cast<float>(px8[srcIdx])  / 255.0f;
-            TerrainSample& s   = hf.At(static_cast<uint32_t>(x), static_cast<uint32_t>(z));
-            s.normalizedHeight = norm;
-            s.height           = norm * settings.heightScale;
         }
     }
 
     if (is16) stbi_image_free(px16);
     else      stbi_image_free(px8);
+
+    const uint32_t gridW = std::max(2u, settings.gridWidth);
+    const uint32_t gridH = std::max(2u, settings.gridHeight);
+
+    TerrainHeightfield hf;
+    hf.settings        = settings;
+    hf.width           = gridW;
+    hf.height          = gridH;
+    hf.settings.gridWidth  = gridW;
+    hf.settings.gridHeight = gridH;
+    // Preserve the PNG's aspect ratio in world space regardless of output grid size.
+    hf.settings.worldHeight = settings.worldWidth * (static_cast<float>(h) / static_cast<float>(w));
+    hf.samples.resize(static_cast<size_t>(gridW) * gridH);
+    hf.minHeight =  std::numeric_limits<float>::max();
+    hf.maxHeight = -std::numeric_limits<float>::max();
+
+    // Bilinearly resample from the full-res pixel grid to the output mesh grid.
+    // Halving gridW/H quarters the triangle count; quality loss is minimal for
+    // smooth heightmaps because the blur passes already killed sub-grid detail.
+    for (uint32_t gz = 0; gz < gridH; ++gz)
+    {
+        const float fz = static_cast<float>(gz) / static_cast<float>(gridH - 1)
+                         * static_cast<float>(h - 1);
+        for (uint32_t gx = 0; gx < gridW; ++gx)
+        {
+            const float fx = static_cast<float>(gx) / static_cast<float>(gridW - 1)
+                             * static_cast<float>(w - 1);
+            const float norm = SampleHeightfield(rawHeights,
+                                                  static_cast<uint32_t>(w),
+                                                  static_cast<uint32_t>(h),
+                                                  fx, fz);
+            TerrainSample& s   = hf.At(gx, gz);
+            s.normalizedHeight = norm;
+            s.height           = norm * settings.heightScale;
+        }
+    }
 
     // Remap raw pixel range [min, max] → [0, 1] so the full heightScale is
     // always used regardless of what grey levels the image occupies.
