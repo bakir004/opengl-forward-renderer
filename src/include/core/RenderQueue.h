@@ -14,6 +14,9 @@ struct RenderQueueFrameStats
 {
     uint32_t processedItemCount = 0;
     uint32_t drawCallCount = 0;
+    uint32_t shaderProgramChangeCount = 0;
+    uint32_t materialChangeCount = 0;
+    uint32_t textureBindingCount = 0;
     uint64_t approxTriangleCount = 0;
 };
 

@@ -131,6 +131,7 @@ AssetCacheStats AssetImporter::GetCacheStats() {
     AssetCacheStats stats{};
     stats.shaderCount   = s_shaders.size();
     stats.textureCount  = s_textures.size();
+    stats.cubemapCount  = s_cubemaps.size();
     stats.meshCount     = s_meshes.size();
     stats.materialCount = s_materials.size();
     return stats;

@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <glm/glm.hpp>
@@ -21,6 +22,25 @@ struct ReflectionProbe;
 class Skybox;
 class Camera;
 
+enum class RendererPassTimingId : uint32_t
+{
+    DirectionalShadow = 0,
+    MainScene,
+    Skybox,
+    PostProcess,
+    Count
+};
+
+inline constexpr std::size_t kRendererPassTimingCount =
+    static_cast<std::size_t>(RendererPassTimingId::Count);
+
+struct RendererPassTiming
+{
+    const char *name = "";
+    float milliseconds = 0.0f;
+    bool available = false;
+};
+
 /// Small per-frame debug snapshot used by the runtime stats UI.
 struct ShadowFrustumDebugInfo
 {
@@ -39,19 +59,50 @@ struct ShadowFrustumDebugInfo
 struct RendererDebugStats
 {
     uint32_t submittedRenderItemCount = 0;
+    uint32_t visibleRenderItemCount = 0;
     uint32_t frustumCulledRenderItemCount = 0;
     uint32_t queuedRenderItemCount = 0;
     uint32_t processedRenderItemCount = 0;
     uint32_t drawCallCount = 0;
+    uint32_t shaderProgramChangeCount = 0;
+    uint32_t materialChangeCount = 0;
+    uint32_t textureBindingCount = 0;
     uint64_t approxTriangleCount = 0;
     uint32_t directionalLightCount = 0;
     uint32_t pointLightCount = 0;
+    uint32_t spotLightCount = 0;
+    uint32_t totalLightCount = 0;
     uint32_t shadowCasterCount = 0;
     uint32_t shadowReceiverCount = 0;
     uint32_t shadowPassObjectCount = 0;
     uint32_t shadowPassExcludedObjectCount = 0;
     float frameTimeMs = 0.0f;
     float fps = 0.0f;
+    std::array<RendererPassTiming, kRendererPassTimingCount> passTimings = {{
+        {"Directional Shadow", 0.0f, false},
+        {"Main Scene",         0.0f, false},
+        {"Skybox",             0.0f, false},
+        {"Post Process",       0.0f, false},
+    }};
+    uint32_t meshCount = 0;
+    uint32_t materialCount = 0;
+    uint32_t textureCount = 0;
+    uint32_t shaderProgramCount = 0;
+    uint32_t cachedMeshCount = 0;
+    uint32_t cachedMaterialCount = 0;
+    uint32_t cachedTexture2DCount = 0;
+    uint32_t cachedCubemapCount = 0;
+    uint32_t cachedShaderProgramCount = 0;
+    uint32_t activeCameraCount = 0;
+    float cameraPositionX = 0.0f;
+    float cameraPositionY = 0.0f;
+    float cameraPositionZ = 0.0f;
+    float cameraYaw = 0.0f;
+    float cameraPitch = 0.0f;
+    float cameraFov = 0.0f;
+    bool cullingEnabled = false;
+    bool cullingDataAvailable = false;
+    bool currentCameraAvailable = false;
     uint32_t shadowMapTextureId = 0;
     uint32_t shadowMapWidth = 0;
     uint32_t shadowMapHeight = 0;
@@ -163,6 +214,9 @@ public:
 
     /// Returns the latest per-frame debug snapshot for runtime UI.
     [[nodiscard]] const RendererDebugStats &GetDebugStats() const { return m_debugStats; }
+
+    /// Records CPU-side timings for render work owned outside Renderer::EndFrame.
+    void RecordDebugPassTiming(RendererPassTimingId pass, float milliseconds);
 
     /// Selects the PBR IBL inspection mode used while flushing scene materials.
     void SetIBLDebugState(IBLDebugMode mode, float prefilteredMipLevel);

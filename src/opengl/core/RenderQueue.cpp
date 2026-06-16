@@ -23,6 +23,9 @@ namespace
     constexpr float kDefaultPbrMetallicValue = 0.0f;
     constexpr float kDefaultPbrRoughnessValue = 0.5f;
     constexpr glm::vec3 kDefaultPbrEmissiveColor(0.0f, 0.0f, 0.0f);
+    constexpr uint32_t kMaterialTextureSlotBindCount = 7;
+    constexpr uint32_t kEnvironmentTextureSlotBindCount = 4;
+    constexpr uint32_t kShadowTextureBindCount = 1;
 
     void SetOptionalIntUniform(GLuint programId, const char *name, int value)
     {
@@ -349,14 +352,20 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
             // Material path: bind full material (shader + textures + params).
             if (item.material != lastMaterial)
             {
+                const ShaderProgram *materialShader = item.material->GetShader();
+                ++stats.materialChangeCount;
+                if (materialShader && materialShader != lastShader)
+                    ++stats.shaderProgramChangeCount;
+                stats.textureBindingCount += kMaterialTextureSlotBindCount + kEnvironmentTextureSlotBindCount;
+
                 item.material->Bind();
-                if (const ShaderProgram *shader = item.material->GetShader())
+                if (const ShaderProgram *shader = materialShader)
                     BindEnvironmentResources(*shader,
                                              m_activeReflectionProbe,
                                              m_iblDebugMode,
                                              m_iblDebugPrefilteredMip);
                 lastMaterial = item.material;
-                lastShader = item.material->GetShader();
+                lastShader = materialShader;
             }
         }
         else
@@ -364,6 +373,9 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
             // Legacy shader-only path.
             if (item.shader != lastShader)
             {
+                ++stats.shaderProgramChangeCount;
+                stats.textureBindingCount += kMaterialTextureSlotBindCount + kEnvironmentTextureSlotBindCount;
+
                 item.shader->Bind();
                 ApplyPbrFallbackUniformDefaults(*item.shader);
                 Texture2D::Unbind(MaterialTextureUnit::Albedo);
@@ -423,6 +435,7 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
                 activeShader->SetUniform("u_CascadeShadowMaps", 7);
                 activeShader->SetUniform("u_PCFRadius", m_pcfRadius);
                 glActiveTexture(GL_TEXTURE0);
+                stats.textureBindingCount += kShadowTextureBindCount;
             }
         }
 

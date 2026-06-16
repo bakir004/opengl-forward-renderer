@@ -7,7 +7,6 @@ class Scene;
 class Renderer;
 class MouseInput;
 struct RendererDebugStats;
-struct AssetCacheStats;
 struct FrameSubmission;
 
 /// Sidebar tab indices — keep in sync with kTabLabels in RendererUI.cpp.
@@ -117,8 +116,7 @@ private:
 
     void DrawTabPostFX(Scene &scene, const RendererDebugStats &stats);
 
-    void DrawTabStats(Scene &scene, const RendererDebugStats &stats,
-                      const AssetCacheStats &cacheStats);
+    void DrawTabStats(Scene &scene, const RendererDebugStats &stats);
 
     void DrawTabTerrain(Scene &scene);
 
