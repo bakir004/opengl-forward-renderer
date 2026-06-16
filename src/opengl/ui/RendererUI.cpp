@@ -1365,6 +1365,7 @@ void RendererUI::DrawHelpWindow(int fbW, int fbH) {
         ImGui::TextColored(Pal::TextDim, "INTERFACE");
         ImGui::Separator();
         KeyRow("X", "Toggle inspector");
+        KeyRow("1-9", "Switch scenes");
         KeyRow("Z", "Wireframe mode");
         KeyRow("N", "Toggle normal map");
         KeyRow("K", "Toggle skybox");
