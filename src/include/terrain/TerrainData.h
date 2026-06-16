@@ -13,9 +13,9 @@
 
 struct TerrainGenerationSettings
 {
-    // Grid resolution
-    uint32_t gridWidth  = 256; ///< Number of vertices along X
-    uint32_t gridHeight = 256; ///< Number of vertices along Z
+    // Grid resolution — also controls output mesh resolution for heightmap mode
+    uint32_t gridWidth  = 256; ///< Mesh vertices along X (procedural grid size; heightmap is resampled to this)
+    uint32_t gridHeight = 256; ///< Mesh vertices along Z (procedural grid size; heightmap is resampled to this)
 
     // World-space extents
     float worldWidth  = 512.0f; ///< Total world-space size along X
