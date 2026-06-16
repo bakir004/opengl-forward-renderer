@@ -8,9 +8,9 @@
 #include "scene/LightEnvironment.h"
 #include "scene/FrameSubmission.h"
 #include "core/Material.h"
-#include "assets/AssetImporter.h"
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <cstdarg>
 #include <cmath>
 #include <cstdio>
 #include <algorithm>
@@ -474,14 +474,13 @@ void RendererUI::DrawSidebar(int fbH,
         ImGui::BeginChild("##content", ImVec2(0, hasTerrainFooter ? -kFooterH : 0.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 12));
 
-        const AssetCacheStats cs = AssetImporter::GetCacheStats();
         switch (m_activeTab) {
             case UITab::Scene:     DrawTabScene(scene, stats, frame);    break;
             case UITab::Lights:    DrawTabLights(scene, stats, frame);   break;
             case UITab::Materials: DrawTabMaterials(scene, stats, frame); break;
             case UITab::Shadow:    DrawTabShadow(scene, stats);          break;
             case UITab::PostFX:    DrawTabPostFX(scene, stats);          break;
-            case UITab::Stats:     DrawTabStats(scene, stats, cs);       break;
+            case UITab::Stats:     DrawTabStats(scene, stats);           break;
             case UITab::Terrain:   DrawTabTerrain(scene);                break;
         }
 
@@ -750,7 +749,7 @@ void RendererUI::DrawTabScene(Scene &scene, const RendererDebugStats &stats,
         SR("Submitted", buf);
         std::snprintf(buf, sizeof(buf), "%u", stats.frustumCulledRenderItemCount);
         SR("Culled", buf);
-        std::snprintf(buf, sizeof(buf), "%u", stats.processedRenderItemCount);
+        std::snprintf(buf, sizeof(buf), "%u", stats.visibleRenderItemCount);
         SR("Visible", buf);
 
         ImGui::PopStyleColor();
@@ -1213,45 +1212,93 @@ void RendererUI::DrawTabPostFX(Scene & /*scene*/, const RendererDebugStats &stat
 // ─────────────────────────────────────────────────────────────────────────────
 // Tab: Stats
 // ─────────────────────────────────────────────────────────────────────────────
-void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats,
-                              const AssetCacheStats &cs) {
+void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats) {
+    auto Row = [](const char *label, const char *fmt, ...) {
+        ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextDim);
+        ImGui::TextUnformatted(label);
+        ImGui::PopStyleColor();
+        ImGui::SameLine(150);
 
-    if (SectionHeader("Performance")) {
+        va_list args;
+        va_start(args, fmt);
+        ImGui::TextV(fmt, args);
+        va_end(args);
+    };
+
+    if (SectionHeader("Frame / Timing")) {
         ImGui::Checkbox("Frustum culling", &frustumCullingEnabled);
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("Skip forward-pass draws for objects outside the camera frustum.\nShadow casters are unaffected.");
 
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
-        ImGui::Text("FPS           : %.1f", stats.fps);
-        ImGui::Text("Frame time    : %.2f ms", stats.frameTimeMs);
-        ImGui::Separator();
-        ImGui::Text("Draw calls    : %u", stats.drawCallCount);
-        ImGui::Text("Submitted     : %u", stats.submittedRenderItemCount);
-        ImGui::Text("Culled        : %u", stats.frustumCulledRenderItemCount);
-        ImGui::Text("Visible       : %u", stats.processedRenderItemCount);
-        ImGui::Text("Queued        : %u", stats.queuedRenderItemCount);
-        ImGui::Text("Approx tris   : %s", FormatCompact(stats.approxTriangleCount).c_str());
+        Row("FPS", "%.1f", stats.fps);
+        Row("Frame time", "%.2f ms", stats.frameTimeMs);
+        if (stats.currentCameraAvailable) {
+            Row("Camera", "%.1f FOV, yaw %.1f", stats.cameraFov, stats.cameraYaw);
+            Row("Camera pos", "%.1f, %.1f, %.1f",
+                stats.cameraPositionX, stats.cameraPositionY, stats.cameraPositionZ);
+        } else {
+            Row("Camera", "none");
+        }
         ImGui::PopStyleColor();
         ImGui::Spacing();
     }
 
-    if (SectionHeader("Lighting Counts")) {
+    if (SectionHeader("Render Pass Timings")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
-        ImGui::Text("Directional   : %u", stats.directionalLightCount);
-        ImGui::Text("Point lights  : %u", stats.pointLightCount);
-        ImGui::Text("Shadow casters: %u", stats.shadowCasterCount);
+        bool anyTiming = false;
+        for (const RendererPassTiming &timing : stats.passTimings) {
+            if (!timing.available)
+                continue;
+            Row(timing.name, "%.2f ms", timing.milliseconds);
+            anyTiming = true;
+        }
+        if (!anyTiming)
+            Row("Passes", "not available");
         ImGui::PopStyleColor();
         ImGui::Spacing();
     }
 
-    if (SectionHeader("Resource Cache")) {
+    if (SectionHeader("Culling")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
-        ImGui::Text("Total items   : %zu", cs.TotalCount());
+        Row("Status", "%s", stats.cullingEnabled ? "enabled" : "disabled");
+        Row("Submitted", "%u", stats.submittedRenderItemCount);
+        Row("Visible", "%u", stats.visibleRenderItemCount);
+        Row("Culled", "%u", stats.frustumCulledRenderItemCount);
+        Row("Drawn", "%u", stats.processedRenderItemCount);
+        Row("Queued", "%u", stats.queuedRenderItemCount);
+        if (!stats.cullingDataAvailable)
+            Row("Culling data", "no camera");
+        ImGui::PopStyleColor();
+        ImGui::Spacing();
+    }
+
+    if (SectionHeader("Draw / State Changes")) {
+        ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
+        Row("Draw calls", "%u", stats.drawCallCount);
+        Row("Approx tris", "%s", FormatCompact(stats.approxTriangleCount).c_str());
+        Row("Program changes", "%u", stats.shaderProgramChangeCount);
+        Row("Material changes", "%u", stats.materialChangeCount);
+        Row("Texture binds", "%u", stats.textureBindingCount);
+        ImGui::PopStyleColor();
+        ImGui::Spacing();
+    }
+
+    if (SectionHeader("Resources")) {
+        ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
+        Row("Scene meshes", "%u", stats.meshCount);
+        Row("Scene materials", "%u", stats.materialCount);
+        Row("Scene shaders", "%u", stats.shaderProgramCount);
+        Row("Lights", "%u total", stats.totalLightCount);
+        Row("Directional", "%u", stats.directionalLightCount);
+        Row("Point / Spot", "%u / %u", stats.pointLightCount, stats.spotLightCount);
+        Row("Active cameras", "%u", stats.activeCameraCount);
         ImGui::Separator();
-        ImGui::Text("Shaders       : %zu", cs.shaderCount);
-        ImGui::Text("Textures      : %zu", cs.textureCount);
-        ImGui::Text("Meshes        : %zu", cs.meshCount);
-        ImGui::Text("Materials     : %zu", cs.materialCount);
+        Row("Cached shaders", "%u", stats.cachedShaderProgramCount);
+        Row("Cached meshes", "%u", stats.cachedMeshCount);
+        Row("Cached materials", "%u", stats.cachedMaterialCount);
+        Row("Cached textures", "%u", stats.textureCount);
+        Row("2D / cubemap", "%u / %u", stats.cachedTexture2DCount, stats.cachedCubemapCount);
         ImGui::PopStyleColor();
         ImGui::Spacing();
     }
@@ -1318,6 +1365,7 @@ void RendererUI::DrawHelpWindow(int fbW, int fbH) {
         ImGui::TextColored(Pal::TextDim, "INTERFACE");
         ImGui::Separator();
         KeyRow("X", "Toggle inspector");
+        KeyRow("1-9", "Switch scenes");
         KeyRow("Z", "Wireframe mode");
         KeyRow("N", "Toggle normal map");
         KeyRow("K", "Toggle skybox");

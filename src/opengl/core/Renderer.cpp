@@ -7,6 +7,7 @@
 #include "core/shadows/CascadedShadowMap.h"
 #include "core/Texture2D.h"
 #include "core/TextureCubemap.h"
+#include "assets/AssetImporter.h"
 #include "scene/FrameSubmission.h"
 #include "scene/LightBlock.h"
 #include "scene/LightUtils.h"
@@ -15,12 +16,14 @@
 #include <glad/glad.h>
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <glm/geometric.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <spdlog/spdlog.h>
 #include <cassert>
 #include <limits>
+#include <unordered_set>
 
 namespace
 {
@@ -46,6 +49,23 @@ namespace
     // very noticeable shadow cutoffs while rotating the camera; a modest margin
     // trades a little resolution for much more stable coverage.
     constexpr float kCascadeRadiusPadding = 1.35f;
+    using CpuClock = std::chrono::steady_clock;
+
+    float ElapsedMilliseconds(CpuClock::time_point start)
+    {
+        const auto elapsed = CpuClock::now() - start;
+        return std::chrono::duration<float, std::milli>(elapsed).count();
+    }
+
+    void SetPassTiming(RendererDebugStats &stats, RendererPassTimingId pass, float milliseconds)
+    {
+        const std::size_t index = static_cast<std::size_t>(pass);
+        if (index >= stats.passTimings.size())
+            return;
+
+        stats.passTimings[index].milliseconds = milliseconds;
+        stats.passTimings[index].available = true;
+    }
 
     GLenum ToGLPrimitive(PrimitiveTopology topology)
     {
@@ -148,45 +168,60 @@ namespace
                                           float debugPrefilteredMip,
                                           RendererDebugStats &stats)
     {
+        stats = RendererDebugStats{};
+
         stats.submittedRenderItemCount = static_cast<uint32_t>(submission.objects.size());
-        stats.frustumCulledRenderItemCount = 0;
-        stats.queuedRenderItemCount = 0;
-        stats.processedRenderItemCount = 0;
-        stats.drawCallCount = 0;
-        stats.approxTriangleCount = 0;
         stats.directionalLightCount = submission.lights.HasDirectionalLight() ? 1u : 0u;
         stats.pointLightCount = static_cast<uint32_t>(submission.lights.GetPointLights().size());
-        stats.shadowCasterCount = 0;
-        stats.shadowReceiverCount = 0;
-        stats.shadowPassObjectCount = 0;
-        stats.shadowPassExcludedObjectCount = 0;
+        stats.spotLightCount = static_cast<uint32_t>(submission.lights.GetSpotLights().size());
+        stats.totalLightCount = static_cast<uint32_t>(submission.lights.ActiveLightCount());
         stats.frameTimeMs = submission.deltaTime * 1000.0f;
         stats.fps = submission.deltaTime > 0.0f ? (1.0f / submission.deltaTime) : 0.0f;
         stats.shadowCasterCountApproximate = true;
-        stats.shadowPassDataAvailable = false;
         stats.approxTriangleCountApproximate = true;
-        stats.shadowMapTextureId = 0;
-        stats.shadowMapWidth = 0;
-        stats.shadowMapHeight = 0;
-        stats.shadowMapPreviewAvailable = false;
-        stats.iblSourceTextureId = 0;
-        stats.iblSourceWidth = 0;
-        stats.iblSourceHeight = 0;
-        stats.iblIrradianceTextureId = 0;
-        stats.iblIrradianceWidth = 0;
-        stats.iblIrradianceHeight = 0;
-        stats.iblPrefilteredTextureId = 0;
-        stats.iblPrefilteredWidth = 0;
-        stats.iblPrefilteredHeight = 0;
-        stats.iblBrdfLutTextureId = 0;
-        stats.iblBrdfLutWidth = 0;
-        stats.iblBrdfLutHeight = 0;
-        stats.iblPrefilteredMipCount = 0;
-        stats.iblSourcePreviewTextureIds.fill(0);
-        stats.iblIrradiancePreviewTextureIds.fill(0);
-        stats.iblPrefilteredPreviewTextureIds.fill(0);
-        stats.iblIntensity = 0.0f;
-        stats.iblAvailable = false;
+
+        std::unordered_set<const void *> uniqueMeshes;
+        std::unordered_set<const MaterialInstance *> uniqueMaterials;
+        std::unordered_set<const ShaderProgram *> uniqueShaders;
+        for (const RenderItem &item : submission.objects)
+        {
+            if (item.meshMulti)
+                uniqueMeshes.insert(item.meshMulti);
+            else if (item.mesh)
+                uniqueMeshes.insert(item.mesh);
+
+            if (item.material)
+                uniqueMaterials.insert(item.material);
+            if (const ShaderProgram *shader = item.ResolvedShader())
+                uniqueShaders.insert(shader);
+        }
+
+        stats.meshCount = static_cast<uint32_t>(uniqueMeshes.size());
+        stats.materialCount = static_cast<uint32_t>(uniqueMaterials.size());
+        stats.shaderProgramCount = static_cast<uint32_t>(uniqueShaders.size());
+
+        const AssetCacheStats cacheStats = AssetImporter::GetCacheStats();
+        stats.cachedShaderProgramCount = static_cast<uint32_t>(cacheStats.shaderCount);
+        stats.cachedTexture2DCount = static_cast<uint32_t>(cacheStats.textureCount);
+        stats.cachedCubemapCount = static_cast<uint32_t>(cacheStats.cubemapCount);
+        stats.cachedMeshCount = static_cast<uint32_t>(cacheStats.meshCount);
+        stats.cachedMaterialCount = static_cast<uint32_t>(cacheStats.materialCount);
+        stats.textureCount = stats.cachedTexture2DCount + stats.cachedCubemapCount;
+
+        stats.activeCameraCount = submission.camera ? 1u : 0u;
+        stats.currentCameraAvailable = submission.camera != nullptr;
+        stats.cullingDataAvailable = submission.camera != nullptr;
+        if (submission.camera)
+        {
+            const glm::vec3 cameraPosition = submission.camera->GetPosition();
+            stats.cameraPositionX = cameraPosition.x;
+            stats.cameraPositionY = cameraPosition.y;
+            stats.cameraPositionZ = cameraPosition.z;
+            stats.cameraYaw = submission.camera->GetYaw();
+            stats.cameraPitch = submission.camera->GetPitch();
+            stats.cameraFov = submission.camera->GetFOV();
+        }
+
         if (activeProbe)
         {
             const ReflectionProbe &probe = *activeProbe;
@@ -218,9 +253,6 @@ namespace
             stats.iblIntensity = probe.intensity;
             stats.iblAvailable = probe.HasAnyIbl();
         }
-        stats.cascadePreviewTextureIds.fill(0);
-        stats.cascadeSplitDistances.fill(0.0f);
-        stats.directionalShadowFrustum = {};
 
         for (const RenderItem &item : submission.objects)
         {
@@ -325,7 +357,11 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
     PopulateDebugStatsFromSubmission(submission, activeProbe, m_iblDebugPrefilteredMip, m_debugStats);
     m_debugStats.iblDebugMode = m_iblDebugMode;
     m_debugStats.iblDebugPrefilteredMip = m_iblDebugPrefilteredMip;
+
+    const auto shadowPassStart = CpuClock::now();
     RenderDirectionalShadowPass(submission);
+    if (m_debugStats.shadowPassDataAvailable)
+        SetPassTiming(m_debugStats, RendererPassTimingId::DirectionalShadow, ElapsedMilliseconds(shadowPassStart));
 
     if (!m_lightUBO)
         m_lightUBO = std::make_unique<UniformBuffer>(sizeof(LightBlock), GL_DYNAMIC_DRAW);
@@ -357,15 +393,18 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
         {
             m_cameraFrustum = Frustum::FromViewProjection(submission.camera->GetViewProjection());
             m_cameraFrustumValid = true;
+            m_debugStats.cullingEnabled = true;
         }
         else
         {
             m_cameraFrustumValid = false;
+            m_debugStats.cullingEnabled = false;
         }
     }
     else
     {
         m_cameraFrustumValid = false;
+        m_debugStats.cullingEnabled = false;
     }
 
     // Create or resize the HDR offscreen framebuffer to match the current viewport.
@@ -414,15 +453,23 @@ void Renderer::EndFrame()
         m_queue.SetDirectionalShadowData({}, {}, 0, 0);
     }
 
+    const auto mainScenePassStart = CpuClock::now();
     m_queue.Sort();
     const RenderQueueFrameStats queueStats = m_queue.Flush(m_currentContext);
+    SetPassTiming(m_debugStats, RendererPassTimingId::MainScene, ElapsedMilliseconds(mainScenePassStart));
     
     // Render Skybox last (it uses GL_LEQUAL and .xyww to only draw on empty pixels)
     if (m_currentSkybox && m_currentCamera) {
+        const auto skyboxPassStart = CpuClock::now();
         m_currentSkybox->Draw(m_currentCamera->GetProjection(), m_currentCamera->GetView());
+        SetPassTiming(m_debugStats, RendererPassTimingId::Skybox, ElapsedMilliseconds(skyboxPassStart));
     }
+    m_debugStats.visibleRenderItemCount = m_debugStats.queuedRenderItemCount;
     m_debugStats.processedRenderItemCount = queueStats.processedItemCount;
     m_debugStats.drawCallCount = queueStats.drawCallCount;
+    m_debugStats.shaderProgramChangeCount = queueStats.shaderProgramChangeCount;
+    m_debugStats.materialChangeCount = queueStats.materialChangeCount;
+    m_debugStats.textureBindingCount = queueStats.textureBindingCount;
     m_debugStats.approxTriangleCount = queueStats.approxTriangleCount;
 
     // Return to the default framebuffer after the scene pass.
@@ -470,9 +517,15 @@ void Renderer::SubmitDraw(const RenderItem &item)
     if (m_queue.Add(item))
     {
         ++m_debugStats.queuedRenderItemCount;
+        ++m_debugStats.visibleRenderItemCount;
         if (item.flags.castShadow)
             ++m_debugStats.shadowCasterCount;
     }
+}
+
+void Renderer::RecordDebugPassTiming(RendererPassTimingId pass, float milliseconds)
+{
+    SetPassTiming(m_debugStats, pass, std::max(0.0f, milliseconds));
 }
 
 void Renderer::Resize(int width, int height)

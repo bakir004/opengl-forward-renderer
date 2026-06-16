@@ -25,6 +25,7 @@
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 #include <algorithm>
+#include <chrono>
 #include <string>
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -46,6 +47,17 @@ static void scroll_callback(GLFWwindow *window, double /*xoff*/, double yoff)
     if (!app || !app->GetInputManager())
         return;
     app->GetInputManager()->GetMouse().OnScroll(static_cast<float>(yoff));
+}
+
+namespace
+{
+    using CpuClock = std::chrono::steady_clock;
+
+    float ElapsedMilliseconds(CpuClock::time_point start)
+    {
+        const auto elapsed = CpuClock::now() - start;
+        return std::chrono::duration<float, std::milli>(elapsed).count();
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -259,10 +271,13 @@ void Application::RunFrame(Scene &scene,
     scene.OnPostRender();
     // RenderPostProcess immediately binds its own FBOs and reads the HDR texture
     // by GL texture ID, so the HDR FBO being bound here is not a problem.
+    const auto postProcessStart = CpuClock::now();
     RenderPostProcess(sub.clearInfo.viewport.x,
                       sub.clearInfo.viewport.y,
                       sub.clearInfo.viewport.width,
                       sub.clearInfo.viewport.height);
+    m_renderer->RecordDebugPassTiming(RendererPassTimingId::PostProcess,
+                                      ElapsedMilliseconds(postProcessStart));
 
     // ── ImGui ─────────────────────────────────────────────────────────────────
     if (m_imguiInitialized)

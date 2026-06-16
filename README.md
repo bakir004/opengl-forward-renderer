@@ -46,6 +46,19 @@ To build this project, you need **CMake (3.26+)** and a **C++ compiler**. On Lin
 >
 > Delete the `build/` or `cmake-build-*` directory and rebuild.
 
+## Debug Overlay and Capture Presets
+
+The runtime debug overlay is the ImGui inspector shown on the left side of the window. Press `X` to show or hide it, and press `TAB` if mouse-look is captured and you need UI control. Open the `Stats` tab to inspect frame timing, render pass timings, culling counts, draw/state-change counters, lights, cameras, and scene/cache resource counts.
+
+Demo scenes and capture presets can be selected from the top `Scenes` menu or with number keys `1` through `9`. The capture presets are deterministic scenes intended for screenshots, demos, and quick renderer-stat checks:
+
+- `Capture: Baseline` keeps a small, stable object set for low-cost reference captures.
+- `Capture: Dense Grid` submits many repeated objects so draw-call and pass timing changes are easy to see.
+- `Capture: Material Sweep` uses many material instances to exercise material/state counters.
+- `Capture: Culling Test` places objects inside, outside, and behind the camera view so submitted, visible, and culled counts are easy to compare.
+
+The overlay timings are CPU-side measurements. Submitted items come from the active scene submission, visible items are accepted into the forward render queue after culling, culled items are rejected by camera-frustum culling, and draw/state counters are reset and measured each frame while the queue is flushed.
+
 ### IDE / LSP Support
 For the best experience in **Neovim (clangd)** or **VS Code**, the build script generates a `compile_commands.json` in the `build/` directory.
 You should symlink this to the project root so your LSP can find the headers:
