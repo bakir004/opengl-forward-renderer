@@ -25,7 +25,7 @@ REM CONFIGURE (LET CMAKE DECIDE GENERATOR)
 REM ==============================
 echo Configuring CMake (%CONFIG%)...
 
-cmake -S . -B "%BUILD_DIR%" ^
+cmake -S . -B "%BUILD_DIR%" ^ -G "MinGW Makefiles" ^
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
 if errorlevel 1 exit /b 1
