@@ -6,7 +6,7 @@ A modular, modern **OpenGL 4.6 Core Profile** forward renderer written in C++20,
 
 **New to this project? Start with [docs/setup.md](./docs/setup.md).** It is
 the single, self-contained guide for installing prerequisites, configuring
-CMake, building, and running — written so it requires no prior knowledge of
+CMake, building, and running - written so it requires no prior knowledge of
 this codebase.
 
 The short version, once prerequisites are installed ([details](./docs/setup.md#1-prerequisites)):
@@ -14,9 +14,9 @@ The short version, once prerequisites are installed ([details](./docs/setup.md#1
 ```bash
 git clone <repository-url> ForwardRenderer
 cd ForwardRenderer
-./build.sh      # Linux/macOS/Git Bash — Release by default
+./build.sh      # Linux/macOS/Git Bash - Release by default
 # or
-build.bat       # Windows — Debug by default
+build.bat       # Windows - Release by default
 ```
 
 > **The project path must not contain spaces.** See
@@ -36,20 +36,20 @@ build.bat       # Windows — Debug by default
 
 ## Features
 
-- **Platform & context** — GLFW window, GLAD-loaded OpenGL 4.6 Core Profile context, GL debug callback wired to spdlog, JSON-driven runtime config (`config/settings.json`).
-- **Renderer core** — explicit `Initialize` / resize / `BeginFrame` / `SubmitDraw` / `EndFrame` / shutdown lifecycle; no raw GL calls in application or scene code.
-- **Geometry** — RAII buffer/VAO/mesh abstractions; built-in primitives (triangle, quad, cube, sphere); Assimp model import (OBJ, glTF, FBX, DAE) with multi-submesh meshes.
-- **Resources** — `Texture2D` (stb_image, sRGB/Linear, mipmaps, fallbacks) and an `AssetImporter` cache that deduplicates shaders, textures, meshes, and materials by path.
-- **Materials** — data-driven metallic-roughness PBR materials and per-object material instances; six PBR texture slots on fixed texture units. See [docs/materials.md](./docs/materials.md).
-- **Camera & scene** — perspective camera (FreeFly / FirstPerson / ThirdPerson), per-object transforms, and a `FrameSubmission` / `RenderItem` scene submission API.
-- **Lighting** — one directional light plus multiple point and spot lights, uploaded via std140 uniform blocks.
-- **Shadows** — cascaded directional shadow mapping with PCF filtering, tunable bias/filter settings, and a per-cascade debug preview.
-- **PBR & normal mapping** — Cook-Torrance BRDF (GGX / Smith / Schlick) with tangent-space normal mapping.
-- **Post-processing** — HDR offscreen target, tone mapping (Reinhard / ACES / Uncharted 2) with exposure control, and bloom (bright-pass + separable Gaussian blur).
-- **Image-based lighting** — skybox/cubemap background, diffuse irradiance map, prefiltered specular map, and BRDF integration LUT.
-- **Terrain** — procedural seed-based heightfield with layered noise, height/slope material zones, hydraulic + thermal erosion, and instanced vegetation placement.
-- **Optimization** — CPU-side frustum culling and render-queue sorting to reduce redundant state changes.
-- **Diagnostics** — ImGui debug overlay with frame/pass timings, culling and draw/state counters, light/camera/resource inspectors, and intermediate-target previews.
+- **Platform & context** - GLFW window, GLAD-loaded OpenGL 4.6 Core Profile context, GL debug callback wired to spdlog, JSON-driven runtime config (`config/settings.json`).
+- **Renderer core** - explicit `Initialize` / resize / `BeginFrame` / `SubmitDraw` / `EndFrame` / shutdown lifecycle; no raw GL calls in application or scene code.
+- **Geometry** - RAII buffer/VAO/mesh abstractions; built-in primitives (triangle, quad, cube, sphere); Assimp model import (OBJ, glTF, FBX, DAE) with multi-submesh meshes.
+- **Resources** - `Texture2D` (stb_image, sRGB/Linear, mipmaps, fallbacks) and an `AssetImporter` cache that deduplicates shaders, textures, meshes, and materials by path.
+- **Materials** - data-driven metallic-roughness PBR materials and per-object material instances; six PBR texture slots on fixed texture units. See [docs/materials.md](./docs/materials.md).
+- **Camera & scene** - perspective camera (FreeFly / FirstPerson / ThirdPerson), per-object transforms, and a `FrameSubmission` / `RenderItem` scene submission API.
+- **Lighting** - one directional light plus multiple point and spot lights, uploaded via std140 uniform blocks.
+- **Shadows** - cascaded directional shadow mapping with PCF filtering, tunable bias/filter settings, and a per-cascade debug preview.
+- **PBR & normal mapping** - Cook-Torrance BRDF (GGX / Smith / Schlick) with tangent-space normal mapping.
+- **Post-processing** - HDR offscreen target, tone mapping (Reinhard / ACES / Uncharted 2) with exposure control, and bloom (bright-pass + separable Gaussian blur).
+- **Image-based lighting** - skybox/cubemap background, diffuse irradiance map, prefiltered specular map, and BRDF integration LUT.
+- **Terrain** - procedural seed-based heightfield with layered noise, height/slope material zones, hydraulic + thermal erosion, and instanced vegetation placement.
+- **Optimization** - CPU-side frustum culling and render-queue sorting to reduce redundant state changes.
+- **Diagnostics** - ImGui debug overlay with frame/pass timings, culling and draw/state counters, light/camera/resource inspectors, and intermediate-target previews.
 
 ## Demo scenes
 
@@ -60,7 +60,7 @@ Full descriptions, controls, and what a correct run should look like are in
 | Key | Scene | Purpose |
 | :-- | :---- | :------ |
 | `1` | **Terrain** | Procedural terrain generation with material zones, masks, and tuning controls. |
-| `2` | **Bistro** | Large imported scene exercising PBR materials, shadows, HDR, bloom, and IBL. Requires a manual asset download — see [docs/BistroAssetSetup.md](./docs/BistroAssetSetup.md). |
+| `2` | **Bistro** | Large imported scene exercising PBR materials, shadows, HDR, bloom, and IBL. Requires a manual asset download - see [docs/BistroAssetSetup.md](./docs/BistroAssetSetup.md). |
 | `3` | **Capture: Baseline** | Small, stable object set for low-cost reference captures. |
 | `4` | **Capture: Dense Grid** | Many repeated objects to make draw-call and pass-timing changes visible. |
 | `5` | **Capture: Material Sweep** | Many material instances to exercise material/state counters. |
@@ -72,7 +72,7 @@ Press `X` to show or hide the runtime debug overlay (the ImGui inspector on
 the left side of the window), and `TAB` if mouse-look is captured and you
 need UI control. The **Stats** tab shows frame timing, render pass timings,
 culling counts, draw/state-change counters, lights, cameras, and resource
-counts — the fastest way to confirm a scene is behaving correctly. Press `H`
+counts - the fastest way to confirm a scene is behaving correctly. Press `H`
 at any time for the full in-app keyboard-shortcut reference.
 
 ### IDE / LSP support
@@ -87,7 +87,7 @@ ln -s build/compile_commands.json .
 
 ## Known limitations
 
-This renderer is a one-term academic project scoped to a forward-rendering graphics subsystem only — no deferred/G-buffer pipeline, no editor, physics, audio, or scripting, and no Vulkan/DirectX backend. For the full list of unsupported features and known issues, see [docs/limitations.md](./docs/limitations.md).
+This renderer is a one-term academic project scoped to a forward-rendering graphics subsystem only - no deferred/G-buffer pipeline, no editor, physics, audio, or scripting, and no Vulkan/DirectX backend. For the full list of unsupported features and known issues, see [docs/limitations.md](./docs/limitations.md).
 
 ## Contributing
 

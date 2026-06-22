@@ -96,53 +96,22 @@ fastest path to confirm everything works.
 
 **Linux / macOS / Git Bash:**
 ```bash
-./build.sh            # Release build (default)
+./build.sh             # Release build (default)
 ./build.sh Debug       # Debug build
 ```
 
 **Windows (CMD or PowerShell):**
 ```
-build.bat              REM Debug build (default)
-build.bat Release       REM Release build
+build.bat              REM Release build (default)
+build.bat Debug        REM Debug build
 ```
-
-> Note the differing defaults: `build.sh` with no argument builds **Release**;
-> `build.bat` with no argument builds **Debug**. Pass the configuration
-> explicitly (as shown above) if you want to be certain which one you get -
-> this matters for the "Build Debug and Release" validation step below.
 
 Each invocation creates/reuses a `build/` directory, configures CMake into it,
 compiles, copies `assets/` next to the executable, and launches the app
 immediately on success.
 
-### 3.2 Configure and build only (no auto-run)
 
-If you want to separate configuration/build from running (e.g. for the
-clean-machine checklist below), use CMake directly:
-
-```bash
-# Configure
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-
-# Build
-cmake --build build --config Debug --parallel
-```
-
-Repeat with `-DCMAKE_BUILD_TYPE=Release` / `--config Release` into a second
-build directory (e.g. `build-release`) if you need both configurations to
-coexist:
-
-```bash
-cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-cmake --build build-release --config Release --parallel
-```
-
-> First configure will take a few minutes - CMake's `FetchContent` is
-> downloading GLFW, spdlog, nlohmann/json, GLM, stb, Dear ImGui, and Assimp
-> from GitHub. Subsequent configures reuse the cached sources under
-> `external/`.
-
-### 3.3 Re-running without rebuilding
+### 3.2 Re-running without rebuilding
 
 Once built, you can relaunch the existing binary without touching CMake:
 
@@ -154,7 +123,7 @@ run.bat         # Windows
 These scripts locate `TestApp` (or `TestApp.exe`) under `build/` in whichever
 configuration subfolder it was built into, and run it directly.
 
-### 3.4 Where the binary ends up
+### 3.3 Where the binary ends up
 
 The executable is named **`TestApp`** (`TestApp.exe` on Windows). Depending on
 your generator it lands in one of:

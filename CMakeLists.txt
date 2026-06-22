@@ -3,9 +3,8 @@ project(ForwardRendererProject)
 
 set(CMAKE_CXX_STANDARD 20)
 
-set(FETCHCONTENT_BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external")
+set(FETCHCONTENT_BASE_DIR "${CMAKE_BINARY_DIR}/_deps")
 include(FetchContent)
-set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
 
 FetchContent_Declare(glfw
         GIT_REPOSITORY https://github.com/glfw/glfw.git
