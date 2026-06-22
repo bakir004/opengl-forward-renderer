@@ -12,6 +12,13 @@ You need exactly two things on PATH: **CMake 3.26+** and a **C++20 compiler**.
 Everything else (GLFW, spdlog, nlohmann/json, GLM, stb, Dear ImGui, Assimp) is
 fetched automatically by CMake the first time you configure the project.
 
+> **Important: The Bistro scene assets are required to start the program.**
+> Before building, download and set up the NVIDIA ORCA Bistro bundle by
+> following [docs/BistroAssetSetup.md](./BistroAssetSetup.md). Without these
+> assets the application will not start. Be aware that the download is large
+> and the full setup process (download + first configure + build) can take a
+> significant amount of time.
+
 ### 1.1 Common to all platforms
 
 | Tool | Minimum version | Check with |
@@ -88,42 +95,36 @@ or unzip the release package and `cd` into the extracted folder.
 
 ## 3. Configure, build, and run
 
-The build scripts do four things in one step: install git hooks (if `.git`
-exists), configure CMake, build, and run the resulting binary. This is the
-fastest path to confirm everything works.
+The recommended way to build and run the project is through the
+**CMake Tools extension in Visual Studio** (or Visual Studio Code). This gives
+you better control over the build configuration, easier debugging, and avoids
+the limitations of the shell scripts.
 
-### 3.1 One-step build + run
+### 3.1 Recommended: CMake Tools extension
 
-**Linux / macOS / Git Bash:**
-```bash
-./build.sh             # Release build (default)
-./build.sh Debug       # Debug build
-```
+1. Open the project root folder in **Visual Studio Code** (or **Visual Studio**
+   with the CMake Tools extension installed).
+2. CMake Tools will detect the `CMakeLists.txt` automatically. Select your
+   preferred **kit** (compiler toolchain) when prompted.
+3. Choose your build variant (**Release** for normal use, **Debug** for
+   development) from the status bar.
+4. Click **Build** (or press `F7`) to configure and compile. On the first run
+   this will also fetch all dependencies via `FetchContent`, which may take
+   several minutes.
+5. Use the **Run** (▶) button in the status bar to launch `TestApp` directly from within the IDE.
 
-**Windows (CMD or PowerShell):**
-```
-build.bat              REM Release build (default)
-build.bat Debug        REM Debug build
-```
+This approach is preferred over the shell scripts because it integrates with
+the IDE's build output, error navigation, and debugger.
 
-Each invocation creates/reuses a `build/` directory, configures CMake into it,
-compiles, copies `assets/` next to the executable, and launches the app
-immediately on success.
+### 3.2 Alternative: build scripts (not recommended)
 
+`build.sh` / `build.bat` and `run.sh` / `run.bat` are provided as a
+convenience but are not the recommended path. They configure CMake, build, and
+run the binary in one step, but offer no IDE integration and can be harder to
+troubleshoot when something goes wrong. Use the CMake Tools extension instead
+wherever possible.
 
-### 3.2 Re-running without rebuilding
-
-Once built, you can relaunch the existing binary without touching CMake:
-
-```bash
-./run.sh        # Linux/macOS
-run.bat         # Windows
-```
-
-These scripts locate `TestApp` (or `TestApp.exe`) under `build/` in whichever
-configuration subfolder it was built into, and run it directly.
-
-### 3.3 Where the binary ends up
+### 3.3 Where the binary ends up (all methods)
 
 The executable is named **`TestApp`** (`TestApp.exe` on Windows). Depending on
 your generator it lands in one of:
@@ -151,16 +152,3 @@ On a successful launch:
   topbar is centered at the top.
 - The console/log shows `[Application] ImGui initialized` and no `[GL]`
   error-severity lines.
-
-If the window fails to open, see [Troubleshooting](#5-troubleshooting) below.
-
----
-
-## 6. Next steps
-
-- To see what each demo scene demonstrates and how to switch between them,
-  read [docs/scenes.md](./scenes.md).
-- To run the clean-machine acceptance checklist end-to-end, read
-  [docs/testing.md](./testing.md).
-- For a tour of the codebase and architecture, read
-  [docs/architecture.md](./architecture.md).
