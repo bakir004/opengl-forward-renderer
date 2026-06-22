@@ -32,6 +32,8 @@ build.bat       # Windows - Release by default
 | [docs/materials.md](./docs/materials.md) | PBR parameters, texture slots, sRGB/linear policy, normal-map conventions, fallbacks. |
 | [docs/assets.md](./docs/assets.md) | Asset folder layout, naming conventions, `.mat` file schema. |
 | [docs/BistroAssetSetup.md](./docs/BistroAssetSetup.md) | How to download and place the optional Bistro demo asset bundle. |
+| [docs/testing.md](./docs/testing.md) | Acceptance checklist, smoke/regression tests, benchmark and clean-machine procedures. |
+| [docs/limitations.md](./docs/limitations.md) | Unsupported features and known issues. |
 | [GITFLOW.md](./GITFLOW.md) | Branch naming and commit message conventions (contributors only). |
 
 ## Features
@@ -66,14 +68,19 @@ Full descriptions, controls, and what a correct run should look like are in
 | `5` | **Capture: Material Sweep** | Many material instances to exercise material/state counters. |
 | `6` | **Capture: Culling Test** | Objects inside, outside, and behind the camera to compare submitted/visible/culled counts. |
 
-## Debug overlay
+## Debug Overlay and Capture Presets
 
-Press `X` to show or hide the runtime debug overlay (the ImGui inspector on
-the left side of the window), and `TAB` if mouse-look is captured and you
-need UI control. The **Stats** tab shows frame timing, render pass timings,
-culling counts, draw/state-change counters, lights, cameras, and resource
-counts - the fastest way to confirm a scene is behaving correctly. Press `H`
-at any time for the full in-app keyboard-shortcut reference.
+The runtime debug overlay is the ImGui inspector shown on the left side of the window. Press `X` to show or hide it, and press `TAB` if mouse-look is captured and you need UI control. Open the `Stats` tab to inspect frame timing, render pass timings, culling counts, draw/state-change counters, lights, cameras, and scene/cache resource counts.
+
+Demo scenes and capture presets can be selected from the top `Scenes` menu or with number keys `1` through `9`. The capture presets are deterministic scenes intended for screenshots, demos, and quick renderer-stat checks:
+
+- `Capture: Baseline` keeps a small, stable object set for low-cost reference captures.
+- `Capture: Dense Grid` submits many repeated objects so draw-call and pass timing changes are easy to see.
+- `Capture: Material Sweep` uses many material instances to exercise material/state counters.
+- `Capture: Culling Test` places objects inside, outside, and behind the camera view so submitted, visible, and culled counts are easy to compare.
+
+The overlay timings are CPU-side measurements. Submitted items come from the active scene submission, visible items are accepted into the forward render queue after culling, culled items are rejected by camera-frustum culling, and draw/state counters are reset and measured each frame while the queue is flushed.
+
 
 ### IDE / LSP support
 
@@ -87,9 +94,9 @@ ln -s build/compile_commands.json .
 
 ## Known limitations
 
-This renderer is a one-term academic project scoped to a forward-rendering graphics subsystem only - no deferred/G-buffer pipeline, no editor, physics, audio, or scripting, and no Vulkan/DirectX backend. For the full list of unsupported features and known issues, see [docs/limitations.md](./docs/limitations.md).
+This renderer is a one-term academic project scoped to a forward-rendering graphics subsystem only - no deferred/G-buffer pipeline, no editor, physics, audio, or scripting, and no Vulkan/DirectX backend.
 
 ## Contributing
 
 See [GITFLOW.md](./GITFLOW.md) for branch naming and commit message
-conventions, enforced by git hooks installed via `build.sh`/`build.bat`.
+conventions, enforced by git hooks.
