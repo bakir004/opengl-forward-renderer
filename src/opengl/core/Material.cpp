@@ -133,6 +133,7 @@ void ApplyPbrFallbackUniformDefaults(const ShaderProgram& shader)
     SetOptionalIntUniform(programId, "u_HasBRDFLUT", 0);
     SetOptionalIntUniform(programId, "u_HasIBL", 0);
     SetOptionalFloatUniform(programId, "u_IBLIntensity",   0.0f);
+    SetOptionalFloatUniform(programId, "u_PrefilteredMaxMip", 0.0f);
     SetOptionalIntUniform(programId, "u_IBLDebugMode", ToUniformValue(kDefaultIBLDebugMode));
     SetOptionalFloatUniform(programId, "u_IBLDebugPrefilteredMip", 0.0f);
     SetOptionalVec3Uniform(programId, "u_AlbedoColor", kDefaultPbrAlbedoColor);

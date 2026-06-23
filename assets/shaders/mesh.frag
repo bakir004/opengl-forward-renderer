@@ -6,7 +6,7 @@ in vec2  v_UV;
 in mat3  v_TBN;
 in float v_ViewDepth;
 
-layout(std140, binding = 0) uniform Camera {
+layout(std140) uniform Camera {
     mat4 view;
     mat4 projection;
     mat4 viewProj;
@@ -54,6 +54,7 @@ uniform bool           u_HasPrefilteredMap = false;
 uniform bool           u_HasBRDFLUT = false;
 uniform bool           u_HasIBL = false;
 uniform float          u_IBLIntensity     = 1.0;
+uniform float          u_PrefilteredMaxMip = 0.0;
 uniform int            u_IBLDebugMode = IBL_DEBUG_FULL_LIGHTING;
 uniform float          u_IBLDebugPrefilteredMip = 0.0;
 uniform float          u_AmbientFloorStrength = 0.18;
@@ -538,10 +539,9 @@ vec3 ComputeSpecularIBL(vec3 N, vec3 V, vec3 F0, float roughness, float ao, out 
     float NdotV = max(dot(N, V), 0.0);
 
     // 2. Sample the prefiltered environment map at the mip level that corresponds
-    //    to this surface's roughness.  textureQueryLevels returns the number of
-    //    mip levels in the cubemap; mip 0 = mirror-sharp, highest mip = fully blurred.
-    float mipCount = float(textureQueryLevels(u_PrefilteredMap));
-    float mipLevel = roughness * (mipCount - 1.0);
+    //    to this surface's roughness. Mip 0 is mirror-sharp; the highest mip is
+    //    fully blurred. The application supplies the maximum mip for GLSL 4.10.
+    float mipLevel = roughness * max(u_PrefilteredMaxMip, 0.0);
     vec3 prefilteredColor = textureLod(u_PrefilteredMap, R, mipLevel).rgb;
 
     // 3. Sample the BRDF LUT.
@@ -656,7 +656,7 @@ void main()
         u_IBLDebugMode == IBL_DEBUG_PREFILTERED_MIP_LEVEL) {
         vec3 color = vec3(0.0);
         if (u_HasPrefilteredMap) {
-            float maxMipLevel = max(float(textureQueryLevels(u_PrefilteredMap)) - 1.0, 0.0);
+            float maxMipLevel = max(u_PrefilteredMaxMip, 0.0);
             float mipLevel = (u_IBLDebugMode == IBL_DEBUG_PREFILTERED_MIP_LEVEL)
                                  ? clamp(u_IBLDebugPrefilteredMip, 0.0, maxMipLevel)
                                  : roughness * maxMipLevel;

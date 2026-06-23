@@ -1,9 +1,8 @@
-// Instanced vertex shader — reads per-instance model matrix from an SSBO
-// at binding 3 via gl_InstanceID.  Varyings match mesh.vert so mesh.frag
-// can be reused unchanged as the fragment stage.
-// Requires OpenGL 4.3+ (GL_ARB_shader_storage_buffer_object).
+// Instanced vertex shader — reads the per-instance model matrix from four
+// instanced vertex attributes. Varyings match mesh.vert so mesh.frag can be
+// reused unchanged as the fragment stage. Compatible with OpenGL 4.1.
 
-layout(std140, binding = 0) uniform Camera {
+layout(std140) uniform Camera {
     mat4 view;
     mat4 projection;
     mat4 viewProj;
@@ -11,14 +10,11 @@ layout(std140, binding = 0) uniform Camera {
     float _pad0;
 };
 
-layout(std430, binding = 3) readonly buffer InstanceTransforms {
-    mat4 u_Transforms[];
-};
-
 layout(location = 0) in vec3 a_Position;
 layout(location = 1) in vec3 a_Normal;
 layout(location = 2) in vec2 a_UV;
 layout(location = 3) in vec4 a_Tangent;
+layout(location = 6) in mat4 a_InstanceTransform;
 
 out vec3  v_Normal;
 out vec3  v_WorldPos;
@@ -28,7 +24,7 @@ out float v_ViewDepth;
 
 void main()
 {
-    mat4 model = u_Transforms[gl_InstanceID];
+    mat4 model = a_InstanceTransform;
 
     mat3 normalMatrix  = transpose(inverse(mat3(model)));
     vec3 worldNormal   = normalize(normalMatrix * a_Normal);

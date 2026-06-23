@@ -8,7 +8,7 @@ in float v_ViewDepth;
 in vec4  v_TerrainData; // x=materialZone, y=mountainMask, z=grassSuitable, w=treeSuitable
 in float v_RockSuitability;
 
-layout(std140, binding = 0) uniform Camera {
+layout(std140) uniform Camera {
     mat4 view;
     mat4 projection;
     mat4 viewProj;
@@ -46,6 +46,7 @@ uniform bool  u_HasIrradianceMap  = false;
 uniform bool  u_HasPrefilteredMap = false;
 uniform bool  u_HasBRDFLUT        = false;
 uniform float u_IBLIntensity      = 1.0;
+uniform float u_PrefilteredMaxMip = 0.0;
 uniform float u_AmbientFloorStrength = 0.18;
 
 // Zone PBR scalars — roughness/metallic only; albedo comes from TerrainPalette.
@@ -389,8 +390,10 @@ void main()
     if (u_HasIBL && u_HasPrefilteredMap && u_HasBRDFLUT)
     {
         vec3  R        = reflect(-V, N);
-        float mipCount = float(textureQueryLevels(u_PrefilteredMap));
-        vec3  prefilt  = textureLod(u_PrefilteredMap, R, roughness * (mipCount - 1.0)).rgb;
+        vec3  prefilt  = textureLod(
+            u_PrefilteredMap,
+            R,
+            roughness * max(u_PrefilteredMaxMip, 0.0)).rgb;
         vec2  brdf     = texture(u_BRDFLUT, vec2(NdotV, roughness)).rg;
         iblSpecular    = prefilt * (kS_ibl * brdf.x + brdf.y) * ao * max(u_IBLIntensity, 0.0);
     }

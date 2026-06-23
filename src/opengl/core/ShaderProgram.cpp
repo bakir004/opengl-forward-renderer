@@ -10,6 +10,15 @@
 using std::string;
 
 namespace {
+    constexpr GLuint kCameraBindingPoint = 0;
+    constexpr GLuint kLightBindingPoint = 1;
+
+    void BindUniformBlockIfPresent(GLuint program, const char* blockName, GLuint bindingPoint) {
+        const GLuint blockIndex = glGetUniformBlockIndex(program, blockName);
+        if (blockIndex != GL_INVALID_INDEX)
+            glUniformBlockBinding(program, blockIndex, bindingPoint);
+    }
+
     // Trim leading whitespace so directives like "   #include ..." are still recognized.
     std::string LTrim(std::string s) {
         const size_t first = s.find_first_not_of(" \t\r\n");
@@ -184,6 +193,14 @@ GLuint ShaderProgram::CompileStage(const string& source, GLenum stageType, const
     GLint major, minor;
     glGetIntegerv(GL_MAJOR_VERSION, &major);
     glGetIntegerv(GL_MINOR_VERSION, &minor);
+
+    // Keep shader syntax capped at GLSL 4.10 even when the active context is
+    // newer, so accidental use of 4.20+ features is caught on every platform.
+    if (major > 4 || (major == 4 && minor > 1)) {
+        major = 4;
+        minor = 1;
+    }
+
     string versionStr = "#version " + std::to_string(major) + std::to_string(minor) + "0 core\n";
     // Trim leading BOM and whitespace
     std::string trimmedSource = source;
@@ -244,6 +261,12 @@ GLuint ShaderProgram::LinkProgram(GLuint vertShader, GLuint fragShader, const st
         glDeleteProgram(program);
         return 0;
     }
+
+    // GLSL 4.10 has no explicit uniform-block binding qualifier, so keep the
+    // binding-point convention on the application side.
+    BindUniformBlockIfPresent(program, "Camera", kCameraBindingPoint);
+    BindUniformBlockIfPresent(program, "LightBlock", kLightBindingPoint);
+
     return program;
 }
 

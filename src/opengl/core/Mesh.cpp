@@ -144,6 +144,33 @@ void Mesh::DrawSubMesh(uint32_t i) const {
     );
 }
 
+void Mesh::SetInstanceTransformBuffer(uint32_t bufferId) const {
+    if (!m_impl || bufferId == 0) return;
+
+    constexpr GLuint firstLocation = 6;
+    constexpr GLsizei columnSize = 4 * sizeof(float);
+
+    m_impl->vao.Bind();
+    glBindBuffer(GL_ARRAY_BUFFER, bufferId);
+
+    for (GLuint column = 0; column < 4; ++column) {
+        const GLuint location = firstLocation + column;
+        glEnableVertexAttribArray(location);
+        glVertexAttribPointer(
+            location,
+            4,
+            GL_FLOAT,
+            GL_FALSE,
+            sizeof(glm::mat4),
+            reinterpret_cast<const void*>(
+                static_cast<uintptr_t>(column * columnSize)));
+        glVertexAttribDivisor(location, 1);
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    m_impl->vao.Unbind();
+}
+
 void Mesh::DrawSubMeshInstanced(uint32_t i, uint32_t instanceCount) const {
     if (!m_impl || i >= m_impl->submeshes.size() || instanceCount == 0) return;
     const SubMesh& sm = m_impl->submeshes[i];

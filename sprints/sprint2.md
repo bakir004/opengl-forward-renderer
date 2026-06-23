@@ -385,12 +385,9 @@ ShaderProgram(vertPath, fragPath)
 `CompileStage` calls `glGetShaderInfoLog` and forwards errors to `spdlog::error` with the source path included. `IsValid()` returns `m_id != 0`. `SampleScene::Setup` checks `IsValid()` before proceeding.
 
 **Dynamic GLSL versioning:**
-Shader files no longer hardcode `#version` directives. `InjectVersion()` queries the active OpenGL context via `glGetIntegerv(GL_MAJOR_VERSION, ...)` and prepends the appropriate `#version` directive:
-- OpenGL 4.6 → `#version 460 core`
-- OpenGL 4.3 → `#version 430 core`
-- etc.
+Shader files no longer hardcode `#version` directives. `InjectVersion()` queries the active OpenGL context via `glGetIntegerv(GL_MAJOR_VERSION, ...)` and prepends a compatible directive, capped at `#version 410 core` on newer contexts.
 
-This allows the same shader source to run on different OpenGL versions without manual editing.
+This keeps the shared shader source valid on OpenGL 4.1 while still allowing lower context fallbacks to inject their supported GLSL version.
 
 **Uniform helpers:**
 `SetUniform(name, value)` is overloaded for `float`, `int`, `bool`, `vec2`–`vec4`, `mat3`, `mat4`. Locations are cached in `m_uniformCache` to avoid repeated `glGetUniformLocation` calls per frame.

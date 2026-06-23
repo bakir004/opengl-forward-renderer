@@ -23,7 +23,7 @@ struct VegetationInstance
 };
 
 // ─── VegetationGroup ─────────────────────────────────────────────────────────
-// One loaded model with all its CPU-side instances and a GPU SSBO.
+// One loaded model with all its CPU-side instances and a GPU instance VBO.
 // DrawSubMeshInstanced emits one instanced draw per submesh per frame.
 
 class VegetationGroup
@@ -48,7 +48,7 @@ public:
 
     void ClearInstances();
 
-    /// Upload m_visibleTransforms to the SSBO (grows as needed).
+    /// Upload m_visibleTransforms to the instance VBO (grows as needed).
     void UploadInstances();
 
     /// Draw all visible instances.  Caller must have the Camera and Light UBOs
@@ -76,8 +76,8 @@ public:
     std::vector<std::unique_ptr<MaterialInstance>> m_matInstances;
 
     std::shared_ptr<ShaderProgram> m_shader;
-    uint32_t m_ssbo         = 0; ///< GL_SHADER_STORAGE_BUFFER id (0 = not yet created)
-    uint32_t m_ssboCapacity = 0; ///< Allocated mat4 slots
+    uint32_t m_instanceVbo         = 0; ///< Instanced mat4 vertex buffer (0 = not yet created)
+    uint32_t m_instanceVboCapacity = 0; ///< Allocated mat4 slots
 };
 
 // ─── TerrainVegetation ───────────────────────────────────────────────────────
@@ -85,7 +85,7 @@ public:
 //
 //   1. Setup()         — load models (once)
 //   2. PlaceAll()      — run placement after each terrain generation
-//   3. CullAndUpload() — per-frame: frustum cull + SSBO upload
+//   3. CullAndUpload() — per-frame: frustum cull + instance VBO upload
 //   4. DrawAll()       — per-frame: one instanced draw per group
 
 class TerrainVegetation

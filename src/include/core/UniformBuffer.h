@@ -23,9 +23,9 @@
 ///       };                            // total: 144 bytes
 ///
 ///  STEP 2 — Declare the matching block in the GLSL shader.
-///           The binding index must match the slot used in BindToSlot().
+///           The application maps the block name to the slot used in BindToSlot().
 ///
-///       layout(std140, binding = 0) uniform Camera {
+///       layout(std140) uniform Camera {
 ///           mat4 view;
 ///           mat4 projection;
 ///           vec3 cameraPos;
@@ -40,7 +40,7 @@
 ///       CameraBlock block { camera.GetView(), camera.GetProjection(),
 ///                           camera.GetPosition(), 0.f };
 ///       cameraUBO.Upload(&block, sizeof(block));
-///       cameraUBO.BindToSlot(0);   // slot 0 → binding = 0 in the shader
+///       cameraUBO.BindToSlot(0);   // ShaderProgram maps Camera → slot 0
 ///
 ///  STEP 5 — Draw. The shader reads the block automatically with no per-field
 ///           SetUniform() calls needed.
@@ -70,7 +70,7 @@ public:
     /// Binds this buffer to a numbered UBO binding point via glBindBufferBase.
     /// This is a global binding — it persists until another buffer is bound to the same slot.
     /// Call this once per frame before issuing draw calls that read from this block.
-    /// @param bindingPoint  Slot index N matching the shader's `binding = N` declaration.
+    /// @param bindingPoint  Slot index assigned to the block with glUniformBlockBinding.
     ///                      Must be < GL_MAX_UNIFORM_BUFFER_BINDINGS (at least 36 on GL 4.x).
     void BindToSlot(GLuint bindingPoint) const;
 

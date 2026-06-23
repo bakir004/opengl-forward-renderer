@@ -72,6 +72,9 @@ namespace
         const bool hasPrefiltered = probe && IsCubemapPresent(probe->prefilteredCubemap);
         const bool hasBrdfLut = probe && IsTexture2DPresent(probe->brdfLut);
         const bool hasIbl = hasIrradiance || (hasPrefiltered && hasBrdfLut);
+        const float prefilteredMaxMip = hasPrefiltered
+            ? static_cast<float>(std::max(probe->prefilteredCubemap->GetMipLevels() - 1, 0))
+            : 0.0f;
 
         if (hasSource)
             probe->sourceCubemap->Bind(EnvironmentTextureUnit::Source);
@@ -103,6 +106,7 @@ namespace
         SetOptionalIntUniform(programId, "u_HasBRDFLUT", hasBrdfLut ? 1 : 0);
         SetOptionalIntUniform(programId, "u_HasIBL", hasIbl ? 1 : 0);
         SetOptionalFloatUniform(programId, "u_IBLIntensity", (probe && (hasIbl || hasSource)) ? probe->intensity : 0.0f);
+        SetOptionalFloatUniform(programId, "u_PrefilteredMaxMip", prefilteredMaxMip);
         SetOptionalIntUniform(programId, "u_IBLDebugMode", ToUniformValue(debugMode));
         SetOptionalFloatUniform(programId, "u_IBLDebugPrefilteredMip", debugPrefilteredMip);
 
@@ -137,6 +141,7 @@ namespace
         SetOptionalIntUniform(programId, "u_HasSourceEnvironmentMap", 0);
         SetOptionalIntUniform(programId, "u_IBLDebugMode", ToUniformValue(kDefaultIBLDebugMode));
         SetOptionalFloatUniform(programId, "u_IBLDebugPrefilteredMip", 0.0f);
+        SetOptionalFloatUniform(programId, "u_PrefilteredMaxMip", 0.0f);
         SetOptionalVec3Uniform(programId, "u_AlbedoColor", kDefaultPbrAlbedoColor);
         SetOptionalFloatUniform(programId, "u_MetallicValue", kDefaultPbrMetallicValue);
         SetOptionalFloatUniform(programId, "u_RoughnessValue", kDefaultPbrRoughnessValue);

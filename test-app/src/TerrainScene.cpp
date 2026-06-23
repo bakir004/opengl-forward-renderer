@@ -256,7 +256,7 @@ void TerrainScene::OnUpdate(float deltaTime, IInputProvider& input)
 
     ApplyTerrainOffset();
 
-    // Per-frame frustum cull + SSBO upload for all vegetation groups.
+    // Per-frame frustum cull + instance VBO upload for all vegetation groups.
     const Camera& cam = GetCamera();
     m_vegetation.CullAndUpload(cam.GetViewProjection(), cam.GetPosition(),
                                m_terrainVerticalOffset);

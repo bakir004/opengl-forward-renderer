@@ -161,10 +161,10 @@ static glm::mat4 BuildTransform(glm::vec3 pos, float scale,
 
 VegetationGroup::~VegetationGroup()
 {
-    if (m_ssbo != 0)
+    if (m_instanceVbo != 0)
     {
-        glDeleteBuffers(1, &m_ssbo);
-        m_ssbo = 0;
+        glDeleteBuffers(1, &m_instanceVbo);
+        m_instanceVbo = 0;
     }
 }
 
@@ -259,25 +259,29 @@ void VegetationGroup::UploadInstances()
     const auto count     = static_cast<uint32_t>(m_visibleTransforms.size());
     const auto byteSize  = static_cast<GLsizeiptr>(count * sizeof(glm::mat4));
 
-    if (m_ssbo == 0) glGenBuffers(1, &m_ssbo);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_ssbo);
-
-    if (count > m_ssboCapacity)
+    if (m_instanceVbo == 0)
     {
-        m_ssboCapacity = count + count / 2 + 32;
-        glBufferData(GL_SHADER_STORAGE_BUFFER,
-                     static_cast<GLsizeiptr>(m_ssboCapacity * sizeof(glm::mat4)),
+        glGenBuffers(1, &m_instanceVbo);
+        m_model.mesh->SetInstanceTransformBuffer(m_instanceVbo);
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, m_instanceVbo);
+
+    if (count > m_instanceVboCapacity)
+    {
+        m_instanceVboCapacity = count + count / 2 + 32;
+        glBufferData(GL_ARRAY_BUFFER,
+                     static_cast<GLsizeiptr>(m_instanceVboCapacity * sizeof(glm::mat4)),
                      nullptr, GL_DYNAMIC_DRAW);
     }
-    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, byteSize,
+    glBufferSubData(GL_ARRAY_BUFFER, 0, byteSize,
                     m_visibleTransforms.data());
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
     m_visibleCount = count;
 }
 
 void VegetationGroup::Draw() const
 {
-    if (!IsValid() || m_visibleCount == 0 || m_ssbo == 0) return;
+    if (!IsValid() || m_visibleCount == 0 || m_instanceVbo == 0) return;
 
     // Bind shader once; set frame-constant uniforms that the renderer doesn't
     // set on this shader (IBL / shadow disabled for vegetation).
@@ -287,8 +291,6 @@ void VegetationGroup::Draw() const
     m_shader->SetUniform("u_HasIrradianceMap",  false);
     m_shader->SetUniform("u_HasPrefilteredMap", false);
     m_shader->SetUniform("u_HasBRDFLUT",        false);
-
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, m_ssbo);
 
     const uint32_t subCount = m_model.mesh->SubMeshCount();
     for (uint32_t sub = 0; sub < subCount; ++sub)
@@ -306,7 +308,6 @@ void VegetationGroup::Draw() const
         m_model.mesh->DrawSubMeshInstanced(sub, m_visibleCount);
     }
 
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, 0);
     ShaderProgram::Unbind();
 }
 

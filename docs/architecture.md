@@ -140,7 +140,7 @@ UniformBuffer cameraUBO(sizeof(CameraBlock));
 // Each frame
 CameraBlock block = { camera.GetView(), ... };
 cameraUBO.Upload(&block, sizeof(block));
-cameraUBO.BindToSlot(0);  // Matches shader binding = 0
+cameraUBO.BindToSlot(0);  // ShaderProgram maps the Camera block to slot 0
 ```
 
 ### 2.6 ShaderProgram
@@ -453,7 +453,7 @@ std::unique_ptr<CascadedShadowMap> m_directionalShadowMap;
 
 **File**: `src/include/scene/LightBlock.h`
 
-Lights are packed into a `LightBlock` UBO struct in **std140 layout** and uploaded each frame. The shader includes `light_block.glsl` and reads lights from `layout(std140, binding = 1) uniform LightBlock { ... };`
+Lights are packed into a `LightBlock` UBO struct in **std140 layout** and uploaded each frame. The shader includes `light_block.glsl` and reads lights from `layout(std140) uniform LightBlock { ... };`; `ShaderProgram` maps that block to binding point 1 after linking.
 
 ---
 
