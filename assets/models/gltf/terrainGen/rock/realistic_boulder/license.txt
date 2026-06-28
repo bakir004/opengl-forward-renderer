@@ -1,0 +1,11 @@
+Model Information:
+* title:	Realistic boulder
+* source:	https://sketchfab.com/3d-models/realistic-boulder-620936a382274ab5bc108e1a64e17adc
+* author:	Luke.G (https://sketchfab.com/LukeCG)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Realistic boulder" (https://sketchfab.com/3d-models/realistic-boulder-620936a382274ab5bc108e1a64e17adc) by Luke.G (https://sketchfab.com/LukeCG) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

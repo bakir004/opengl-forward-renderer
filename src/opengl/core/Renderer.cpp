@@ -1,22 +1,29 @@
 #include "core/Renderer.h"
 #include "core/Camera.h"
+#include "core/EnvironmentLightingPipeline.h"
 #include "core/Skybox.h"
 #include "core/Mesh.h"
 #include "core/MeshBuffer.h"
 #include "core/shadows/CascadedShadowMap.h"
+#include "core/Texture2D.h"
+#include "core/TextureCubemap.h"
+#include "assets/AssetImporter.h"
 #include "scene/FrameSubmission.h"
 #include "scene/LightBlock.h"
 #include "scene/LightUtils.h"
 #include "scene/RenderItem.h"
+#include "scene/VisibilityCulling.h"
 #include <glad/glad.h>
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <glm/geometric.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <spdlog/spdlog.h>
 #include <cassert>
 #include <limits>
+#include <unordered_set>
 
 namespace
 {
@@ -26,15 +33,39 @@ namespace
     // Deliberately smaller than the world far plane so near-camera cascades stay tight.
     constexpr float kCascadeShadowMaxDistance = 150.0f;
     // Practical split lambda: 0 = uniform splits, 1 = logarithmic splits.
-    // Values near 1.0 put most shadow-map resolution into near cascades.
-    constexpr float kCascadeSplitLambda = 0.9f;
+    // Keep this moderate so the first cascade covers a useful distance; values
+    // near 1.0 made the first split too short and cascade transitions obvious
+    // while rotating the camera in large scenes like Bistro.
+    constexpr float kCascadeSplitLambda = 0.20f;
     // World-space distance the light-space near plane is pulled back so casters
     // between the light and the view slice (e.g. tree canopies above the camera)
     // still write into the depth map. Must be a fixed absolute value — a ratio
     // collapses to near-zero for tight near cascades.
-    constexpr float kCascadeCasterPullback = 80.0f;
-    // Small padding on the far side (away from the light) to cover numerical slop.
-    constexpr float kCascadeFarPadding = 5.0f;
+    constexpr float kCascadeCasterPullback = 200.0f;
+    // Padding on the far side (away from the light) so receivers do not fall out
+    // of the cascade as the sun direction changes.
+    constexpr float kCascadeFarPadding = 80.0f;
+    // Extra XY padding on cascade projections.  Tight frustum-only cascades gave
+    // very noticeable shadow cutoffs while rotating the camera; a modest margin
+    // trades a little resolution for much more stable coverage.
+    constexpr float kCascadeRadiusPadding = 1.35f;
+    using CpuClock = std::chrono::steady_clock;
+
+    float ElapsedMilliseconds(CpuClock::time_point start)
+    {
+        const auto elapsed = CpuClock::now() - start;
+        return std::chrono::duration<float, std::milli>(elapsed).count();
+    }
+
+    void SetPassTiming(RendererDebugStats &stats, RendererPassTimingId pass, float milliseconds)
+    {
+        const std::size_t index = static_cast<std::size_t>(pass);
+        if (index >= stats.passTimings.size())
+            return;
+
+        stats.passTimings[index].milliseconds = milliseconds;
+        stats.passTimings[index].available = true;
+    }
 
     GLenum ToGLPrimitive(PrimitiveTopology topology)
     {
@@ -62,6 +93,18 @@ namespace
     bool CanRenderInDirectionalShadowPass(const RenderItem &item)
     {
         return item.flags.visible && item.flags.castShadow && HasDrawableGeometry(item);
+    }
+
+    void PopulateCubemapFacePreviews(const std::shared_ptr<TextureCubemap>& cubemap,
+                                     int mipLevel,
+                                     std::array<uint32_t, 6>& outPreviewIds)
+    {
+        outPreviewIds.fill(0);
+        if (!cubemap || !cubemap->IsValid())
+            return;
+
+        for (std::size_t face = 0; face < outPreviewIds.size(); ++face)
+            outPreviewIds[face] = cubemap->GetFacePreviewTexture(static_cast<int>(face), mipLevel);
     }
 
     glm::mat4 BuildItemModelMatrix(const RenderItem &item)
@@ -120,31 +163,96 @@ namespace
         return bounds;
     }
 
-    void PopulateDebugStatsFromSubmission(const FrameSubmission &submission, RendererDebugStats &stats)
+    void PopulateDebugStatsFromSubmission(const FrameSubmission &submission,
+                                          const ReflectionProbe *activeProbe,
+                                          float debugPrefilteredMip,
+                                          RendererDebugStats &stats)
     {
+        stats = RendererDebugStats{};
+
         stats.submittedRenderItemCount = static_cast<uint32_t>(submission.objects.size());
-        stats.queuedRenderItemCount = 0;
-        stats.processedRenderItemCount = 0;
-        stats.drawCallCount = 0;
-        stats.approxTriangleCount = 0;
         stats.directionalLightCount = submission.lights.HasDirectionalLight() ? 1u : 0u;
         stats.pointLightCount = static_cast<uint32_t>(submission.lights.GetPointLights().size());
-        stats.shadowCasterCount = 0;
-        stats.shadowReceiverCount = 0;
-        stats.shadowPassObjectCount = 0;
-        stats.shadowPassExcludedObjectCount = 0;
+        stats.spotLightCount = static_cast<uint32_t>(submission.lights.GetSpotLights().size());
+        stats.totalLightCount = static_cast<uint32_t>(submission.lights.ActiveLightCount());
         stats.frameTimeMs = submission.deltaTime * 1000.0f;
         stats.fps = submission.deltaTime > 0.0f ? (1.0f / submission.deltaTime) : 0.0f;
         stats.shadowCasterCountApproximate = true;
-        stats.shadowPassDataAvailable = false;
         stats.approxTriangleCountApproximate = true;
-        stats.shadowMapTextureId = 0;
-        stats.shadowMapWidth = 0;
-        stats.shadowMapHeight = 0;
-        stats.shadowMapPreviewAvailable = false;
-        stats.cascadePreviewTextureIds.fill(0);
-        stats.cascadeSplitDistances.fill(0.0f);
-        stats.directionalShadowFrustum = {};
+
+        std::unordered_set<const void *> uniqueMeshes;
+        std::unordered_set<const MaterialInstance *> uniqueMaterials;
+        std::unordered_set<const ShaderProgram *> uniqueShaders;
+        for (const RenderItem &item : submission.objects)
+        {
+            if (item.meshMulti)
+                uniqueMeshes.insert(item.meshMulti);
+            else if (item.mesh)
+                uniqueMeshes.insert(item.mesh);
+
+            if (item.material)
+                uniqueMaterials.insert(item.material);
+            if (const ShaderProgram *shader = item.ResolvedShader())
+                uniqueShaders.insert(shader);
+        }
+
+        stats.meshCount = static_cast<uint32_t>(uniqueMeshes.size());
+        stats.materialCount = static_cast<uint32_t>(uniqueMaterials.size());
+        stats.shaderProgramCount = static_cast<uint32_t>(uniqueShaders.size());
+
+        const AssetCacheStats cacheStats = AssetImporter::GetCacheStats();
+        stats.cachedShaderProgramCount = static_cast<uint32_t>(cacheStats.shaderCount);
+        stats.cachedTexture2DCount = static_cast<uint32_t>(cacheStats.textureCount);
+        stats.cachedCubemapCount = static_cast<uint32_t>(cacheStats.cubemapCount);
+        stats.cachedMeshCount = static_cast<uint32_t>(cacheStats.meshCount);
+        stats.cachedMaterialCount = static_cast<uint32_t>(cacheStats.materialCount);
+        stats.textureCount = stats.cachedTexture2DCount + stats.cachedCubemapCount;
+
+        stats.activeCameraCount = submission.camera ? 1u : 0u;
+        stats.currentCameraAvailable = submission.camera != nullptr;
+        stats.cullingDataAvailable = submission.camera != nullptr;
+        if (submission.camera)
+        {
+            const glm::vec3 cameraPosition = submission.camera->GetPosition();
+            stats.cameraPositionX = cameraPosition.x;
+            stats.cameraPositionY = cameraPosition.y;
+            stats.cameraPositionZ = cameraPosition.z;
+            stats.cameraYaw = submission.camera->GetYaw();
+            stats.cameraPitch = submission.camera->GetPitch();
+            stats.cameraFov = submission.camera->GetFOV();
+        }
+
+        if (activeProbe)
+        {
+            const ReflectionProbe &probe = *activeProbe;
+            stats.iblSourceTextureId = probe.sourceCubemap ? probe.sourceCubemap->GetID() : 0;
+            stats.iblSourceWidth = probe.sourceCubemap ? static_cast<uint32_t>(probe.sourceCubemap->GetWidth()) : 0;
+            stats.iblSourceHeight = probe.sourceCubemap ? static_cast<uint32_t>(probe.sourceCubemap->GetHeight()) : 0;
+            stats.iblIrradianceTextureId = probe.irradianceCubemap ? probe.irradianceCubemap->GetID() : 0;
+            stats.iblIrradianceWidth = probe.irradianceCubemap ? static_cast<uint32_t>(probe.irradianceCubemap->GetWidth()) : 0;
+            stats.iblIrradianceHeight = probe.irradianceCubemap ? static_cast<uint32_t>(probe.irradianceCubemap->GetHeight()) : 0;
+            stats.iblPrefilteredTextureId = probe.prefilteredCubemap ? probe.prefilteredCubemap->GetID() : 0;
+            stats.iblPrefilteredWidth = probe.prefilteredCubemap ? static_cast<uint32_t>(probe.prefilteredCubemap->GetWidth()) : 0;
+            stats.iblPrefilteredHeight = probe.prefilteredCubemap ? static_cast<uint32_t>(probe.prefilteredCubemap->GetHeight()) : 0;
+            stats.iblBrdfLutTextureId = probe.brdfLut ? probe.brdfLut->GetID() : 0;
+            stats.iblBrdfLutWidth = probe.brdfLut ? static_cast<uint32_t>(probe.brdfLut->GetWidth()) : 0;
+            stats.iblBrdfLutHeight = probe.brdfLut ? static_cast<uint32_t>(probe.brdfLut->GetHeight()) : 0;
+            stats.iblPrefilteredMipCount = probe.prefilteredCubemap
+                                               ? static_cast<uint32_t>(probe.prefilteredCubemap->GetMipLevels())
+                                               : 0;
+            const int selectedPrefilteredMip = stats.iblPrefilteredMipCount > 0
+                                                   ? std::clamp(static_cast<int>(debugPrefilteredMip + 0.5f),
+                                                                0,
+                                                                static_cast<int>(stats.iblPrefilteredMipCount - 1))
+                                                   : 0;
+            PopulateCubemapFacePreviews(probe.sourceCubemap, 0, stats.iblSourcePreviewTextureIds);
+            PopulateCubemapFacePreviews(probe.irradianceCubemap, 0, stats.iblIrradiancePreviewTextureIds);
+            PopulateCubemapFacePreviews(probe.prefilteredCubemap,
+                                        selectedPrefilteredMip,
+                                        stats.iblPrefilteredPreviewTextureIds);
+            stats.iblIntensity = probe.intensity;
+            stats.iblAvailable = probe.HasAnyIbl();
+        }
 
         for (const RenderItem &item : submission.objects)
         {
@@ -160,10 +268,19 @@ namespace
 
 } // namespace
 
+Renderer::~Renderer() = default;
+
 bool Renderer::Initialize()
 {
     if (!m_initCtx.Initialize(m_currentContext))
         return false;
+
+    m_environmentLightingPipeline = std::make_unique<EnvironmentLightingPipeline>();
+    if (!m_environmentLightingPipeline->Initialize())
+    {
+        spdlog::error("[Renderer] Failed to initialize environment lighting pipeline");
+        return false;
+    }
 
     m_errorShader = std::make_unique<ShaderProgram>(
         "assets/shaders/error.vert", "assets/shaders/error.frag");
@@ -180,15 +297,71 @@ bool Renderer::Initialize()
 
 void Renderer::Shutdown()
 {
+    if (m_environmentLightingPipeline)
+    {
+        m_environmentLightingPipeline->Shutdown();
+        m_environmentLightingPipeline.reset();
+    }
+    m_defaultReflectionProbe.reset();
     m_initCtx.Shutdown();
+}
+
+void Renderer::SetIBLDebugState(IBLDebugMode mode, float prefilteredMipLevel)
+{
+    m_iblDebugMode = mode;
+    m_iblDebugPrefilteredMip = std::max(0.0f, prefilteredMipLevel);
+}
+
+void Renderer::SetLightingDebugControls(float ambientFloorStrength, float maxShadowOcclusion)
+{
+    m_ambientFloorStrength = std::max(0.0f, ambientFloorStrength);
+    m_maxShadowOcclusion = std::clamp(maxShadowOcclusion, 0.0f, 1.0f);
+}
+
+void Renderer::SetRenderConfig(const RenderConfig& config)
+{
+    m_renderConfig = config;
 }
 
 void Renderer::BeginFrame(const FrameSubmission &submission)
 {
     assert(!m_inFrame && "BeginFrame() called without a matching EndFrame()");
     m_inFrame = true;
-    PopulateDebugStatsFromSubmission(submission, m_debugStats);
+
+    ReflectionProbe *activeProbe = submission.activeReflectionProbe;
+    if (!submission.skybox)
+    {
+        activeProbe = nullptr;
+    }
+    else if (!activeProbe)
+    {
+        if (!m_defaultReflectionProbe)
+            m_defaultReflectionProbe = std::make_shared<ReflectionProbe>();
+        activeProbe = m_defaultReflectionProbe.get();
+    }
+
+    if (activeProbe)
+    {
+        std::shared_ptr<TextureCubemap> fallbackSource = submission.skybox ? submission.skybox->GetTexture() : nullptr;
+        if (!activeProbe->sourceCubemap && fallbackSource)
+            activeProbe->sourceCubemap = fallbackSource;
+
+        if (m_environmentLightingPipeline)
+        {
+            const bool probeReady = m_environmentLightingPipeline->EnsureProbe(*activeProbe, fallbackSource);
+            if (!probeReady)
+                spdlog::warn("[Renderer] Active reflection probe is not ready yet");
+        }
+    }
+
+    PopulateDebugStatsFromSubmission(submission, activeProbe, m_iblDebugPrefilteredMip, m_debugStats);
+    m_debugStats.iblDebugMode = m_iblDebugMode;
+    m_debugStats.iblDebugPrefilteredMip = m_iblDebugPrefilteredMip;
+
+    const auto shadowPassStart = CpuClock::now();
     RenderDirectionalShadowPass(submission);
+    if (m_debugStats.shadowPassDataAvailable)
+        SetPassTiming(m_debugStats, RendererPassTimingId::DirectionalShadow, ElapsedMilliseconds(shadowPassStart));
 
     if (!m_lightUBO)
         m_lightUBO = std::make_unique<UniformBuffer>(sizeof(LightBlock), GL_DYNAMIC_DRAW);
@@ -215,6 +388,23 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
         CameraData camData = submission.camera->BuildCameraData(submission.time, submission.deltaTime);
         m_cameraUBO->Upload(&camData, sizeof(CameraData));
         m_cameraUBO->BindToSlot(0);
+
+        if (m_renderConfig.frustumCullingEnabled)
+        {
+            m_cameraFrustum = Frustum::FromViewProjection(submission.camera->GetViewProjection());
+            m_cameraFrustumValid = true;
+            m_debugStats.cullingEnabled = true;
+        }
+        else
+        {
+            m_cameraFrustumValid = false;
+            m_debugStats.cullingEnabled = false;
+        }
+    }
+    else
+    {
+        m_cameraFrustumValid = false;
+        m_debugStats.cullingEnabled = false;
     }
 
     // Create or resize the HDR offscreen framebuffer to match the current viewport.
@@ -238,6 +428,9 @@ void Renderer::BeginFrame(const FrameSubmission &submission)
 
     m_currentSkybox = submission.skybox;
     m_currentCamera = submission.camera;
+    m_queue.SetEnvironmentData(activeProbe);
+    m_queue.SetIBLDebugState(m_iblDebugMode, m_iblDebugPrefilteredMip);
+    m_queue.SetLightingDebugControls(m_ambientFloorStrength, m_maxShadowOcclusion);
 }
 
 void Renderer::EndFrame()
@@ -245,26 +438,38 @@ void Renderer::EndFrame()
     assert(m_inFrame && "EndFrame() called without a matching BeginFrame()");
 
     // Pass cascade matrices + split distances + depth array + PCF radius to the queue.
-    if (m_directionalShadowMap && m_directionalShadowMap->IsValid())
+    // If this frame did not render a shadow pass, explicitly disable shadow sampling;
+    // otherwise scenes with receivers but no shadow-casting directional light can sample
+    // stale cascade data from a previous scene/frame.
+    if (m_debugStats.shadowPassDataAvailable && m_directionalShadowMap && m_directionalShadowMap->IsValid())
     {
-        int pcfRadius = 1;
-        if (m_debugStats.shadowPassDataAvailable)
-            pcfRadius = m_shadowPcfRadius;
         m_queue.SetDirectionalShadowData(m_cascadeViewProj,
                                          m_cascadeSplits,
                                          m_directionalShadowMap->GetDepthTextureArray(),
-                                         pcfRadius);
+                                         m_shadowPcfRadius);
+    }
+    else
+    {
+        m_queue.SetDirectionalShadowData({}, {}, 0, 0);
     }
 
+    const auto mainScenePassStart = CpuClock::now();
     m_queue.Sort();
     const RenderQueueFrameStats queueStats = m_queue.Flush(m_currentContext);
+    SetPassTiming(m_debugStats, RendererPassTimingId::MainScene, ElapsedMilliseconds(mainScenePassStart));
     
     // Render Skybox last (it uses GL_LEQUAL and .xyww to only draw on empty pixels)
     if (m_currentSkybox && m_currentCamera) {
+        const auto skyboxPassStart = CpuClock::now();
         m_currentSkybox->Draw(m_currentCamera->GetProjection(), m_currentCamera->GetView());
+        SetPassTiming(m_debugStats, RendererPassTimingId::Skybox, ElapsedMilliseconds(skyboxPassStart));
     }
+    m_debugStats.visibleRenderItemCount = m_debugStats.queuedRenderItemCount;
     m_debugStats.processedRenderItemCount = queueStats.processedItemCount;
     m_debugStats.drawCallCount = queueStats.drawCallCount;
+    m_debugStats.shaderProgramChangeCount = queueStats.shaderProgramChangeCount;
+    m_debugStats.materialChangeCount = queueStats.materialChangeCount;
+    m_debugStats.textureBindingCount = queueStats.textureBindingCount;
     m_debugStats.approxTriangleCount = queueStats.approxTriangleCount;
 
     // Return to the default framebuffer after the scene pass.
@@ -287,15 +492,40 @@ void Renderer::EndFrame()
     m_inFrame = false;
 }
 
+void Renderer::RebindHdrFramebuffer()
+{
+    if (m_hdrFramebuffer && m_hdrFramebuffer->IsValid())
+        m_hdrFramebuffer->Bind();
+}
+
 void Renderer::SubmitDraw(const RenderItem &item)
 {
     assert(m_inFrame && "SubmitDraw() must be called between BeginFrame() and EndFrame()");
+
+    if (!item.flags.visible || (!item.mesh && !item.meshMulti))
+        return;
+
+    if (m_renderConfig.frustumCullingEnabled && m_cameraFrustumValid)
+    {
+        if (!IsRenderItemVisibleInCameraFrustum(item, m_cameraFrustum))
+        {
+            ++m_debugStats.frustumCulledRenderItemCount;
+            return;
+        }
+    }
+
     if (m_queue.Add(item))
     {
         ++m_debugStats.queuedRenderItemCount;
+        ++m_debugStats.visibleRenderItemCount;
         if (item.flags.castShadow)
             ++m_debugStats.shadowCasterCount;
     }
+}
+
+void Renderer::RecordDebugPassTiming(RendererPassTimingId pass, float milliseconds)
+{
+    SetPassTiming(m_debugStats, pass, std::max(0.0f, milliseconds));
 }
 
 void Renderer::Resize(int width, int height)
@@ -375,7 +605,7 @@ namespace
             radius = std::max(radius, glm::length(c - centroid));
         // Round up slightly so the sphere size is quantized and doesn't breathe
         // with sub-pixel camera translation.
-        radius = std::ceil(radius * 16.0f) / 16.0f;
+        radius = std::ceil(radius * kCascadeRadiusPadding * 16.0f) / 16.0f;
 
         const glm::vec3 up = (std::abs(glm::dot(lightDirection, glm::vec3(0, 1, 0))) < 0.99f)
                                  ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0);
@@ -383,10 +613,19 @@ namespace
                                                 centroid,
                                                 up);
 
-        // Snap the light-space centroid to whole-texel increments. The ortho
-        // covers [-radius, +radius], so one texel is (2*radius)/shadowMapSize
-        // world units wide.
-        const float texelSize = (2.0f * radius) / static_cast<float>(shadowMapSize);
+        // Expand the ortho extent beyond the tight frustum sphere so shadow
+        // casters outside the camera frustum (e.g. tall buildings just off to
+        // the side) still write into the shadow map when their shadows fall
+        // inside the view. Without expansion, rotating the camera causes those
+        // casters to exit the ortho volume and their shadows disappear from
+        // streets that are still in view. 1.35 gives ~35% extra margin on each
+        // side without significant resolution loss at 2048.
+        constexpr float kCasterExpansion = 1.35f;
+        const float casterExtent = radius * kCasterExpansion;
+
+        // Snap the light-space centroid to whole-texel increments. Use the
+        // expanded extent for the texel size so the snap grid matches the ortho.
+        const float texelSize = (2.0f * casterExtent) / static_cast<float>(shadowMapSize);
         glm::vec3 centroidLightSpace = glm::vec3(lightView * glm::vec4(centroid, 1.0f));
         centroidLightSpace.x = std::floor(centroidLightSpace.x / texelSize) * texelSize;
         centroidLightSpace.y = std::floor(centroidLightSpace.y / texelSize) * texelSize;
@@ -396,13 +635,13 @@ namespace
                                                       snappedCentroidWorld,
                                                       up);
 
-        // Square, camera-rotation-invariant ortho. Z extends on the light-facing
+        // Square ortho using the expanded extent. Z extends on the light-facing
         // side to catch casters above the view slice (kCascadeCasterPullback).
-        const float nearZ = -(radius + kCascadeCasterPullback);
-        const float farZ  = +(radius + kCascadeFarPadding);
+        const float nearZ = -(casterExtent + kCascadeCasterPullback);
+        const float farZ  = +(casterExtent + kCascadeFarPadding);
         const glm::mat4 lightProj = glm::ortho(
-            -radius, +radius,
-            -radius, +radius,
+            -casterExtent, +casterExtent,
+            -casterExtent, +casterExtent,
             nearZ, farZ);
 
         return lightProj * stableLightView;

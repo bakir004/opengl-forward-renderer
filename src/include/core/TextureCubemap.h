@@ -26,6 +26,14 @@ public:
                             TextureColorSpace colorSpace,
                             bool flipY = false);
 
+    /// Creates a runtime-generated cubemap with immutable storage.
+    /// Useful for IBL irradiance and prefiltered environment maps.
+    static TextureCubemap CreateRenderTarget(int size,
+                                             int mipLevels = 1,
+                                             GLenum internalFormat = GL_RGBA16F,
+                                             GLenum minFilter = GL_LINEAR,
+                                             GLenum magFilter = GL_LINEAR);
+
     ~TextureCubemap();
 
     TextureCubemap(const TextureCubemap&) = delete;
@@ -39,6 +47,10 @@ public:
 
     [[nodiscard]] GLuint GetID() const { return m_id; }
     [[nodiscard]] bool IsValid() const { return m_id != 0; }
+    [[nodiscard]] int GetWidth() const { return m_width; }
+    [[nodiscard]] int GetHeight() const { return m_height; }
+    [[nodiscard]] int GetMipLevels() const { return m_mipLevels; }
+    [[nodiscard]] GLuint GetFacePreviewTexture(int faceIndex, int mipLevel = 0) const;
 
 private:
     TextureCubemap() = default;
@@ -46,4 +58,11 @@ private:
     GLuint m_id = 0;
     int m_width = 0;
     int m_height = 0;
+    int m_mipLevels = 1;
+    GLenum m_internalFormat = GL_RGBA8;
+
+    mutable std::array<GLuint, 6> m_facePreviewTextures{};
+    mutable std::array<int, 6> m_facePreviewMipLevels{-1, -1, -1, -1, -1, -1};
+    mutable std::array<int, 6> m_facePreviewWidths{};
+    mutable std::array<int, 6> m_facePreviewHeights{};
 };

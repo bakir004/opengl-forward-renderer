@@ -9,8 +9,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <spdlog/spdlog.h>
 
-Skybox::Skybox(const std::vector<std::string>& facePaths)
-{
+Skybox::Skybox(const std::vector<std::string> &facePaths) {
     if (facePaths.size() == 6) {
         std::array<std::string, 6> paths;
         for (int i = 0; i < 6; ++i) paths[i] = facePaths[i];
@@ -20,8 +19,7 @@ Skybox::Skybox(const std::vector<std::string>& facePaths)
 }
 
 Skybox::Skybox(std::shared_ptr<TextureCubemap> cubemap)
-    : m_cubemap(std::move(cubemap))
-{
+    : m_cubemap(std::move(cubemap)) {
     Init();
 }
 
@@ -32,23 +30,23 @@ void Skybox::Init() {
     if (!m_shader) {
         spdlog::error("[Skybox] Failed to load skybox shader!");
     }
-    
+
     if (!m_cubemap) {
         spdlog::warn("[Skybox] Cubemap is null in Init()");
     }
-    
+
     // We use the primitive cube. 
     auto cubeData = GenerateCube();
     m_cubeMesh = std::make_shared<MeshBuffer>(cubeData.CreateMeshBuffer());
 }
 
-void Skybox::Draw(const glm::mat4& projection, const glm::mat4& view) const {
+void Skybox::Draw(const glm::mat4 &projection, const glm::mat4 &view) const {
     if (!m_cubemap || !m_shader || !m_cubeMesh) return;
 
     // Remove translation from view matrix
     glm::mat4 rotationOnlyView = glm::mat4(glm::mat3(view));
 
-    glDepthFunc(GL_LEQUAL); 
+    glDepthFunc(GL_LEQUAL);
     glDepthMask(GL_FALSE); // Don't write to depth buffer
     glDisable(GL_CULL_FACE); // See the inside of the cube
     glEnable(GL_DEPTH_TEST);
@@ -60,6 +58,11 @@ void Skybox::Draw(const glm::mat4& projection, const glm::mat4& view) const {
 
     m_cubemap->Bind(0);
     m_shader->SetUniform("u_Skybox", 0);
+
+    m_shader->SetUniform("u_Tint", m_tint);
+    m_shader->SetUniform("u_Exposure", m_exposure);
+    m_shader->SetUniform("u_EmissiveColor", m_emissiveColor);
+    m_shader->SetUniform("u_EmissiveStrength", m_emissiveStrength);
 
     m_cubeMesh->Draw();
 

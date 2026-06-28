@@ -38,8 +38,19 @@ std::unordered_map<std::string, ModelData>                      AssetImporter::s
 //  Path helpers
 // ---------------------------------------------------------------------------
 
+static std::string NormalizeImportedPathSeparators(std::string path) {
+#ifndef _WIN32
+    for (char& ch : path) {
+        if (ch == '\\')
+            ch = '/';
+    }
+#endif
+    return path;
+}
+
 std::string AssetImporter::ResolvePath(const std::string& path) {
-    const fs::path requested(path);
+    const std::string normalizedPath = NormalizeImportedPathSeparators(path);
+    const fs::path requested(normalizedPath);
     if (fs::exists(requested))
         return fs::canonical(requested).string();
 
@@ -51,8 +62,8 @@ std::string AssetImporter::ResolvePath(const std::string& path) {
         if (!cur.has_parent_path() || cur == cur.parent_path())
             break;
     }
-    // Return as-is so callers get a meaningful error message.
-    return path;
+    // Return normalized-but-unresolved so callers get a meaningful error message.
+    return normalizedPath;
 }
 
 std::string AssetImporter::Extension(const std::string& path) {
@@ -120,6 +131,7 @@ AssetCacheStats AssetImporter::GetCacheStats() {
     AssetCacheStats stats{};
     stats.shaderCount   = s_shaders.size();
     stats.textureCount  = s_textures.size();
+    stats.cubemapCount  = s_cubemaps.size();
     stats.meshCount     = s_meshes.size();
     stats.materialCount = s_materials.size();
     return stats;

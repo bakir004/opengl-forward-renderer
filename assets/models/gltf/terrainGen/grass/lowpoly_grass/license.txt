@@ -1,0 +1,11 @@
+Model Information:
+* title:	Lowpoly grass
+* source:	https://sketchfab.com/3d-models/lowpoly-grass-5fd1cec884b24f4ab8c52fbb8e9e9f2d
+* author:	Atrikumar Das (https://sketchfab.com/ganash3691)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Lowpoly grass" (https://sketchfab.com/3d-models/lowpoly-grass-5fd1cec884b24f4ab8c52fbb8e9e9f2d) by Atrikumar Das (https://sketchfab.com/ganash3691) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

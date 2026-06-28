@@ -27,25 +27,34 @@ add_library(${PROJECT_NAME} STATIC
         opengl/core/InputManager.cpp
         opengl/scene/Scene.cpp
         opengl/scene/RenderItem.cpp
+        opengl/scene/VisibilityCulling.cpp
         opengl/scene/LightEnvironment.cpp
         opengl/scene/LightUtils.cpp
         opengl/scene/LightBlock.cpp
         opengl/core/Texture2D.cpp
         opengl/core/TextureCubemap.cpp
         opengl/core/Skybox.cpp
+        opengl/core/EnvironmentLightingPipeline.cpp
         opengl/core/HdrFramebuffer.cpp
         opengl/core/FullscreenQuad.cpp
         opengl/core/PostProcessPass.cpp
         opengl/core/shadows/CascadedShadowMap.cpp
-        opengl/ui/RendererUI.cpp
+        opengl/terrain/TerrainGenerator.cpp
+        opengl/terrain/TerrainMeshBuilder.cpp
+        opengl/terrain/TerrainVegetation.cpp
         opengl/core/Material.cpp
         opengl/assets/AssetImporter.cpp
         opengl/assets/MeshImporter.cpp
         opengl/assets/ModelImporter.cpp
         opengl/core/Mesh.cpp
+        include/ui/RendererUI.h
+        opengl/ui/RendererUI.cpp
+        
 )
 
-target_include_directories(${PROJECT_NAME} PUBLIC include)
+target_include_directories(${PROJECT_NAME} PUBLIC
+    include
+)
 
 find_package(OpenGL REQUIRED)
 
@@ -88,6 +97,10 @@ if(TARGET stb)
 else()
     # Fallback: if FetchContent populated stb, add its include directory directly.
     target_include_directories(${PROJECT_NAME} PUBLIC ${stb_SOURCE_DIR})
+endif()
+
+if(TARGET tinyddsloader)
+    target_link_libraries(${PROJECT_NAME} PUBLIC tinyddsloader)
 endif()
 
 if(TARGET assimp::assimp)

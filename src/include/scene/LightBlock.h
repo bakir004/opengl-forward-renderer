@@ -6,7 +6,7 @@
 
 /// Maximum light counts enforced at the GPU boundary.
 /// Must stay in sync with kMaxPointLights / kMaxSpotLights in LightEnvironment.h
-/// and with the array dimensions in the GLSL uniform block (binding = 1).
+/// and with the array dimensions in the GLSL uniform block.
 static constexpr int kGpuMaxPointLights = 16;
 static constexpr int kGpuMaxSpotLights  = 8;
 
@@ -15,11 +15,11 @@ static_assert(kGpuMaxPointLights == kMaxPointLights,
 static_assert(kGpuMaxSpotLights == kMaxSpotLights,
     "GPU and CPU spot light limits must match");
 
-/// The full contents of the per-frame light UBO (binding = 1).
+/// The full contents of the per-frame light UBO, mapped to binding point 1.
 ///
 /// GLSL declaration (add to every lit shader):
 ///
-///   layout(std140, binding = 1) uniform LightBlock {
+///   layout(std140) uniform LightBlock {
 ///       vec3  u_AmbientColor;        // offset   0
 ///       float u_AmbientIntensity;    // offset  12
 ///

@@ -6,7 +6,7 @@ in vec2  v_UV;
 in mat3  v_TBN;
 in float v_ViewDepth;
 
-layout(std140, binding = 0) uniform Camera {
+layout(std140) uniform Camera {
     mat4 view;
     mat4 projection;
     mat4 viewProj;
@@ -17,6 +17,24 @@ layout(std140, binding = 0) uniform Camera {
 #include "light_block.glsl"
 #include "pbr_helpers.glsl"
 
+// Texture units (must match C++ MaterialTextureUnit / EnvironmentTextureUnit):
+//   0–5  material maps (albedo, normal, metallic, roughness, AO, emissive)
+//   6    specular/glossiness (when used)
+//   7    cascaded shadow map array
+//   8    u_IrradianceMap   (diffuse IBL)
+//   9    u_PrefilteredMap  (specular prefiltered environment)
+//   10   u_BRDFLUT         (split-sum BRDF; RG = scale, bias — wired in Task 7)
+//   11   u_SourceEnvironmentMap (original reflection probe source)
+const int IBL_DEBUG_ORIGINAL_ENVIRONMENT = 0;
+const int IBL_DEBUG_IRRADIANCE_CUBEMAP = 1;
+const int IBL_DEBUG_PREFILTERED_CUBEMAP = 2;
+const int IBL_DEBUG_PREFILTERED_MIP_LEVEL = 3;
+const int IBL_DEBUG_BRDF_LUT = 4;
+const int IBL_DEBUG_DIFFUSE_ONLY = 5;
+const int IBL_DEBUG_SPECULAR_ONLY = 6;
+const int IBL_DEBUG_FULL_IBL_NO_DIRECT = 7;
+const int IBL_DEBUG_FULL_LIGHTING = 8;
+
 uniform sampler2D      u_AlbedoMap;
 uniform sampler2D      u_NormalMap;
 uniform sampler2D      u_MetallicMap;
@@ -25,6 +43,23 @@ uniform sampler2D      u_AOMap;
 uniform sampler2D      u_EmissiveMap;
 uniform sampler2D      u_SpecularGlossinessMap;
 uniform sampler2DArray u_CascadeShadowMaps;
+
+uniform samplerCube    u_SourceEnvironmentMap;
+uniform samplerCube    u_IrradianceMap;
+uniform samplerCube    u_PrefilteredMap;
+uniform sampler2D      u_BRDFLUT;
+uniform bool           u_HasSourceEnvironmentMap = false;
+uniform bool           u_HasIrradianceMap = false;
+uniform bool           u_HasPrefilteredMap = false;
+uniform bool           u_HasBRDFLUT = false;
+uniform bool           u_HasIBL = false;
+uniform float          u_IBLIntensity     = 1.0;
+uniform float          u_PrefilteredMaxMip = 0.0;
+uniform int            u_IBLDebugMode = IBL_DEBUG_FULL_LIGHTING;
+uniform float          u_IBLDebugPrefilteredMip = 0.0;
+uniform float          u_AmbientFloorStrength = 0.18;
+uniform float          u_MaxShadowOcclusion = 0.75;
+
 uniform mat4           u_CascadeViewProj[NUM_CASCADES];
 uniform float          u_CascadeSplits[NUM_CASCADES];
 uniform int            u_PCFRadius = 1;
@@ -37,6 +72,7 @@ uniform bool           u_HasAoMap = false;
 uniform bool           u_HasEmissiveMap = false;
 uniform bool           u_HasSpecularGlossinessMap = false;
 uniform bool           u_IsSpecularGlossiness = false;
+uniform bool           u_IsPackedMetalRough = false;
 uniform bool           u_UseNormalMap = true;
 uniform vec4           u_TintColor = vec4(1.0);
 uniform vec3           u_AlbedoColor = vec3(1.0);
@@ -67,6 +103,8 @@ vec3 GetAlbedo()
 float GetMetallic()
 {
     float metallic = u_MetallicValue;
+    if (u_IsPackedMetalRough && u_HasSpecularGlossinessMap)
+        metallic *= texture(u_SpecularGlossinessMap, v_UV).b;
     if (u_HasMetallicMap)
         metallic *= texture(u_MetallicMap, v_UV).r;
     return clamp(metallic, 0.0, 1.0);
@@ -75,6 +113,8 @@ float GetMetallic()
 float GetRoughness()
 {
     float roughness = u_RoughnessValue;
+    if (u_IsPackedMetalRough && u_HasSpecularGlossinessMap)
+        roughness *= texture(u_SpecularGlossinessMap, v_UV).g;
     if (u_HasRoughnessMap)
         roughness *= texture(u_RoughnessMap, v_UV).r;
     return clamp(roughness, 0.04, 1.0);
@@ -83,6 +123,8 @@ float GetRoughness()
 float GetAO()
 {
     float ao = 1.0;
+    if (u_IsPackedMetalRough && u_HasSpecularGlossinessMap)
+        ao = texture(u_SpecularGlossinessMap, v_UV).r;
     if (u_HasAoMap)
         ao = texture(u_AOMap, v_UV).r;
     return mix(1.0, ao, u_AoStrength);
@@ -141,10 +183,16 @@ int SelectCascade(float viewDepth)
 }
 
 // Fraction of each cascade's range used as a blend zone into the next cascade.
-// Inside this zone we sample both cascades and lerp; outside, only one.
-const float CASCADE_BLEND_FRACTION = 0.15;
+// Inside this zone we sample both cascades and lerp; outside, only one. A wider
+// band hides visible CSM boundaries during camera rotation in large scenes.
+const float CASCADE_BLEND_FRACTION = 0.85;
+// The caster ortho is 1.35× the frustum sphere radius, so the camera frustum
+// edge lands at NDC ≈ 0.74 inside the expanded ortho. Start blending at 0.65
+// so the transition fires well before the camera-frustum edge, hiding the seam.
+const float CASCADE_EDGE_BLEND_START = 0.65;
 
-// Samples one cascade with PCF. Returns [0,1] occlusion where 1 is fully shadowed.
+// Samples one cascade with PCF. Returns [0,1] occlusion where 1 is fully shadowed,
+// or -1 when the fragment is outside that cascade's light-space coverage.
 // The normal is used for normal-offset bias: the world position is shifted
 // along the surface normal before the light-space projection, which moves the
 // shadow test point away from the surface and reduces both acne and peter-panning
@@ -161,7 +209,7 @@ float SampleCascade(int cascade, vec3 worldPos, vec3 normal, float bias)
 
     if (projCoords.z > 1.0 || projCoords.x < 0.0 || projCoords.x > 1.0 ||
         projCoords.y < 0.0 || projCoords.y > 1.0)
-        return 0.0;
+        return -1.0;
 
     vec2 texelSize = 1.0 / vec2(textureSize(u_CascadeShadowMaps, 0).xy);
     float currentDepth = projCoords.z;
@@ -200,34 +248,71 @@ float CascadeBias(int cascade, float slope)
     return bias * (1.0 + float(cascade) * 0.75);
 }
 
-// Picks the tightest cascade for this fragment, samples it with PCF, and
-// cross-fades into the next cascade near the split boundary so the transition
-// isn't visibly stepped.
+float CascadeEdgeBlendFactor(int cascade, vec3 worldPos, vec3 normal)
+{
+    float normalOffsetScale = u_Directional.normalBias * (1.0 + float(cascade) * 0.5);
+    vec3  biasedWorldPos    = worldPos + normal * normalOffsetScale;
+
+    vec4 lightSpacePos = u_CascadeViewProj[cascade] * vec4(biasedWorldPos, 1.0);
+    vec3 ndc = lightSpacePos.xyz / lightSpacePos.w;
+
+    // Fade based on proximity to the actual cascade projection edge, not just
+    // view-space split Z. This hides lines caused by the XY bounds changing
+    // between cascades while the camera rotates.
+    float maxCoord = max(max(abs(ndc.x), abs(ndc.y)), abs(ndc.z));
+    float factor = (maxCoord - CASCADE_EDGE_BLEND_START) / max(1.0 - CASCADE_EDGE_BLEND_START, 0.0001);
+    return clamp(factor, 0.0, 1.0);
+}
+
+// Picks a cascade, then cross-fades into the next one when the fragment gets
+// close to the current cascade's light-space edge. This follows the common CSM
+// edge-blending approach and avoids relying only on view-depth split bands.
 float CalculateShadow(vec3 worldPos, vec3 normal, vec3 lightDir, float viewDepth)
 {
     int cascade = SelectCascade(viewDepth);
-
     float slope = 1.0 - max(dot(normal, lightDir), 0.0);
-    float bias  = CascadeBias(cascade, slope);
-    float shadow = SampleCascade(cascade, worldPos, normal, bias);
 
-    // Only blend forward if there is a next cascade to blend into.
+    float shadow = SampleCascade(cascade, worldPos, normal, CascadeBias(cascade, slope));
+
+    // If the depth-selected cascade does not cover this world position in
+    // light-space XY/Z, do not treat it as lit.  Camera rotation can move the
+    // tight near cascade bounds across a receiver while a larger cascade still
+    // covers it; falling forward prevents hard shadow cutoffs from tracking the
+    // mouse.  If no cascade covers the point, the fragment is genuinely outside
+    // the shadowed range and stays unshadowed.
+    if (shadow < 0.0) {
+        for (int i = cascade + 1; i < NUM_CASCADES; ++i) {
+            shadow = SampleCascade(i, worldPos, normal, CascadeBias(i, slope));
+            if (shadow >= 0.0)
+                break;
+        }
+        if (shadow < 0.0)
+            return 0.0;
+    }
+
     if (cascade < NUM_CASCADES - 1) {
+        float edgeFactor = CascadeEdgeBlendFactor(cascade, worldPos, normal);
+
+        // Keep a small depth-based overlap too, so transitions at the split
+        // plane itself are smoothed even when the fragment is not near XY edges.
         float splitNear = (cascade == 0) ? 0.0 : u_CascadeSplits[cascade - 1];
         float splitFar  = u_CascadeSplits[cascade];
         float blendStart = mix(splitFar, splitNear, CASCADE_BLEND_FRACTION);
+        float depthFactor = clamp((viewDepth - blendStart) / max(splitFar - blendStart, 0.0001), 0.0, 1.0);
 
-        if (viewDepth > blendStart) {
-            float t = (viewDepth - blendStart) / max(splitFar - blendStart, 0.0001);
-            t = clamp(t, 0.0, 1.0);
-            // Smoothstep feels more natural than a linear ramp for shadow blends.
-            t = t * t * (3.0 - 2.0 * t);
+        float t = max(edgeFactor, depthFactor);
+        t = t * t * (3.0 - 2.0 * t);
 
-            float nextBias   = CascadeBias(cascade + 1, slope);
-            float nextShadow = SampleCascade(cascade + 1, worldPos, normal, nextBias);
-            shadow = mix(shadow, nextShadow, t);
+        if (t > 0.0) {
+            float nextShadow = SampleCascade(cascade + 1,
+                                             worldPos,
+                                             normal,
+                                             CascadeBias(cascade + 1, slope));
+            if (nextShadow >= 0.0)
+                shadow = mix(shadow, nextShadow, t);
         }
     }
+
     return shadow;
 }
 
@@ -299,6 +384,10 @@ vec3 DirectionalLighting(vec3 albedo, vec3 n, vec3 v, vec3 F0, float roughness, 
     float shadow = 0.0;
     if (u_ReceiveShadow != 0) {
         shadow = CalculateShadow(v_WorldPos, n, l, v_ViewDepth);
+        // Do not let directional shadows erase all direct light. This keeps
+        // shadowed surfaces readable instead of pitch black while ambient/IBL
+        // and local lights provide the rest of the scene lighting.
+        shadow = min(shadow, clamp(u_MaxShadowOcclusion, 0.0, 1.0));
     }
     return directLight * (1.0 - shadow);
 }
@@ -403,12 +492,78 @@ vec3 SpotLighting(vec3 albedo,
     return Lo;
 }
 
+// Sprint 9 / Task 6 (Diffuse IBL only):
+//  1) world-space normal N
+//  2) irradiance sample by N
+//  3) multiply by albedo and diffuse energy term (kD)
+//  4) diffuse fades out as metallic -> 1 via kD
+vec3 ComputeDiffuseIBL(vec3 N, vec3 albedo, vec3 kD, float ao)
+{
+    if (!u_HasIBL || !u_HasIrradianceMap)
+        return vec3(0.0);
+
+    vec3 irradiance = texture(u_IrradianceMap, normalize(N)).rgb;
+    vec3 diffuseIBL = irradiance * albedo;
+    return kD * diffuseIBL * ao * max(u_IBLIntensity, 0.0);
+}
+
+// Sprint 9 / Task 7 (Specular IBL — split-sum approximation):
+//  Uses the prefiltered environment map + BRDF LUT to compute the specular
+//  ambient contribution from the surrounding environment.
+//
+//  Split-sum (Karis 2013):
+//    specular_IBL = prefilteredColor * (F0 * scale + bias)
+//
+//  where:
+//    prefilteredColor = environment pre-convolved at the surface roughness level
+//    (F0 * scale + bias) = precomputed BRDF integral (stored in LUT as RG)
+//
+//  The Fresnel term here uses a roughness-corrected variant (FresnelSchlickRoughness)
+//  so that rough surfaces do not over-darken at grazing angles.
+vec3 FresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    // Reduces F multiplier at grazing angles proportionally to roughness,
+    // preventing excessively bright edges on rough surfaces (Lazarov 2013).
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+vec3 ComputeSpecularIBL(vec3 N, vec3 V, vec3 F0, float roughness, float ao, out vec3 F)
+{
+    F = vec3(0.0);
+    if (!u_HasIBL || !u_HasPrefilteredMap || !u_HasBRDFLUT)
+        return vec3(0.0);
+
+    // 1. Reflection vector: mirror the view direction about the surface normal.
+    vec3 R = reflect(-V, N);
+
+    float NdotV = max(dot(N, V), 0.0);
+
+    // 2. Sample the prefiltered environment map at the mip level that corresponds
+    //    to this surface's roughness. Mip 0 is mirror-sharp; the highest mip is
+    //    fully blurred. The application supplies the maximum mip for GLSL 4.10.
+    float mipLevel = roughness * max(u_PrefilteredMaxMip, 0.0);
+    vec3 prefilteredColor = textureLod(u_PrefilteredMap, R, mipLevel).rgb;
+
+    // 3. Sample the BRDF LUT.
+    //    X axis = NdotV (0..1), Y axis = roughness (0..1).
+    //    R channel = scale applied to F0, G channel = additive bias.
+    vec2 brdf = texture(u_BRDFLUT, vec2(NdotV, roughness)).rg;
+
+    // 4. Roughness-aware Fresnel for the ambient term.
+    F = FresnelSchlickRoughness(NdotV, F0, roughness);
+
+    // 5. Combine: specular = environment * BRDF(F0·scale + bias).
+    //    AO attenuates the specular ambient just like the diffuse term.
+    vec3 specularIBL = prefilteredColor * (F * brdf.x + brdf.y);
+    return specularIBL * ao * max(u_IBLIntensity, 0.0);
+}
+
 void main()
 {
     vec4 albedoSample = GetAlbedoSample();
     vec3 albedo = GetAlbedo() * u_TintColor.rgb;
     float alpha = albedoSample.a * u_TintColor.a;
-    
+
     float metallic;
     float roughness;
     vec3 F0;
@@ -432,20 +587,107 @@ void main()
     vec3 N = ResolveWorldNormal();
     vec3 V = normalize(cameraPos - v_WorldPos);
 
-    // Existing scene ambient stays in place; Lo collects direct-light BRDF contributions.
-    vec3 kS = FresnelSchlick(max(dot(N, V), 0.0), F0);
+    // IBL logic:
+    vec3 kS_ibl;
+    vec3 iblSpecular = ComputeSpecularIBL(N, V, F0, roughness, ao, kS_ibl);
     
-    vec3 kD;
+    vec3 kD_ibl;
     if (u_IsSpecularGlossiness) {
-        kD = (vec3(1.0) - kS);
+        kD_ibl = (vec3(1.0) - kS_ibl);
     } else {
-        kD = (vec3(1.0) - kS) * (1.0 - metallic);
+        kD_ibl = (vec3(1.0) - kS_ibl) * (1.0 - metallic);
+    }
+    
+    vec3 iblDiffuse = ComputeDiffuseIBL(N, albedo, kD_ibl, ao);
+
+    // Direct lighting logic (remains consistent with direct light BRDF):
+    vec3 kS_direct = FresnelSchlick(max(dot(N, V), 0.0), F0);
+    vec3 kD_direct;
+    if (u_IsSpecularGlossiness) {
+        kD_direct = (vec3(1.0) - kS_direct);
+    } else {
+        kD_direct = (vec3(1.0) - kS_direct) * (1.0 - metallic);
     }
 
-    vec3 ambient = kD * albedo * u_AmbientColor * u_AmbientIntensity * ao;
+    // Scene ambient remains as a floor for scenes without valid probe data.
+    vec3 sceneAmbient = kD_direct * albedo * u_AmbientColor * u_AmbientIntensity * ao;
+
+    // When IBL is active: diffuse + specular together replace the flat scene ambient.
+    // When IBL is absent: fall back to flat ambient so scenes without a probe still lit.
+    vec3 ambient;
+    if (u_HasIBL && (u_HasIrradianceMap || (u_HasPrefilteredMap && u_HasBRDFLUT)))
+        ambient = iblDiffuse + iblSpecular;
+    else
+        ambient = sceneAmbient;
+
+    // Readability floor for surfaces facing away from direct lights.  Those
+    // triangles correctly get little/no NdotL contribution, but several scenes
+    // use very low ambient values, making unlit faces almost black.  Keep a
+    // small diffuse ambient minimum so form remains visible without changing
+    // the actual shadow test.
+    vec3 ambientFloor = kD_direct * albedo * vec3(max(u_AmbientFloorStrength, 0.0));
+    ambient = max(ambient, ambientFloor);
+
     vec3 Lo = DirectionalLighting(albedo, N, V, F0, roughness, metallic);
     Lo += PointLighting(albedo, v_WorldPos, N, V, F0, roughness, metallic);
     Lo += SpotLighting(albedo, v_WorldPos, N, V, F0, roughness, metallic);
 
-    FragColor = vec4(ambient + Lo + emissive, alpha);
+    vec3 fullLighting = ambient + Lo + emissive;
+    vec3 R = reflect(-V, N);
+    float NdotV = max(dot(N, V), 0.0);
+
+    if (u_IBLDebugMode == IBL_DEBUG_ORIGINAL_ENVIRONMENT) {
+        vec3 color = u_HasSourceEnvironmentMap
+                         ? texture(u_SourceEnvironmentMap, normalize(R)).rgb * max(u_IBLIntensity, 0.0)
+                         : vec3(0.0);
+        FragColor = vec4(color, alpha);
+        return;
+    }
+
+    if (u_IBLDebugMode == IBL_DEBUG_IRRADIANCE_CUBEMAP) {
+        vec3 color = u_HasIrradianceMap
+                         ? texture(u_IrradianceMap, normalize(N)).rgb * max(u_IBLIntensity, 0.0)
+                         : vec3(0.0);
+        FragColor = vec4(color, alpha);
+        return;
+    }
+
+    if (u_IBLDebugMode == IBL_DEBUG_PREFILTERED_CUBEMAP ||
+        u_IBLDebugMode == IBL_DEBUG_PREFILTERED_MIP_LEVEL) {
+        vec3 color = vec3(0.0);
+        if (u_HasPrefilteredMap) {
+            float maxMipLevel = max(u_PrefilteredMaxMip, 0.0);
+            float mipLevel = (u_IBLDebugMode == IBL_DEBUG_PREFILTERED_MIP_LEVEL)
+                                 ? clamp(u_IBLDebugPrefilteredMip, 0.0, maxMipLevel)
+                                 : roughness * maxMipLevel;
+            color = textureLod(u_PrefilteredMap, normalize(R), mipLevel).rgb * max(u_IBLIntensity, 0.0);
+        }
+        FragColor = vec4(color, alpha);
+        return;
+    }
+
+    if (u_IBLDebugMode == IBL_DEBUG_BRDF_LUT) {
+        vec3 color = u_HasBRDFLUT
+                         ? vec3(texture(u_BRDFLUT, vec2(NdotV, roughness)).rg, 0.0)
+                         : vec3(0.0);
+        FragColor = vec4(color, alpha);
+        return;
+    }
+
+    if (u_IBLDebugMode == IBL_DEBUG_DIFFUSE_ONLY) {
+        FragColor = vec4(iblDiffuse, alpha);
+        return;
+    }
+
+    if (u_IBLDebugMode == IBL_DEBUG_SPECULAR_ONLY) {
+        FragColor = vec4(iblSpecular, alpha);
+        return;
+    }
+
+    if (u_IBLDebugMode == IBL_DEBUG_FULL_IBL_NO_DIRECT) {
+        FragColor = vec4(iblDiffuse + iblSpecular + emissive, alpha);
+        return;
+    }
+
+    FragColor = vec4(fullLighting, alpha);
 }

@@ -1,4 +1,5 @@
 #include "ui/RendererUI.h"
+#include "ui/UITheme.h"
 
 #include "core/Camera.h"
 #include "core/Renderer.h"
@@ -7,39 +8,21 @@
 #include "scene/LightEnvironment.h"
 #include "scene/FrameSubmission.h"
 #include "core/Material.h"
-#include "assets/AssetImporter.h"
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <cstdarg>
 #include <cmath>
 #include <cstdio>
 #include <algorithm>
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Palette
-// ─────────────────────────────────────────────────────────────────────────────
-namespace Pal {
-    static constexpr ImVec4 Bg1 = {0.11f, 0.11f, 0.12f, 0.85f};
-    static constexpr ImVec4 Bg2 = {0.16f, 0.16f, 0.17f, 0.90f};
-    static constexpr ImVec4 Bg3 = {0.20f, 0.20f, 0.22f, 1.00f};
-    static constexpr ImVec4 Border = {0.25f, 0.25f, 0.26f, 0.50f};
-    static constexpr ImVec4 Accent = {0.00f, 0.48f, 1.00f, 1.00f};
-    static constexpr ImVec4 AccentDim = {0.00f, 0.48f, 1.00f, 0.25f};
-    static constexpr ImVec4 Green = {0.20f, 0.84f, 0.29f, 1.00f};
-    static constexpr ImVec4 Orange = {1.00f, 0.62f, 0.04f, 1.00f};
-    static constexpr ImVec4 Red = {1.00f, 0.28f, 0.24f, 1.00f};
-    static constexpr ImVec4 RedBg = {0.25f, 0.10f, 0.10f, 1.00f};
-    static constexpr ImVec4 TextHi = {1.00f, 1.00f, 1.00f, 1.00f};
-    static constexpr ImVec4 TextMid = {0.92f, 0.92f, 0.95f, 0.80f};
-    static constexpr ImVec4 TextDim = {0.55f, 0.55f, 0.57f, 1.00f};
-    static constexpr ImVec4 TextFaint = {0.38f, 0.38f, 0.40f, 1.00f};
-}
+// Pal colours and SectionHeader are now in UITheme.h (shared with scene tabs).
 
 static constexpr float kPanelPadding = 12.0f;
 static constexpr float kRounding = 10.0f;
 static constexpr float kTopbarHeight = 44.0f;
 static constexpr float kSidebarWidth = 360.0f;
-static constexpr int kTabCount = 5;
-static const char *kTabLabels[] = {"Scene", "Lights", "Materials", "Shadow", "Stats"};
+static constexpr int kTabCount = 6;        ///< Base tabs, always visible
+static const char *kTabLabels[] = {"Scene", "Lights", "Mat", "Shadow", "Post", "Stats", "Terr"};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ApplyTheme — call once after ImGui::CreateContext(), NOT inside a frame.
@@ -127,22 +110,7 @@ static bool MiniBadgeButton(const char *label, bool danger = false, bool add = f
     return clicked;
 }
 
-static bool SectionHeader(const char *label, bool defaultOpen = true) {
-    ImGui::PushStyleColor(ImGuiCol_Header, {1, 1, 1, 0.03f});
-    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, {1, 1, 1, 0.08f});
-    ImGui::PushStyleColor(ImGuiCol_HeaderActive, {1, 1, 1, 0.12f});
-    ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextHi);
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
-
-    ImGuiTreeNodeFlags f = ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
-    if (defaultOpen) f |= ImGuiTreeNodeFlags_DefaultOpen;
-    const bool open = ImGui::CollapsingHeader(label, f);
-
-    ImGui::PopStyleVar(2);
-    ImGui::PopStyleColor(4);
-    return open;
-}
+// SectionHeader is now in UITheme.h.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Light editors
@@ -458,12 +426,18 @@ void RendererUI::DrawSidebar(int fbH,
 
     if (ImGui::Begin("##Inspector", nullptr, flags)) {
         // --- Pill-style tab bar ---
+        // The Terrain tab is appended only when the active scene supports it.
+        const bool hasTerrain = scene.HasTerrainTab();
+        if (!hasTerrain && m_activeTab == UITab::Terrain)
+            m_activeTab = UITab::Scene;
+        const int visibleTabCount = kTabCount + (hasTerrain ? 1 : 0);
+
         ImGui::SetCursorPos({16, 16});
         ImGui::BeginChild("##tabBar", ImVec2(kSidebarWidth - 32, 36),
                           false, ImGuiWindowFlags_NoScrollbar);
 
-        const float tabW = (kSidebarWidth - 32) / static_cast<float>(kTabCount);
-        for (int i = 0; i < kTabCount; ++i) {
+        const float tabW = (kSidebarWidth - 32) / static_cast<float>(visibleTabCount);
+        for (int i = 0; i < visibleTabCount; ++i) {
             const bool active = (static_cast<int>(m_activeTab) == i);
             ImGui::PushStyleColor(ImGuiCol_Button, active
                                                        ? Pal::Accent
@@ -476,8 +450,6 @@ void RendererUI::DrawSidebar(int fbH,
                                                      ? Pal::TextHi
                                                      : Pal::TextDim);
             ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 18.0f);
-
-            // Add some horizontal padding for the text inside the button
             ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.5f, 0.5f));
 
             if (ImGui::Button(kTabLabels[i], ImVec2(tabW, 30)))
@@ -485,30 +457,31 @@ void RendererUI::DrawSidebar(int fbH,
 
             ImGui::PopStyleVar(2);
             ImGui::PopStyleColor(4);
-            if (i < kTabCount - 1) ImGui::SameLine(0, 0);
+            if (i < visibleTabCount - 1) ImGui::SameLine(0, 0);
         }
         ImGui::EndChild();
 
         ImGui::Separator();
 
         // --- Scrollable content area ---
+        // For the terrain tab we reserve a fixed strip at the bottom for the
+        // sticky Regenerate bar so it is always visible without scrolling.
+        const bool hasTerrainFooter = (m_activeTab == UITab::Terrain) && scene.HasTerrainTab();
+        constexpr float kFooterH = 68.0f;
+
         ImGui::SetCursorPosX(0);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 16));
-        ImGui::BeginChild("##content", ImVec2(0, 0));
+        ImGui::BeginChild("##content", ImVec2(0, hasTerrainFooter ? -kFooterH : 0.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 12));
 
-        const AssetCacheStats cs = AssetImporter::GetCacheStats();
         switch (m_activeTab) {
-            case UITab::Scene: DrawTabScene(scene, stats, frame);
-                break;
-            case UITab::Lights: DrawTabLights(scene, stats, frame);
-                break;
-            case UITab::Materials: DrawTabMaterials(scene, stats, frame);
-                break;
-            case UITab::Shadow: DrawTabShadow(scene, stats);
-                break;
-            case UITab::Stats: DrawTabStats(scene, stats, cs);
-                break;
+            case UITab::Scene:     DrawTabScene(scene, stats, frame);    break;
+            case UITab::Lights:    DrawTabLights(scene, stats, frame);   break;
+            case UITab::Materials: DrawTabMaterials(scene, stats, frame); break;
+            case UITab::Shadow:    DrawTabShadow(scene, stats);          break;
+            case UITab::PostFX:    DrawTabPostFX(scene, stats);          break;
+            case UITab::Stats:     DrawTabStats(scene, stats);           break;
+            case UITab::Terrain:   DrawTabTerrain(scene);                break;
         }
 
         if (lookMode) {
@@ -521,6 +494,17 @@ void RendererUI::DrawSidebar(int fbH,
 
         ImGui::PopStyleVar(2);
         ImGui::EndChild();
+
+        // --- Sticky terrain footer (always visible at the bottom of the sidebar) ---
+        if (hasTerrainFooter) {
+            ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1, 1, 1, 0.07f));
+            ImGui::Separator();
+            ImGui::PopStyleColor();
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6, 6));
+            ImGui::SetCursorPosX(12);
+            scene.OnTerrainTabFooter();
+            ImGui::PopStyleVar();
+        }
     }
     ImGui::End();
     ImGui::PopStyleColor();
@@ -763,8 +747,10 @@ void RendererUI::DrawTabScene(Scene &scene, const RendererDebugStats &stats,
         SR("Approx tris", buf);
         std::snprintf(buf, sizeof(buf), "%u", stats.submittedRenderItemCount);
         SR("Submitted", buf);
-        std::snprintf(buf, sizeof(buf), "%u", stats.processedRenderItemCount);
-        SR("Processed", buf);
+        std::snprintf(buf, sizeof(buf), "%u", stats.frustumCulledRenderItemCount);
+        SR("Culled", buf);
+        std::snprintf(buf, sizeof(buf), "%u", stats.visibleRenderItemCount);
+        SR("Visible", buf);
 
         ImGui::PopStyleColor();
         ImGui::Spacing();
@@ -781,6 +767,12 @@ void RendererUI::DrawTabLights(Scene &scene, const RendererDebugStats & /*stats*
     if (SectionHeader("Global Ambient")) {
         ImGui::ColorEdit3("Ambient Color", &lights.ambientColor.x);
         ImGui::SliderFloat("Ambient Intensity", &lights.ambientIntensity, 0.0f, 5.0f);
+        ImGui::SliderFloat("Ambient Floor", &ambientFloorStrength, 0.0f, 1.0f, "%.3f");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Minimum diffuse ambient added to back-facing/unlit triangles.");
+        ImGui::SliderFloat("Max Shadow Occlusion", &maxShadowOcclusion, 0.0f, 1.0f, "%.2f");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Caps directional shadow darkness. Lower = brighter shadows, higher = darker shadows.");
         ImGui::Spacing();
     }
 
@@ -833,6 +825,41 @@ void RendererUI::DrawTabLights(Scene &scene, const RendererDebugStats & /*stats*
 // ─────────────────────────────────────────────────────────────────────────────
 void RendererUI::DrawTabMaterials(Scene &scene, const RendererDebugStats &stats,
                                   const FrameSubmission &frame) {
+
+    // ── Skybox ────────────────────────────────────────────────────────────────
+    if (auto* sb = scene.GetSkybox()) {
+        if (SectionHeader("Skybox")) {
+            ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
+
+            glm::vec3 tint = sb->GetTint();
+            if (ImGui::ColorEdit3("Tint", &tint.x))
+                sb->SetTint(tint);
+
+            float exposure = sb->GetExposure();
+            if (ImGui::SliderFloat("Exposure##sky", &exposure, 0.0f, 5.0f, "%.2f"))
+                sb->SetExposure(exposure);
+
+            glm::vec3 emissive = sb->GetEmissiveColor();
+            if (ImGui::ColorEdit3("Emissive Color##sky", &emissive.x))
+                sb->SetEmissiveColor(emissive);
+
+            float emissiveStr = sb->GetEmissiveStrength();
+            if (ImGui::SliderFloat("Emissive Strength##sky", &emissiveStr, 0.0f, 10.0f, "%.2f"))
+                sb->SetEmissiveStrength(emissiveStr);
+
+            ImGui::Spacing();
+            if (ImGui::Button("Reset Skybox##sky")) {
+                sb->SetTint({1.0f, 1.0f, 1.0f});
+                sb->SetExposure(1.0f);
+                sb->SetEmissiveColor({0.0f, 0.0f, 0.0f});
+                sb->SetEmissiveStrength(0.0f);
+            }
+
+            ImGui::PopStyleColor();
+            ImGui::Spacing();
+        }
+    }
+
     if (frame.objects.empty()) {
         ImGui::TextColored(Pal::TextDim, "No renderable objects in current frame.");
         return;
@@ -1016,22 +1043,18 @@ void RendererUI::DrawTabShadow(Scene &scene, const RendererDebugStats &stats) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tab: Stats
+// Tab: Post-FX
 // ─────────────────────────────────────────────────────────────────────────────
-void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats,
-                              const AssetCacheStats &cs) {
-                                    
-        if (SectionHeader("Tone Mapping")) {
+void RendererUI::DrawTabPostFX(Scene & /*scene*/, const RendererDebugStats &stats) {
+    if (SectionHeader("Tone Mapping")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
 
-        ImGui::Checkbox("Enabled", &tonemapEnabled);
+        ImGui::Checkbox("Enabled##tonemap", &tonemapEnabled);
 
         if (tonemapEnabled) {
-            // Operator selector — Person 6 will add ACES and Uncharted2 labels
-            static const char* kOps[] = { "Reinhard", "ACES", "Uncharted2" };
+            static const char *kOps[] = {"Reinhard", "ACES", "Uncharted2"};
             ImGui::Combo("Operator", &tonemapOperator, kOps, IM_ARRAYSIZE(kOps));
 
-            // Exposure control (Person 5 scope)
             ImGui::SliderFloat("Exposure", &exposure, 0.1f, 5.0f, "%.2f");
             if (ImGui::IsItemHovered())
                 ImGui::SetTooltip("Multiplier applied to HDR color before tone mapping");
@@ -1040,6 +1063,7 @@ void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats
         ImGui::PopStyleColor();
         ImGui::Spacing();
     }
+
     if (SectionHeader("Bloom")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
 
@@ -1047,54 +1071,244 @@ void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats
         ImGui::SliderFloat("Strength##bloom", &bloomStrength, 0.0f, 3.0f, "%.2f");
         ImGui::SliderFloat("Threshold##bloom", &bloomThreshold, 0.0f, 2.0f, "%.2f");
         if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Luminance threshold for bloom extraction. Higher = only brightest pixels bloom.");
+            ImGui::SetTooltip("Luminance threshold for bloom extraction.");
 
         ImGui::Checkbox("Soft threshold##bloom", &bloomSoftThreshold);
         ImGui::BeginDisabled(!bloomSoftThreshold);
         ImGui::SliderFloat("Soft Knee##bloom", &bloomSoftKnee, 0.0f, 1.0f, "%.2f");
         ImGui::EndDisabled();
-        if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Smooth transition around threshold. 0 = hard cut, 0.5 = smooth ramp.");
 
+        ImGui::SliderFloat("Radius##bloom", &bloomRadius, 0.1f, 5.0f, "%.2f");
         ImGui::SliderInt("Blur iterations##bloom", &bloomBlurIterations, 1, 10);
+
         const char *kDebugViews[] = {"Final", "HDR Only", "Bright-pass", "Blurred Bloom", "No Bloom"};
         ImGui::Combo("Debug View##postfx", &postFxDebugView, kDebugViews, IM_ARRAYSIZE(kDebugViews));
 
         ImGui::PopStyleColor();
         ImGui::Spacing();
     }
-    if (SectionHeader("Performance")) {
+
+    if (SectionHeader("IBL Debug", /*defaultOpen=*/false)) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
-        ImGui::Text("FPS           : %.1f", stats.fps);
-        ImGui::Text("Frame time    : %.2f ms", stats.frameTimeMs);
-        ImGui::Text("Draw calls    : %u", stats.drawCallCount);
-        ImGui::Text("Submitted     : %u", stats.submittedRenderItemCount);
-        ImGui::Text("Queued        : %u", stats.queuedRenderItemCount);
-        ImGui::Text("Processed     : %u", stats.processedRenderItemCount);
-        ImGui::Text("Approx tris   : %s", FormatCompact(stats.approxTriangleCount).c_str());
+        ImGui::Text("IBL active (stats): %s", stats.iblAvailable ? "yes" : "no");
+
+        int iblModeIndex = std::clamp(ToUniformValue(iblDebugMode),
+                                      0,
+                                      static_cast<int>(kIBLDebugModeLabels.size()) - 1);
+        if (ImGui::Combo("Debug Mode##ibl",
+                         &iblModeIndex,
+                         kIBLDebugModeLabels.data(),
+                         static_cast<int>(kIBLDebugModeLabels.size()))) {
+            iblDebugMode = static_cast<IBLDebugMode>(iblModeIndex);
+        }
+
+        const float maxMip = stats.iblPrefilteredMipCount > 0
+                                 ? static_cast<float>(stats.iblPrefilteredMipCount - 1)
+                                 : 0.0f;
+        iblDebugPrefilteredMip = std::clamp(iblDebugPrefilteredMip, 0.0f, maxMip);
+        ImGui::BeginDisabled(stats.iblPrefilteredMipCount <= 1);
+        ImGui::SliderFloat("Prefiltered Mip##ibl", &iblDebugPrefilteredMip, 0.0f, maxMip, "%.1f");
+        ImGui::EndDisabled();
+
+        ImGui::Separator();
+        ImGui::Text("IBL intensity    : %.3f", stats.iblIntensity);
+        ImGui::Text("Selected mip     : %.1f / %.1f", iblDebugPrefilteredMip, maxMip);
+
+        auto DrawResourceInfo = [](const char *label,
+                                   uint32_t textureId,
+                                   uint32_t width,
+                                   uint32_t height,
+                                   uint32_t mipCount = 0) {
+            const bool ready = textureId != 0;
+            ImGui::Text("%s", label);
+            ImGui::SameLine(165.0f);
+            ImGui::TextColored(ready ? Pal::Green : Pal::TextFaint,
+                               "%s", ready ? "ready" : "missing");
+            ImGui::TextColored(Pal::TextFaint, "  id: %u", textureId);
+            if (ready && width > 0 && height > 0)
+                ImGui::TextColored(Pal::TextFaint, "  size: %u x %u", width, height);
+            else
+                ImGui::TextColored(Pal::TextFaint, "  size: unknown");
+            if (mipCount > 0)
+                ImGui::TextColored(Pal::TextFaint, "  mips: %u", mipCount);
+        };
+
+        auto DrawCubemapPreview = [](const char *label,
+                                     const auto& faceTextureIds,
+                                     bool available) {
+            ImGui::Spacing();
+            ImGui::TextColored(Pal::TextDim, "%s", label);
+            if (!available) {
+                ImGui::TextColored(Pal::TextFaint, "  preview unavailable");
+                return;
+            }
+
+            static const char *kFaceLabels[] = {"+X", "-X", "+Y", "-Y", "+Z", "-Z"};
+            const float gap = 4.0f;
+            const float width = ImGui::GetContentRegionAvail().x;
+            const float thumb = std::max(48.0f, (width - gap * 2.0f) / 3.0f);
+
+            for (std::size_t face = 0; face < faceTextureIds.size(); ++face) {
+                ImGui::BeginGroup();
+                ImGui::TextColored(Pal::TextFaint, "%s", kFaceLabels[face]);
+                const uint32_t previewTexture = faceTextureIds[face];
+                if (previewTexture != 0) {
+                    ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<intptr_t>(previewTexture)),
+                                 ImVec2(thumb, thumb),
+                                 ImVec2(0, 1),
+                                 ImVec2(1, 0));
+                } else {
+                    ImGui::Dummy(ImVec2(thumb, thumb));
+                }
+                ImGui::EndGroup();
+                if ((face % 3) != 2)
+                    ImGui::SameLine(0, gap);
+            }
+        };
+
+        DrawResourceInfo("Source environment",
+                         stats.iblSourceTextureId,
+                         stats.iblSourceWidth,
+                         stats.iblSourceHeight);
+        DrawResourceInfo("Irradiance cubemap",
+                         stats.iblIrradianceTextureId,
+                         stats.iblIrradianceWidth,
+                         stats.iblIrradianceHeight);
+        DrawResourceInfo("Prefiltered cubemap",
+                         stats.iblPrefilteredTextureId,
+                         stats.iblPrefilteredWidth,
+                         stats.iblPrefilteredHeight,
+                         stats.iblPrefilteredMipCount);
+        DrawResourceInfo("BRDF LUT",
+                         stats.iblBrdfLutTextureId,
+                         stats.iblBrdfLutWidth,
+                         stats.iblBrdfLutHeight);
+
+        ImGui::Separator();
+        DrawCubemapPreview("Original environment cubemap",
+                           stats.iblSourcePreviewTextureIds,
+                           stats.iblSourceTextureId != 0);
+        DrawCubemapPreview("Irradiance cubemap",
+                           stats.iblIrradiancePreviewTextureIds,
+                           stats.iblIrradianceTextureId != 0);
+        DrawCubemapPreview("Prefiltered cubemap (selected mip)",
+                           stats.iblPrefilteredPreviewTextureIds,
+                           stats.iblPrefilteredTextureId != 0);
+
+        if (stats.iblBrdfLutTextureId != 0) {
+            ImGui::Spacing();
+            ImGui::TextWrapped("BRDF integration LUT (RG = scale, bias).");
+            const float pw = std::min(256.0f, kSidebarWidth - 40.0f);
+            ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<intptr_t>(stats.iblBrdfLutTextureId)),
+                         ImVec2(pw, pw), ImVec2(0, 1), ImVec2(1, 0));
+        } else {
+            ImGui::TextColored(Pal::TextFaint, "No BRDF LUT in active probe.");
+        }
+        ImGui::PopStyleColor();
+        ImGui::Spacing();
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tab: Stats
+// ─────────────────────────────────────────────────────────────────────────────
+void RendererUI::DrawTabStats(Scene & /*scene*/, const RendererDebugStats &stats) {
+    auto Row = [](const char *label, const char *fmt, ...) {
+        ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextDim);
+        ImGui::TextUnformatted(label);
+        ImGui::PopStyleColor();
+        ImGui::SameLine(150);
+
+        va_list args;
+        va_start(args, fmt);
+        ImGui::TextV(fmt, args);
+        va_end(args);
+    };
+
+    if (SectionHeader("Frame / Timing")) {
+        ImGui::Checkbox("Frustum culling", &frustumCullingEnabled);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Skip forward-pass draws for objects outside the camera frustum.\nShadow casters are unaffected.");
+
+        ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
+        Row("FPS", "%.1f", stats.fps);
+        Row("Frame time", "%.2f ms", stats.frameTimeMs);
+        if (stats.currentCameraAvailable) {
+            Row("Camera", "%.1f FOV, yaw %.1f", stats.cameraFov, stats.cameraYaw);
+            Row("Camera pos", "%.1f, %.1f, %.1f",
+                stats.cameraPositionX, stats.cameraPositionY, stats.cameraPositionZ);
+        } else {
+            Row("Camera", "none");
+        }
         ImGui::PopStyleColor();
         ImGui::Spacing();
     }
 
-    if (SectionHeader("Light Counts")) {
+    if (SectionHeader("Render Pass Timings")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
-        ImGui::Text("Directional   : %u", stats.directionalLightCount);
-        ImGui::Text("Point lights  : %u", stats.pointLightCount);
-        ImGui::Text("Shadow casters: %u", stats.shadowCasterCount);
+        bool anyTiming = false;
+        for (const RendererPassTiming &timing : stats.passTimings) {
+            if (!timing.available)
+                continue;
+            Row(timing.name, "%.2f ms", timing.milliseconds);
+            anyTiming = true;
+        }
+        if (!anyTiming)
+            Row("Passes", "not available");
         ImGui::PopStyleColor();
         ImGui::Spacing();
     }
 
-    if (SectionHeader("Resource Cache")) {
+    if (SectionHeader("Culling")) {
         ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
-        ImGui::Text("Total         : %zu", cs.TotalCount());
-        ImGui::Text("Shaders       : %zu", cs.shaderCount);
-        ImGui::Text("Textures      : %zu", cs.textureCount);
-        ImGui::Text("Meshes        : %zu", cs.meshCount);
-        ImGui::Text("Materials     : %zu", cs.materialCount);
+        Row("Status", "%s", stats.cullingEnabled ? "enabled" : "disabled");
+        Row("Submitted", "%u", stats.submittedRenderItemCount);
+        Row("Visible", "%u", stats.visibleRenderItemCount);
+        Row("Culled", "%u", stats.frustumCulledRenderItemCount);
+        Row("Drawn", "%u", stats.processedRenderItemCount);
+        Row("Queued", "%u", stats.queuedRenderItemCount);
+        if (!stats.cullingDataAvailable)
+            Row("Culling data", "no camera");
         ImGui::PopStyleColor();
         ImGui::Spacing();
     }
+
+    if (SectionHeader("Draw / State Changes")) {
+        ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
+        Row("Draw calls", "%u", stats.drawCallCount);
+        Row("Approx tris", "%s", FormatCompact(stats.approxTriangleCount).c_str());
+        Row("Program changes", "%u", stats.shaderProgramChangeCount);
+        Row("Material changes", "%u", stats.materialChangeCount);
+        Row("Texture binds", "%u", stats.textureBindingCount);
+        ImGui::PopStyleColor();
+        ImGui::Spacing();
+    }
+
+    if (SectionHeader("Resources")) {
+        ImGui::PushStyleColor(ImGuiCol_Text, Pal::TextMid);
+        Row("Scene meshes", "%u", stats.meshCount);
+        Row("Scene materials", "%u", stats.materialCount);
+        Row("Scene shaders", "%u", stats.shaderProgramCount);
+        Row("Lights", "%u total", stats.totalLightCount);
+        Row("Directional", "%u", stats.directionalLightCount);
+        Row("Point / Spot", "%u / %u", stats.pointLightCount, stats.spotLightCount);
+        Row("Active cameras", "%u", stats.activeCameraCount);
+        ImGui::Separator();
+        Row("Cached shaders", "%u", stats.cachedShaderProgramCount);
+        Row("Cached meshes", "%u", stats.cachedMeshCount);
+        Row("Cached materials", "%u", stats.cachedMaterialCount);
+        Row("Cached textures", "%u", stats.textureCount);
+        Row("2D / cubemap", "%u / %u", stats.cachedTexture2DCount, stats.cachedCubemapCount);
+        ImGui::PopStyleColor();
+        ImGui::Spacing();
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Terrain tab — delegates to scene so RendererUI stays scene-agnostic
+// ─────────────────────────────────────────────────────────────────────────────
+void RendererUI::DrawTabTerrain(Scene &scene) {
+    scene.OnTerrainTabUI();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1151,6 +1365,7 @@ void RendererUI::DrawHelpWindow(int fbW, int fbH) {
         ImGui::TextColored(Pal::TextDim, "INTERFACE");
         ImGui::Separator();
         KeyRow("X", "Toggle inspector");
+        KeyRow("1-9", "Switch scenes");
         KeyRow("Z", "Wireframe mode");
         KeyRow("N", "Toggle normal map");
         KeyRow("K", "Toggle skybox");

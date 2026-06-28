@@ -11,6 +11,7 @@
 // while still indexing into the correct region of the shared VBO.
 
 #include "assets/ModelData.h"
+#include "core/AABB.h"
 #include "core/MeshData.h"
 
 #include <assimp/Importer.hpp>
@@ -129,6 +130,18 @@ ExtractEmbeddedTextures(const aiScene* scene, const std::string& modelPath)
 //  - External file references: joined with modelDir as before.
 // ---------------------------------------------------------------------------
 
+static std::string NormalizeImportedTexturePath(std::string path)
+{
+#ifndef _WIN32
+    for (char& ch : path)
+    {
+        if (ch == '\\')
+            ch = '/';
+    }
+#endif
+    return path;
+}
+
 static std::string ResolveTexturePath(
     const aiMaterial*                                      mat,
     aiTextureType                                          type,
@@ -138,7 +151,7 @@ static std::string ResolveTexturePath(
     aiString aiPath;
     if (mat->GetTexture(type, 0, &aiPath) == AI_SUCCESS)
     {
-        const std::string raw = aiPath.C_Str();
+        const std::string raw = NormalizeImportedTexturePath(aiPath.C_Str());
         if (raw.empty())
             return {};
 
@@ -156,6 +169,41 @@ static std::string ResolveTexturePath(
 
         // External file reference — prepend the model directory.
         fs::path full = fs::path(modelDir) / raw;
+
+        if (fs::exists(full))
+        {
+            return full.lexically_normal().string();
+        }
+
+        // Fallback 1: Try in the parent directory of modelDir (since textures are often placed in the parent directory of the model folder)
+        fs::path parentFull = fs::path(modelDir).parent_path() / raw;
+        if (fs::exists(parentFull))
+        {
+            return parentFull.lexically_normal().string();
+        }
+
+        // Fallback 2: Try looking for the filename directly in modelDir
+        fs::path justFilename = fs::path(modelDir) / fs::path(raw).filename();
+        if (fs::exists(justFilename))
+        {
+            return justFilename.lexically_normal().string();
+        }
+
+        // Fallback 3: Try looking for filename in modelDir/textures
+        fs::path modelDirTextures = fs::path(modelDir) / "textures" / fs::path(raw).filename();
+        if (fs::exists(modelDirTextures))
+        {
+            return modelDirTextures.lexically_normal().string();
+        }
+
+        // Fallback 4: Try looking for filename in the parent's textures directory
+        fs::path parentTextures = fs::path(modelDir).parent_path() / "textures" / fs::path(raw).filename();
+        if (fs::exists(parentTextures))
+        {
+            return parentTextures.lexically_normal().string();
+        }
+
+        // Fallback 5: Return canonical full path anyway
         return full.lexically_normal().string();
     }
     return {};
@@ -257,8 +305,7 @@ ModelData ImportModelFromFile(const std::string& path)
         aiProcess_GenSmoothNormals      |
         aiProcess_CalcTangentSpace      |   // ← tangent/bitangent generation
         aiProcess_JoinIdenticalVertices |
-        aiProcess_PreTransformVertices  |   // bake node transforms → static city
-        aiProcess_FixInfacingNormals);      // fix normals flipped by negative-scale nodes
+        aiProcess_PreTransformVertices);    // bake node transforms → static city
 
     if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || !scene->mRootNode)
     {
@@ -436,6 +483,7 @@ ModelData ImportModelFromFile(const std::string& path)
         sm.indexByteOffset = static_cast<uint32_t>(indices.size() * sizeof(uint32_t));
         sm.materialIndex   = GetOrAddMaterial(mesh->mMaterialIndex);
         sm.hasTangents     = (mesh->mTextureCoords[0] && mesh->mTangents && mesh->mBitangents);
+        AABB subBounds     = AABB::Empty();
 
         // --- vertices ---
         vertices.reserve(vertices.size() + mesh->mNumVertices);
@@ -445,6 +493,7 @@ ModelData ImportModelFromFile(const std::string& path)
             vtx.position = { mesh->mVertices[v].x,
                              mesh->mVertices[v].y,
                              mesh->mVertices[v].z };
+            subBounds.Expand(vtx.position);
             vtx.normal   = { mesh->mNormals[v].x,
                              mesh->mNormals[v].y,
                              mesh->mNormals[v].z };
@@ -478,6 +527,7 @@ ModelData ImportModelFromFile(const std::string& path)
             indices.push_back(face.mIndices[2]);
         }
 
+        sm.localBounds = subBounds;
         submeshes.push_back(sm);
     }
 

@@ -7,6 +7,7 @@
 #include "utils/Options.h"
 #include "core/Material.h"
 #include "core/Renderer.h"
+#include "core/RenderConfig.h"
 #include "core/ShaderProgram.h"
 #include "core/FullscreenQuad.h"
 #include "core/InputManager.h"
@@ -22,6 +23,8 @@
 #include <cstdint>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
+#include <algorithm>
+#include <chrono>
 #include <string>
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -43,6 +46,17 @@ static void scroll_callback(GLFWwindow *window, double /*xoff*/, double yoff)
     if (!app || !app->GetInputManager())
         return;
     app->GetInputManager()->GetMouse().OnScroll(static_cast<float>(yoff));
+}
+
+namespace
+{
+    using CpuClock = std::chrono::steady_clock;
+
+    float ElapsedMilliseconds(CpuClock::time_point start)
+    {
+        const auto elapsed = CpuClock::now() - start;
+        return std::chrono::duration<float, std::milli>(elapsed).count();
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -119,6 +133,7 @@ bool Application::Initialize()
 #ifndef NDEBUG
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 #endif
+    glfwWindowHint(GLFW_SRGB_CAPABLE, GLFW_TRUE);
 
     struct GLVer
     {
@@ -232,6 +247,11 @@ void Application::RunFrame(Scene &scene,
         vpW > 0 ? vpW : fbW,
         vpH > 0 ? vpH : fbH};
 
+    m_renderer->SetIBLDebugState(m_ui->iblDebugMode, m_ui->iblDebugPrefilteredMip);
+    m_renderer->SetLightingDebugControls(m_ui->ambientFloorStrength, m_ui->maxShadowOcclusion);
+    RenderConfig renderConfig;
+    renderConfig.frustumCullingEnabled = m_ui->frustumCullingEnabled;
+    m_renderer->SetRenderConfig(renderConfig);
     m_renderer->BeginFrame(sub);
     for (const auto &item : sub.objects)
     {
@@ -246,10 +266,20 @@ void Application::RunFrame(Scene &scene,
     }
 
     m_renderer->EndFrame();
+    // Rebind the HDR FBO so that OnPostRender draws (instanced vegetation etc.)
+    // land in the buffer that RenderPostProcess reads, not in the default FBO
+    // which EndFrame unbinds to.
+    m_renderer->RebindHdrFramebuffer();
+    scene.OnPostRender();
+    // RenderPostProcess immediately binds its own FBOs and reads the HDR texture
+    // by GL texture ID, so the HDR FBO being bound here is not a problem.
+    const auto postProcessStart = CpuClock::now();
     RenderPostProcess(sub.clearInfo.viewport.x,
                       sub.clearInfo.viewport.y,
                       sub.clearInfo.viewport.width,
                       sub.clearInfo.viewport.height);
+    m_renderer->RecordDebugPassTiming(RendererPassTimingId::PostProcess,
+                                      ElapsedMilliseconds(postProcessStart));
 
     // ── ImGui ─────────────────────────────────────────────────────────────────
     if (m_imguiInitialized)
@@ -449,6 +479,7 @@ void Application::RenderPostProcess(int x, int y, int width, int height)
 
         m_gaussianBlurShader->Bind();
         m_gaussianBlurShader->SetUniform("u_Image", 0);
+        m_gaussianBlurShader->SetUniform("u_Radius", m_ui->bloomRadius);
 
         for (int i = 0; i < blurPassCount; ++i)
         {
@@ -516,7 +547,9 @@ void Application::RenderPostProcess(int x, int y, int width, int height)
     glBindTexture(GL_TEXTURE_2D, stats.hdrColorTextureId);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, bloomInputForComposite);
+    glEnable(GL_FRAMEBUFFER_SRGB);
     m_fullscreenQuad->Draw();
+    glDisable(GL_FRAMEBUFFER_SRGB);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE0);

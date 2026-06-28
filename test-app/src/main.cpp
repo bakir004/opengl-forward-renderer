@@ -1,13 +1,11 @@
 #include "app/Application.h"
-#include "SampleScene.h"
 #include <spdlog/spdlog.h>
+#include <cstddef>
+#include <vector>
 
-#include "SolarSystemScene.h"
-#include "DioramaScene.h"
-#include "NeonCityScene.h"
-#include "JapanScene.h"
-#include "PbrValidationScene.h"
-#include "NormalMapScene.h"
+#include "BistroScene.h"
+#include "CapturePresetScene.h"
+#include "TerrainScene.h"
 
 int main()
 {
@@ -19,44 +17,49 @@ int main()
         spdlog::error("[TestApp] Application::Initialize() failed — aborting");
         return -1;
     }
-    /*
-        SampleScene sampleScene;
-        if (!sampleScene.Setup())
-            spdlog::warn("[TestApp] SampleScene::Setup() failed — scene may render incomplete");
 
-        SolarSystemScene solarSystemScene;
-        if (!solarSystemScene.Setup())
-            spdlog::warn("[TestApp] SolarSystemScene::Setup() failed — no geometry will be rendered");
+    TerrainScene terrainScene;
+    BistroScene bistroScene;
+    CapturePresetScene captureBaseline(CapturePresetKind::Baseline);
+    CapturePresetScene captureDenseGrid(CapturePresetKind::DenseGrid);
+    CapturePresetScene captureMaterialSweep(CapturePresetKind::MaterialSweep);
+    CapturePresetScene captureCulling(CapturePresetKind::CullingTest);
 
-        DioramaScene dioramaScene;
-        if (!dioramaScene.Setup())
-            spdlog::warn("[TestApp] DioramaScene::Setup() failed");
+    bool terrainOk = terrainScene.Setup();
+    bool bistroOk = bistroScene.Setup();
+    bool captureBaselineOk = captureBaseline.Setup();
+    bool captureDenseGridOk = captureDenseGrid.Setup();
+    bool captureMaterialSweepOk = captureMaterialSweep.Setup();
+    bool captureCullingOk = captureCulling.Setup();
 
-        NeonCityScene neonCityScene;
-        if (!neonCityScene.Setup())
-            spdlog::warn("[TestApp] NeonCityScene::Setup() failed");
+    if (!terrainOk)
+        spdlog::error("[TestApp] TerrainScene::Setup() failed");
+    if (!bistroOk)
+        spdlog::error("[TestApp] BistroScene::Setup() failed");
+    if (!captureBaselineOk)
+        spdlog::error("[TestApp] Capture baseline setup failed");
+    if (!captureDenseGridOk)
+        spdlog::error("[TestApp] Capture dense grid setup failed");
+    if (!captureMaterialSweepOk)
+        spdlog::error("[TestApp] Capture material sweep setup failed");
+    if (!captureCullingOk)
+        spdlog::error("[TestApp] Capture culling setup failed");
 
-        JapanScene japanScene;
-        if (!japanScene.Setup())
-            spdlog::warn("[TestApp] JapanScene::Setup() failed");
+    std::vector<Scene*> scenes;
+    if (terrainOk) scenes.push_back(&terrainScene);
+    if (bistroOk) scenes.push_back(&bistroScene);
+    if (captureBaselineOk) scenes.push_back(&captureBaseline);
+    if (captureDenseGridOk) scenes.push_back(&captureDenseGrid);
+    if (captureMaterialSweepOk) scenes.push_back(&captureMaterialSweep);
+    if (captureCullingOk) scenes.push_back(&captureCulling);
 
-        PbrValidationScene pbrValidationScene;
-        if (!pbrValidationScene.Setup())
-            spdlog::warn("[TestApp] PbrValidationScene::Setup() failed");
+    for (std::size_t i = 0; i < scenes.size(); ++i)
+        spdlog::info("[TestApp] Press {} for {}", i + 1, scenes[i]->GetName());
 
-        NormalMapScene normalMapScene;
-        if (!normalMapScene.Setup())
-            spdlog::warn("[TestApp] NormalMapScene::Setup() failed");
-
-        spdlog::info(
-            "[TestApp] Press 1 for SampleScene | Press 2 for SolarSystemScene | Press 3 for DioramaScene | Press 4 for NeonCityScene | Press 5 for JapanScene | Press 6 for PbrValidationScene | Press 7 for NormalMapScene");
-
-        app.Run({&sampleScene, &solarSystemScene, &dioramaScene, &neonCityScene, &japanScene, &pbrValidationScene, &normalMapScene}, 0);
-    */
-    JapanScene japanScene;
-    if (!japanScene.Setup())
-        spdlog::warn("[TestApp] JapanScene::Setup() failed");
-    app.Run({&japanScene});
+    if (!scenes.empty())
+        app.Run(scenes, 0);
+    else
+        spdlog::error("[TestApp] No scenes were available to run");
 
     spdlog::info("[TestApp] Shutting down");
     return 0;

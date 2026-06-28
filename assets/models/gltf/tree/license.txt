@@ -1,0 +1,11 @@
+Model Information:
+* title:	Low poly tree for game asset
+* source:	https://sketchfab.com/3d-models/low-poly-tree-for-game-asset-026a14c7c12d46688307b13ada6d9510
+* author:	oi_nasrul (https://sketchfab.com/oi_nasrul)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Low poly tree for game asset" (https://sketchfab.com/3d-models/low-poly-tree-for-game-asset-026a14c7c12d46688307b13ada6d9510) by oi_nasrul (https://sketchfab.com/oi_nasrul) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

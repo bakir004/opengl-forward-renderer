@@ -5,7 +5,9 @@
 #include "core/Mesh.h"
 #include "core/Material.h"
 #include "core/Texture2D.h"
+#include "core/TextureCubemap.h"
 #include "scene/RenderItem.h"
+#include "scene/ReflectionProbe.h"
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -21,6 +23,9 @@ namespace
     constexpr float kDefaultPbrMetallicValue = 0.0f;
     constexpr float kDefaultPbrRoughnessValue = 0.5f;
     constexpr glm::vec3 kDefaultPbrEmissiveColor(0.0f, 0.0f, 0.0f);
+    constexpr uint32_t kMaterialTextureSlotBindCount = 7;
+    constexpr uint32_t kEnvironmentTextureSlotBindCount = 4;
+    constexpr uint32_t kShadowTextureBindCount = 1;
 
     void SetOptionalIntUniform(GLuint programId, const char *name, int value)
     {
@@ -43,6 +48,78 @@ namespace
             glUniform3f(location, value.x, value.y, value.z);
     }
 
+    bool IsCubemapPresent(const std::shared_ptr<TextureCubemap>& texture)
+    {
+        return texture && texture->IsValid();
+    }
+
+    bool IsTexture2DPresent(const std::shared_ptr<Texture2D>& texture)
+    {
+        return texture && texture->IsValid();
+    }
+
+    void BindEnvironmentResources(const ShaderProgram &shader,
+                                  const ReflectionProbe *probe,
+                                  IBLDebugMode debugMode,
+                                  float debugPrefilteredMip)
+    {
+        const GLuint programId = shader.GetID();
+        if (programId == 0)
+            return;
+
+        const bool hasSource = probe && IsCubemapPresent(probe->sourceCubemap);
+        const bool hasIrradiance = probe && IsCubemapPresent(probe->irradianceCubemap);
+        const bool hasPrefiltered = probe && IsCubemapPresent(probe->prefilteredCubemap);
+        const bool hasBrdfLut = probe && IsTexture2DPresent(probe->brdfLut);
+        const bool hasIbl = hasIrradiance || (hasPrefiltered && hasBrdfLut);
+        const float prefilteredMaxMip = hasPrefiltered
+            ? static_cast<float>(std::max(probe->prefilteredCubemap->GetMipLevels() - 1, 0))
+            : 0.0f;
+
+        if (hasSource)
+            probe->sourceCubemap->Bind(EnvironmentTextureUnit::Source);
+        else
+            TextureCubemap::Unbind(EnvironmentTextureUnit::Source);
+
+        if (hasIrradiance)
+            probe->irradianceCubemap->Bind(EnvironmentTextureUnit::Irradiance);
+        else
+            TextureCubemap::Unbind(EnvironmentTextureUnit::Irradiance);
+
+        if (hasPrefiltered)
+            probe->prefilteredCubemap->Bind(EnvironmentTextureUnit::Prefiltered);
+        else
+            TextureCubemap::Unbind(EnvironmentTextureUnit::Prefiltered);
+
+        if (hasBrdfLut)
+            probe->brdfLut->Bind(EnvironmentTextureUnit::BrdfLut);
+        else
+            Texture2D::Unbind(EnvironmentTextureUnit::BrdfLut);
+
+        SetOptionalIntUniform(programId, EnvironmentTextureSlot::Source, EnvironmentTextureUnit::Source);
+        SetOptionalIntUniform(programId, EnvironmentTextureSlot::Irradiance, EnvironmentTextureUnit::Irradiance);
+        SetOptionalIntUniform(programId, EnvironmentTextureSlot::Prefiltered, EnvironmentTextureUnit::Prefiltered);
+        SetOptionalIntUniform(programId, EnvironmentTextureSlot::BrdfLut, EnvironmentTextureUnit::BrdfLut);
+        SetOptionalIntUniform(programId, "u_HasSourceEnvironmentMap", hasSource ? 1 : 0);
+        SetOptionalIntUniform(programId, "u_HasIrradianceMap", hasIrradiance ? 1 : 0);
+        SetOptionalIntUniform(programId, "u_HasPrefilteredMap", hasPrefiltered ? 1 : 0);
+        SetOptionalIntUniform(programId, "u_HasBRDFLUT", hasBrdfLut ? 1 : 0);
+        SetOptionalIntUniform(programId, "u_HasIBL", hasIbl ? 1 : 0);
+        SetOptionalFloatUniform(programId, "u_IBLIntensity", (probe && (hasIbl || hasSource)) ? probe->intensity : 0.0f);
+        SetOptionalFloatUniform(programId, "u_PrefilteredMaxMip", prefilteredMaxMip);
+        SetOptionalIntUniform(programId, "u_IBLDebugMode", ToUniformValue(debugMode));
+        SetOptionalFloatUniform(programId, "u_IBLDebugPrefilteredMip", debugPrefilteredMip);
+
+        const glm::vec3 position = probe ? probe->position : glm::vec3(0.0f);
+        const glm::vec3 boxMin = probe ? probe->boxMin : glm::vec3(0.0f);
+        const glm::vec3 boxMax = probe ? probe->boxMax : glm::vec3(0.0f);
+        SetOptionalVec3Uniform(programId, "u_ProbePosition", position);
+        SetOptionalFloatUniform(programId, "u_ProbeRadius", probe ? probe->radius : 0.0f);
+        SetOptionalVec3Uniform(programId, "u_ProbeBoxMin", boxMin);
+        SetOptionalVec3Uniform(programId, "u_ProbeBoxMax", boxMax);
+        SetOptionalIntUniform(programId, "u_ProbeInfluenceType", probe ? static_cast<int>(probe->influenceType) : 0);
+    }
+
     void ApplyPbrFallbackUniformDefaults(const ShaderProgram &shader)
     {
         const GLuint programId = shader.GetID();
@@ -57,10 +134,26 @@ namespace
         SetOptionalIntUniform(programId, TextureSlot::Emissive, MaterialTextureUnit::Emissive);
         SetOptionalIntUniform(programId, TextureSlot::SpecularGlossiness, MaterialTextureUnit::SpecularGlossiness);
         SetOptionalIntUniform(programId, "u_CascadeShadowMaps", 7);
+        SetOptionalIntUniform(programId, EnvironmentTextureSlot::Source, EnvironmentTextureUnit::Source);
+        SetOptionalIntUniform(programId, EnvironmentTextureSlot::Irradiance, EnvironmentTextureUnit::Irradiance);
+        SetOptionalIntUniform(programId, EnvironmentTextureSlot::Prefiltered, EnvironmentTextureUnit::Prefiltered);
+        SetOptionalIntUniform(programId, EnvironmentTextureSlot::BrdfLut, EnvironmentTextureUnit::BrdfLut);
+        SetOptionalIntUniform(programId, "u_HasSourceEnvironmentMap", 0);
+        SetOptionalIntUniform(programId, "u_IBLDebugMode", ToUniformValue(kDefaultIBLDebugMode));
+        SetOptionalFloatUniform(programId, "u_IBLDebugPrefilteredMip", 0.0f);
+        SetOptionalFloatUniform(programId, "u_PrefilteredMaxMip", 0.0f);
         SetOptionalVec3Uniform(programId, "u_AlbedoColor", kDefaultPbrAlbedoColor);
         SetOptionalFloatUniform(programId, "u_MetallicValue", kDefaultPbrMetallicValue);
         SetOptionalFloatUniform(programId, "u_RoughnessValue", kDefaultPbrRoughnessValue);
         SetOptionalVec3Uniform(programId, "u_EmissiveColor", kDefaultPbrEmissiveColor);
+        SetOptionalFloatUniform(programId, "u_EmissiveStrength", 1.0f);
+        SetOptionalFloatUniform(programId, "u_AoStrength", 1.0f);
+        SetOptionalFloatUniform(programId, "u_NormalScale", 1.0f);
+        SetOptionalFloatUniform(programId, "u_FlipNormalMapY", 0.0f);
+        SetOptionalVec3Uniform(programId, "u_SpecularFactor", glm::vec3(1.0f));
+        SetOptionalFloatUniform(programId, "u_GlossinessFactor", 1.0f);
+        SetOptionalIntUniform(programId, "u_IsSpecularGlossiness", 0);
+        SetOptionalIntUniform(programId, "u_UseNormalMap", 1);
         SetOptionalIntUniform(programId, "u_HasAlbedoMap", 0);
         SetOptionalIntUniform(programId, "u_HasNormalMap", 0);
         SetOptionalIntUniform(programId, "u_HasMetallicMap", 0);
@@ -148,21 +241,86 @@ void RenderQueue::SetErrorShader(const ShaderProgram *shader)
     m_errorShader = shader;
 }
 
+void RenderQueue::SetEnvironmentData(const ReflectionProbe *probe)
+{
+    m_activeReflectionProbe = probe;
+}
+
+void RenderQueue::SetIBLDebugState(IBLDebugMode mode, float prefilteredMipLevel)
+{
+    m_iblDebugMode = mode;
+    m_iblDebugPrefilteredMip = prefilteredMipLevel;
+}
+
+void RenderQueue::SetLightingDebugControls(float ambientFloorStrength, float maxShadowOcclusion)
+{
+    m_ambientFloorStrength = std::max(0.0f, ambientFloorStrength);
+    m_maxShadowOcclusion = std::clamp(maxShadowOcclusion, 0.0f, 1.0f);
+}
+
 void RenderQueue::Sort()
 {
-    // Sort by the resolved shader pointer to minimise program switches.
+    // Multi-key sort to minimize state changes:
+    // 1. Shader: ResolvedShader() pointer (minimize expensive program switches)
+    // 2. Material: material pointer (minimize texture and material parameter switches)
+    // 3. Mesh Buffer: meshMulti or mesh pointer (minimize VAO switches)
+    // 4. SubMesh: subMeshIndex (minimize submesh switches within the same mesh)
+    // 5. Draw Mode: drawMode (minimize rasterizer state changes)
+    // 6. Topology: topology (minimize primitive type changes)
     std::sort(m_items.begin(), m_items.end(),
               [](const RenderItem &a, const RenderItem &b)
               {
+                  // 1. Shader program (highest priority)
                   const ShaderProgram *sa = a.ResolvedShader();
                   const ShaderProgram *sb = b.ResolvedShader();
-                  if (!sa && !sb)
-                      return false;
-                  if (!sa)
-                      return false;
-                  if (!sb)
-                      return true;
-                  return sa < sb;
+                  if (sa != sb)
+                  {
+                      if (!sa) return false;
+                      if (!sb) return true;
+                      return sa < sb;
+                  }
+
+                  // 2. Material
+                  if (a.material != b.material)
+                  {
+                      if (!a.material) return false;
+                      if (!b.material) return true;
+                      return a.material < b.material;
+                  }
+
+                  // 3. Mesh (either meshMulti or mesh)
+                  if (a.meshMulti != b.meshMulti)
+                  {
+                      if (!a.meshMulti) return false;
+                      if (!b.meshMulti) return true;
+                      return a.meshMulti < b.meshMulti;
+                  }
+                  if (a.mesh != b.mesh)
+                  {
+                      if (!a.mesh) return false;
+                      if (!b.mesh) return true;
+                      return a.mesh < b.mesh;
+                  }
+
+                  // 4. Submesh index
+                  if (a.subMeshIndex != b.subMeshIndex)
+                  {
+                      return a.subMeshIndex < b.subMeshIndex;
+                  }
+
+                  // 5. Draw mode
+                  if (a.drawMode != b.drawMode)
+                  {
+                      return static_cast<int>(a.drawMode) < static_cast<int>(b.drawMode);
+                  }
+
+                  // 6. Topology
+                  if (a.topology != b.topology)
+                  {
+                      return static_cast<int>(a.topology) < static_cast<int>(b.topology);
+                  }
+
+                  return false;
               });
 }
 
@@ -199,9 +357,20 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
             // Material path: bind full material (shader + textures + params).
             if (item.material != lastMaterial)
             {
+                const ShaderProgram *materialShader = item.material->GetShader();
+                ++stats.materialChangeCount;
+                if (materialShader && materialShader != lastShader)
+                    ++stats.shaderProgramChangeCount;
+                stats.textureBindingCount += kMaterialTextureSlotBindCount + kEnvironmentTextureSlotBindCount;
+
                 item.material->Bind();
+                if (const ShaderProgram *shader = materialShader)
+                    BindEnvironmentResources(*shader,
+                                             m_activeReflectionProbe,
+                                             m_iblDebugMode,
+                                             m_iblDebugPrefilteredMip);
                 lastMaterial = item.material;
-                lastShader = item.material->GetShader();
+                lastShader = materialShader;
             }
         }
         else
@@ -209,6 +378,9 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
             // Legacy shader-only path.
             if (item.shader != lastShader)
             {
+                ++stats.shaderProgramChangeCount;
+                stats.textureBindingCount += kMaterialTextureSlotBindCount + kEnvironmentTextureSlotBindCount;
+
                 item.shader->Bind();
                 ApplyPbrFallbackUniformDefaults(*item.shader);
                 Texture2D::Unbind(MaterialTextureUnit::Albedo);
@@ -218,6 +390,10 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
                 Texture2D::Unbind(MaterialTextureUnit::AO);
                 Texture2D::Unbind(MaterialTextureUnit::Emissive);
                 Texture2D::Unbind(MaterialTextureUnit::SpecularGlossiness);
+                BindEnvironmentResources(*item.shader,
+                                         m_activeReflectionProbe,
+                                         m_iblDebugMode,
+                                         m_iblDebugPrefilteredMip);
                 lastShader = item.shader;
                 lastMaterial = nullptr;
             }
@@ -242,7 +418,9 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
 
             activeShader->SetUniform("u_Model", model);
 
-            activeShader->SetUniform("u_ReceiveShadow", item.flags.receiveShadow ? 1 : 0);
+            activeShader->SetUniform("u_ReceiveShadow", (item.flags.receiveShadow && m_hasShadowData) ? 1 : 0);
+            activeShader->SetUniform("u_AmbientFloorStrength", m_ambientFloorStrength);
+            activeShader->SetUniform("u_MaxShadowOcclusion", m_maxShadowOcclusion);
 
             // ── Cascaded shadow data (directional light only) ─────────────
             if (m_hasShadowData)
@@ -262,6 +440,7 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
                 activeShader->SetUniform("u_CascadeShadowMaps", 7);
                 activeShader->SetUniform("u_PCFRadius", m_pcfRadius);
                 glActiveTexture(GL_TEXTURE0);
+                stats.textureBindingCount += kShadowTextureBindCount;
             }
         }
 
@@ -301,6 +480,7 @@ RenderQueueFrameStats RenderQueue::Flush(SubmissionContext & /*current*/)
 void RenderQueue::Clear()
 {
     m_items.clear();
+    m_activeReflectionProbe = nullptr;
 }
 
 bool RenderQueue::IsEmpty() const

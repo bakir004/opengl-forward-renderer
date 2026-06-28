@@ -1,12 +1,12 @@
 #pragma once
 #include <cstddef>
 #include <vector>
+#include "core/IBLDebugMode.h"
 
 class Scene;
 class Renderer;
 class MouseInput;
 struct RendererDebugStats;
-struct AssetCacheStats;
 struct FrameSubmission;
 
 /// Sidebar tab indices — keep in sync with kTabLabels in RendererUI.cpp.
@@ -15,7 +15,9 @@ enum class UITab : int {
     Lights = 1,
     Materials = 2,
     Shadow = 3,
-    Stats = 4,
+    PostFX = 4,
+    Stats = 5,
+    Terrain = 6,  ///< Only shown when the active scene returns HasTerrainTab() == true
 };
 
 class RendererUI {
@@ -53,12 +55,18 @@ public:
     int   tonemapOperator       = 1;   // 0=Reinhard, 1=ACES, 2=Uncharted2
     float exposure              = 1.0f;
     bool  bloomEnabled          = true;
-    float bloomStrength         = 1.0f;
+    float bloomStrength         = 0.25f;
     float bloomThreshold        = 1.0f;
     bool  bloomSoftThreshold    = true;
-    float bloomSoftKnee         = 0.15f;
-    int   bloomBlurIterations   = 10;
+    float bloomSoftKnee         = 0.0f;
+    float bloomRadius           = 0.1f;
+    int   bloomBlurIterations   = 4;
     int   postFxDebugView       = 0;   // 0=Final, 1=HDR only, 2=Bright-pass, 3=Blurred bloom, 4=No bloom
+    IBLDebugMode iblDebugMode = kDefaultIBLDebugMode;
+    float iblDebugPrefilteredMip = 0.0f;
+    float ambientFloorStrength = 0.18f;
+    float maxShadowOcclusion = 0.75f;
+    bool frustumCullingEnabled = true;
     bool showHelpWindow = false;
     bool showSidebar = true;
 
@@ -106,8 +114,11 @@ private:
 
     void DrawTabShadow(Scene &scene, const RendererDebugStats &stats);
 
-    void DrawTabStats(Scene &scene, const RendererDebugStats &stats,
-                      const AssetCacheStats &cacheStats);
+    void DrawTabPostFX(Scene &scene, const RendererDebugStats &stats);
+
+    void DrawTabStats(Scene &scene, const RendererDebugStats &stats);
+
+    void DrawTabTerrain(Scene &scene);
 
     void DrawHelpWindow(int fbWidth, int fbHeight);
 };

@@ -1,4 +1,6 @@
 #include "core/Material.h"
+#include "core/IBLDebugMode.h"
+#include "scene/ReflectionProbe.h"
 #include "core/ShaderProgram.h"
 #include "core/Texture2D.h"
 #include <glad/glad.h>
@@ -121,6 +123,19 @@ void ApplyPbrFallbackUniformDefaults(const ShaderProgram& shader)
     SetOptionalIntUniform(programId, TextureSlot::Emissive, MaterialTextureUnit::Emissive);
     SetOptionalIntUniform(programId, TextureSlot::SpecularGlossiness, MaterialTextureUnit::SpecularGlossiness);
     SetOptionalIntUniform(programId, "u_CascadeShadowMaps", 7);
+    SetOptionalIntUniform(programId, EnvironmentTextureSlot::Source, EnvironmentTextureUnit::Source);
+    SetOptionalIntUniform(programId,  EnvironmentTextureSlot::Irradiance, EnvironmentTextureUnit::Irradiance);
+    SetOptionalIntUniform(programId, EnvironmentTextureSlot::Prefiltered, EnvironmentTextureUnit::Prefiltered);
+    SetOptionalIntUniform(programId, EnvironmentTextureSlot::BrdfLut, EnvironmentTextureUnit::BrdfLut);
+    SetOptionalIntUniform(programId, "u_HasSourceEnvironmentMap", 0);
+    SetOptionalIntUniform(programId, "u_HasIrradianceMap", 0);
+    SetOptionalIntUniform(programId, "u_HasPrefilteredMap", 0);
+    SetOptionalIntUniform(programId, "u_HasBRDFLUT", 0);
+    SetOptionalIntUniform(programId, "u_HasIBL", 0);
+    SetOptionalFloatUniform(programId, "u_IBLIntensity",   0.0f);
+    SetOptionalFloatUniform(programId, "u_PrefilteredMaxMip", 0.0f);
+    SetOptionalIntUniform(programId, "u_IBLDebugMode", ToUniformValue(kDefaultIBLDebugMode));
+    SetOptionalFloatUniform(programId, "u_IBLDebugPrefilteredMip", 0.0f);
     SetOptionalVec3Uniform(programId, "u_AlbedoColor", kDefaultPbrAlbedoColor);
     SetOptionalFloatUniform(programId, "u_MetallicValue", kDefaultPbrMetallicValue);
     SetOptionalFloatUniform(programId, "u_RoughnessValue", kDefaultPbrRoughnessValue);
@@ -128,6 +143,10 @@ void ApplyPbrFallbackUniformDefaults(const ShaderProgram& shader)
     SetOptionalFloatUniform(programId, "u_EmissiveStrength", 1.0f);
     SetOptionalFloatUniform(programId, "u_AoStrength", 1.0f);
     SetOptionalFloatUniform(programId, "u_NormalScale", 1.0f);
+    SetOptionalFloatUniform(programId, "u_FlipNormalMapY", 0.0f);
+    SetOptionalVec3Uniform(programId, "u_SpecularFactor", glm::vec3(1.0f));
+    SetOptionalFloatUniform(programId, "u_GlossinessFactor", 1.0f);
+    SetOptionalIntUniform(programId, "u_IsSpecularGlossiness", 0);
     SetOptionalIntUniform(programId, "u_UseNormalMap", 1);
     SetOptionalIntUniform(programId, "u_HasAlbedoMap", 0);
     SetOptionalIntUniform(programId, "u_HasNormalMap", 0);

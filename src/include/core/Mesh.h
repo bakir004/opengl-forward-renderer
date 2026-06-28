@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/AABB.h"
 #include "core/MeshData.h"
 #include "core/SubMesh.h"
 #include <cstdint>
@@ -26,6 +27,12 @@ public:
     /// Draws one submesh. Caller binds shader and material first.
     void DrawSubMesh(uint32_t index) const;
 
+    /// Configures a mat4 instance transform stored in vertex attributes 6..9.
+    void SetInstanceTransformBuffer(uint32_t bufferId) const;
+
+    /// Draws one submesh using the configured instance transform buffer.
+    void DrawSubMeshInstanced(uint32_t index, uint32_t instanceCount) const;
+
     /// Draws all submeshes in order.
     void DrawAll() const;
 
@@ -35,6 +42,8 @@ public:
     [[nodiscard]] uint32_t           IndexCount()       const;
     [[nodiscard]] bool               IsValid()          const;
     [[nodiscard]] const std::string& GetName()          const;
+    [[nodiscard]] AABB               GetLocalBounds()   const;
+    [[nodiscard]] AABB               GetSubMeshBounds(uint32_t index) const;
 
 private:
     struct Impl;

@@ -1,10 +1,23 @@
-// Primitives.cpp
 #include "core/Primitives.h"
 
 #include <spdlog/spdlog.h>
 #include <glm/glm.hpp>
 #include <algorithm>
 #include <cmath>
+#include <limits>
+
+namespace
+{
+
+AABB ComputePrimitiveBounds(const PrimitiveMeshData& mesh)
+{
+    AABB bounds = AABB::Empty();
+    for (const VertexPC& vertex : mesh.vertices)
+        bounds.Expand(vertex.position);
+    return bounds;
+}
+
+} // namespace
 
 // ─── PrimitiveMeshData helpers ────────────────────────────────────────────────
 
@@ -30,7 +43,7 @@ MeshBuffer PrimitiveMeshData::CreateMeshBuffer(GLenum usage) const {
     if (vertices.empty())
         spdlog::error("[Primitives] CreateMeshBuffer() called on empty PrimitiveMeshData");
 
-    return MeshBuffer(
+    MeshBuffer buffer(
         vertices.empty() ? nullptr : vertices.data(),
         GetVertexBufferSize(),
         GetVertexCount(),
@@ -38,6 +51,8 @@ MeshBuffer PrimitiveMeshData::CreateMeshBuffer(GLenum usage) const {
         GetIndexCount(),
         CreateLayout(),
         usage);
+    buffer.SetLocalBounds(ComputePrimitiveBounds(*this));
+    return buffer;
 }
 
 // ─── Internal colour helpers ──────────────────────────────────────────────────

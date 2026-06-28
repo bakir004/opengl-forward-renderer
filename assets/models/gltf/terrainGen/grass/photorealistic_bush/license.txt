@@ -1,0 +1,11 @@
+Model Information:
+* title:	Photorealistic Bush
+* source:	https://sketchfab.com/3d-models/photorealistic-bush-8db54bf299954daa9ee29b233e923672
+* author:	Adrian Sheremet (https://sketchfab.com/adriansheremet)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Photorealistic Bush" (https://sketchfab.com/3d-models/photorealistic-bush-8db54bf299954daa9ee29b233e923672) by Adrian Sheremet (https://sketchfab.com/adriansheremet) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

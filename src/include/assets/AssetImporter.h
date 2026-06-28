@@ -20,11 +20,12 @@ struct SamplerDesc;
 struct AssetCacheStats {
     std::size_t shaderCount   = 0;
     std::size_t textureCount  = 0;
+    std::size_t cubemapCount  = 0;
     std::size_t meshCount     = 0;
     std::size_t materialCount = 0;
 
     [[nodiscard]] std::size_t TotalCount() const {
-        return shaderCount + textureCount + meshCount + materialCount;
+        return shaderCount + textureCount + cubemapCount + meshCount + materialCount;
     }
 };
 

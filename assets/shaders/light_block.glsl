@@ -2,8 +2,7 @@
 // Include in every lit vertex/fragment shader with:
 //   #include "light_block.glsl"
 //
-// Binding 0 is reserved for CameraBlock (Camera.h / basic.vert).
-// Binding 1 is this block — the per-frame light payload.
+// The application maps this block to UBO binding point 1 after linking.
 //
 // Sizes (std140):
 //   GpuDirectionalLight  48 bytes
@@ -50,7 +49,7 @@ struct GpuSpotLight {
     float _pad2;
 };
 
-layout(std140, binding = 1) uniform LightBlock {
+layout(std140) uniform LightBlock {
     vec3  u_AmbientColor;
     float u_AmbientIntensity;
 

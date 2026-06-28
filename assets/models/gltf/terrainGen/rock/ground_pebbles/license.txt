@@ -1,0 +1,11 @@
+Model Information:
+* title:	Ground Pebbles
+* source:	https://sketchfab.com/3d-models/ground-pebbles-4caf4887845f4e04bcf68bc3df36afe9
+* author:	Kallvin (https://sketchfab.com/Kallvin)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Ground Pebbles" (https://sketchfab.com/3d-models/ground-pebbles-4caf4887845f4e04bcf68bc3df36afe9) by Kallvin (https://sketchfab.com/Kallvin) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
